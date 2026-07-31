@@ -9,7 +9,8 @@ dir.create(fig_dir, recursive = TRUE, showWarnings = FALSE)
 
 feats4 <- c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width")
 iris2 <- iris[iris$Species != "setosa", ]
-lv2 <- c("versicolor", "virginica")
+# Must match README Quick start (compare_two_groups + estimate_significance).
+lv2 <- c("virginica", "versicolor")
 
 res <- compare_two_groups(
   data = iris2, feats = feats4, group = iris2$Species, group_lv = lv2
@@ -35,7 +36,7 @@ dev.off()
 
 png(file.path(fig_dir, "README-volcano.png"), width = 700, height = 650, res = 110)
 invisible(draw_volcano_plot(
-  sig, main = "Virginica vs versicolor (Welch t-test)"
+  sig, main = "Virginica vs versicolor"
 ))
 dev.off()
 

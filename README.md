@@ -6,7 +6,7 @@ Dependencies are limited to base R (`stats`, `graphics`, `grDevices`).
 
 ## Example
 
-Two-group comparison on `iris` (versicolor vs virginica), then significance filtering and a volcano plot:
+The volcano plot below is exactly what **Quick start §1–2** produce on `iris` (setosa removed): `group_lv = c("virginica", "versicolor")`, so positive `log2fc` means higher in virginica.
 
 ![Volcano plot from compare_two_groups and estimate_significance](man/figures/README-volcano.png)
 
