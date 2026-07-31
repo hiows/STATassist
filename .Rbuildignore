@@ -5,5 +5,5 @@
 ^\.zenodo\.json$
 ^\.git$
 ^\.gitignore$
-^README\.md$
 ^cran-comments\.md$
+^tools/
