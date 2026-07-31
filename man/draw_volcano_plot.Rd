@@ -5,12 +5,10 @@
 \title{Draw a volcano plot}
 \usage{
 draw_volcano_plot(
-  feats,
-  log2fc,
-  pvalue,
-  is_adj_pvalue = TRUE,
-  log2fc_cutoff = 1,
-  pval_cutoff = 0.05,
+  x,
+  use_adjusted = TRUE,
+  log2fc_cutoff = NULL,
+  pval_cutoff = NULL,
   anno_feats = TRUE,
   anno_top = 10,
   cex.anno = 1,
@@ -25,23 +23,18 @@ draw_volcano_plot(
 )
 }
 \arguments{
-\item{feats}{Character vector of feature names, used for the labels. One
-point per entry.}
+\item{x}{The data.frame returned by \code{\link[=estimate_significance]{estimate_significance()}}.}
 
-\item{log2fc}{Numeric vector of log2 fold changes, one per feature.}
+\item{use_adjusted}{Logical. If \code{TRUE}, plot and threshold the \code{adj_pvalue}
+column; if \code{FALSE}, use the unadjusted \code{pvalue} column. The axis label
+follows, so the y axis always describes what was actually plotted.}
 
-\item{pvalue}{Numeric vector of p-values, one per feature. Pass whichever
-p-values the cutoff should apply to, adjusted or not.}
-
-\item{is_adj_pvalue}{Logical. Only decides whether the y axis is labelled as
-adjusted; it does not change what is plotted or which points are called
-significant. Set it to match what \code{pvalue} actually holds.}
-
-\item{log2fc_cutoff}{Minimum \code{abs(log2fc)} for a point to count as changed.
-Drawn as a pair of vertical guides.}
-
-\item{pval_cutoff}{Largest \code{pvalue} for a point to count as significant.
-Drawn as a horizontal guide.}
+\item{log2fc_cutoff, pval_cutoff}{Cutoffs for calling a feature changed and
+significant, drawn as guides. \code{NULL}, the default, takes the values
+\code{\link[=estimate_significance]{estimate_significance()}} recorded on \code{x}, so the guides agree with its
+\code{is_signif} column. Supply a number to override them. Selecting a subset of
+rows keeps the recorded values, but selecting columns drops them, in which
+case both must be given.}
 
 \item{anno_feats}{Logical. If \code{TRUE}, label the strongest significant
 features.}
@@ -67,7 +60,8 @@ the axis annotation and the title.}
 \code{NULL} invisibly.
 }
 \description{
-Plots \code{log2fc} against \code{-log10(pvalue)}, colours the features that clear both
+Plots \code{log2fc} against \code{-log10(pvalue)} for the table
+\code{\link[=estimate_significance]{estimate_significance()}} returns, colours the features that clear both
 cutoffs by direction and labels the strongest of them.
 }
 \details{
@@ -75,46 +69,40 @@ The plot margins are restored on exit, but the coordinate system is
 deliberately left in place, so \code{\link[graphics:points]{graphics::points()}}, \code{\link[graphics:text]{graphics::text()}} and
 friends can still be used to add to the finished plot.
 
-A p-value of exactly zero, which the Brunner-Munzel and permutation-style
-tests do produce, has no finite \code{-log10()}. Rather than dropping the most
-significant points or letting an infinite axis limit blank the plot, the axis
-is scaled to the largest finite value and those points are drawn at the top of
-it. Non-finite \code{log2fc}, which \code{\link[=calculate_fold_change]{calculate_fold_change()}} returns when a group
-mean is zero, is capped at the edge of the x axis the same way. Either kind of
-capping is reported in a \code{message()}, since a capped point no longer sits at
-its true coordinate.
+A p-value of exactly zero has no finite \code{-log10()}. Rather than dropping the
+most significant points or letting an infinite axis limit blank the plot, the
+axis is scaled to the largest finite value and those points are drawn at the
+top of it. Non-finite \code{log2fc}, which \code{\link[=compare_two_groups]{compare_two_groups()}} produces when a
+group centre is zero, is capped at the edge of the x axis the same way. Either
+kind of capping is reported in a \code{message()}, since a capped point no longer
+sits at its true coordinate.
 
 Points are coloured by the same masks that select the labels, so which
-features are highlighted and which are labelled can never disagree. The
+features are highlighted and which are labelled can never disagree. With the
+default arguments those masks reproduce the \code{is_signif} column of \code{x}. The
 labels are drawn in a brighter shade than the points on purpose, so that a
 label stays legible where it overlaps them.
 }
 \examples{
 iris2 <- iris[iris$Species != "setosa", ]
-feats <- c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width")
-lv <- c("versicolor", "virginica")
-
-fc <- calculate_fold_change(iris2, feats, iris2$Species, lv,
-                            case_label = "virginica")
-pv <- compare_two_groups(iris2, feats, iris2$Species,
-                         lv)$test_results$t_test$pval
-sig <- evaluate_significance(feats, fc, pv, log2fc_cutoff = 0.1)
-
-draw_volcano_plot(
-  feats         = sig$features,
-  log2fc        = sig$log2fc,
-  pvalue        = sig$adj_pvalue,
-  log2fc_cutoff = 0.1,
-  main          = "virginica vs versicolor"
+res <- compare_two_groups(
+  data     = iris2,
+  feats    = c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width"),
+  group    = iris2$Species,
+  group_lv = c("virginica", "versicolor")
 )
+sig <- estimate_significance(res, log2fc_cutoff = 0.1)
+
+draw_volcano_plot(sig, main = "virginica vs versicolor")
 
 ## Unadjusted p-values, no labels
-draw_volcano_plot(sig$features, sig$log2fc, sig$pvalue,
-                  is_adj_pvalue = FALSE, log2fc_cutoff = 0.1,
-                  anno_feats = FALSE)
+draw_volcano_plot(sig, use_adjusted = FALSE, anno_feats = FALSE)
+
+## A cutoff other than the one the verdict used
+draw_volcano_plot(sig, log2fc_cutoff = 0.3)
 
 }
 \seealso{
-\code{\link[=evaluate_significance]{evaluate_significance()}}, whose output supplies every argument here,
-and \code{\link[=calculate_fold_change]{calculate_fold_change()}}.
+\code{\link[=estimate_significance]{estimate_significance()}}, whose output is the only argument this
+function needs.
 }

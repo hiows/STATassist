@@ -107,13 +107,18 @@ draw_grouped_boxplot <- function(data,
             " row(s) belonging to a level outside `group_lv`.")
   }
 
-  wide <- data[feats]
-  wide$.grp <- group
-  data_long <- tidyr::pivot_longer(data = wide, cols = tidyr::all_of(feats))
-  data_long$name <- factor(data_long$name, levels = feats)
+  # One vector per feature and group level, the group levels consecutive within
+  # each feature so the order matches the layout of `at`. Handing boxplot() the
+  # list directly replaces a reshape to long format, which was the only reason
+  # this package ever needed the `.grp`, `name` and `value` column names.
+  boxes <- unlist(
+    lapply(feats, function(f) {
+      lapply(group_lv, function(lv) data[[f]][group == lv])
+    }),
+    recursive = FALSE,
+    use.names = FALSE
+  )
 
-  # split() varies the first factor fastest, so `value ~ .grp + name` yields the
-  # group levels consecutively within each feature, matching the layout of `at`.
   at <- lapply(seq_len(n_feats), function(i) {
     start <- (i - 1) * (n_lv + gap)
     start + seq_len(n_lv)
@@ -145,14 +150,13 @@ draw_grouped_boxplot <- function(data,
     grid_col <- "gray40"
   }
 
-  cols <- colorspace::qualitative_hcl(n_lv, "Dark2")
+  cols <- grDevices::hcl.colors(n_lv, "Dark 2")
 
   # Drawn twice with the grid in between so the grid sits behind the boxes. One
   # closure keeps the two calls from drifting apart.
   draw_boxes <- function(add) {
     graphics::boxplot(
-      value ~ .grp + name,
-      data     = data_long,
+      boxes,
       at       = unlist(at),
       xlab     = xlab,
       ylab     = ylab,

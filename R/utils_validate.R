@@ -72,20 +72,6 @@ sa_validate_wide_input <- function(data,
          paste(non_numeric, collapse = ", "), call. = FALSE)
   }
 
-  # Reshaping adds a `.grp` column and pivots `feats` into `name` / `value`, so
-  # `.grp` may not appear at all and a carried-along column may not take the
-  # two pivot names.
-  if (".grp" %in% names(data)) {
-    stop("`data` must not have a column named `.grp`; STATassist uses that ",
-         "name internally. Rename it before calling.", call. = FALSE)
-  }
-  clash <- intersect(c("name", "value"), setdiff(names(data), feats))
-  if (length(clash) > 0L) {
-    stop("`data` uses column name(s) reserved by STATassist while reshaping: ",
-         paste(clash, collapse = ", "),
-         ". Rename or drop them before calling.", call. = FALSE)
-  }
-
   if (length(group) != nrow(data)) {
     stop("`group` must have one entry per row of `data`: got ",
          length(group), " for ", nrow(data), " rows.", call. = FALSE)
@@ -173,6 +159,24 @@ sa_check_scalar_num <- function(x,
     stop("`", arg, "` must be in ",
          if (lower_open) "(" else "[", lower, ", ", upper,
          if (upper_open) ")" else "]", ", but is ", x, ".", call. = FALSE)
+  }
+  invisible(x)
+}
+
+
+#' Check a multiplicity adjustment method
+#'
+#' Validated against [stats::p.adjust.methods] rather than a hand-written list of
+#' choices. A `match.arg()` list once carried a misspelled entry that got through
+#' here and was rejected by [stats::p.adjust()] much later.
+#'
+#' @keywords internal
+#' @noRd
+sa_check_p_adjust <- function(x, arg) {
+  if (!is.character(x) || length(x) != 1L || is.na(x) ||
+      !x %in% stats::p.adjust.methods) {
+    stop("`", arg, "` must be one of: ",
+         paste(stats::p.adjust.methods, collapse = ", "), ".", call. = FALSE)
   }
   invisible(x)
 }
@@ -272,48 +276,6 @@ sa_pair_by_id <- function(id, group, group_lv) {
 }
 
 
-#' Line a per-feature vector up with `feats`
-#'
-#' The volcano workflow passes features, fold changes and p-values as separate
-#' vectors, so nothing but position ties them together. When the vector carries
-#' names, as [calculate_fold_change()] output does, they are used to reorder it
-#' onto `feats`; a name that does not appear in `feats` is an error rather than
-#' a silently mismatched row.
-#'
-#' @return `x` stripped of names and ordered to match `feats`.
-#'
-#' @keywords internal
-#' @noRd
-sa_align_to_feats <- function(x, feats, arg) {
-  if (!is.numeric(x)) {
-    stop("`", arg, "` must be a numeric vector.", call. = FALSE)
-  }
-  if (length(x) != length(feats)) {
-    stop("`", arg, "` must have one value per feature: got ", length(x),
-         " for ", length(feats), " feature(s).", call. = FALSE)
-  }
-
-  nms <- names(x)
-  if (is.null(nms)) {
-    return(unname(x))
-  }
-  if (anyNA(nms) || !setequal(nms, feats)) {
-    only_x <- setdiff(nms, feats)
-    only_f <- setdiff(feats, nms)
-    stop("names(`", arg, "`) do not match `feats`, so the values cannot be ",
-         "lined up.",
-         if (length(only_x) > 0L) {
-           paste0(" Only in `", arg, "`: ", paste(only_x, collapse = ", "), ".")
-         },
-         if (length(only_f) > 0L) {
-           paste0(" Only in `feats`: ", paste(only_f, collapse = ", "), ".")
-         },
-         " Drop the names to pair by position instead.", call. = FALSE)
-  }
-  unname(x[match(feats, nms)])
-}
-
-
 #' Check a vector of p-values
 #'
 #' @keywords internal
@@ -330,44 +292,6 @@ sa_check_pvalues <- function(pvalue, arg = "pvalue") {
 }
 
 
-#' Run a scalar computation across all features
-#'
-#' The vector counterpart of `sa_feature_table()`: one unusable feature must not
-#' abort a scan over hundreds of them, so it becomes `NA_real_` and every
-#' failure is reported together in a single warning.
-#'
-#' @param feats Feature names, used to name the result and to label failures.
-#' @param label Human readable name of the quantity, used in the warning text.
-#' @param fun Function of the feature index returning a length-one numeric.
-#'
-#' @return Numeric vector named by `feats`.
-#'
-#' @keywords internal
-#' @noRd
-sa_feature_scalar <- function(feats, label, fun) {
-  failures <- character(0)
-
-  out <- vapply(seq_along(feats), function(i) {
-    tryCatch(
-      as.numeric(fun(i))[1],
-      error = function(e) {
-        failures[[feats[i]]] <<- conditionMessage(e)
-        NA_real_
-      }
-    )
-  }, numeric(1))
-
-  if (length(failures) > 0L) {
-    warning(label, " could not be computed for ", length(failures), " of ",
-            length(feats), " feature(s); those entries are NA:\n",
-            paste0("  ", names(failures), ": ", failures, collapse = "\n"),
-            call. = FALSE)
-  }
-
-  stats::setNames(out, feats)
-}
-
-
 #' Build an all-NA result row with the expected names
 #'
 #' @keywords internal
@@ -379,10 +303,10 @@ sa_na_row <- function(nms) {
 
 #' Assemble one result row from named scalars
 #'
-#' Engines attach their own names to the values they return (`lawstat` names the
-#' interval bounds `lower` / `upper`, for instance), and `c(a = x)` on a named
-#' `x` yields `a.lower` rather than `a`. Forcing every value through
-#' `as.numeric()` first keeps the row names exactly as written here.
+#' Engines attach their own names to the values they return ([stats::t.test()]
+#' names its statistic `t` and its parameter `df`, for instance), and
+#' `c(a = x)` on a named `x` yields `a.t` rather than `a`. Forcing every value
+#' through `as.numeric()` first keeps the row names exactly as written here.
 #'
 #' @keywords internal
 #' @noRd
@@ -406,9 +330,11 @@ sa_row <- function(...) {
 #' @param columns Numeric column names `fun` is expected to return.
 #' @param label Human readable test name used in the warning text.
 #' @param fun Function of the feature index returning a named numeric vector.
-#' @param p_adjust Method passed to [stats::p.adjust()].
+#' @param p_adjust Method passed to [stats::p.adjust()], or `NULL` for a table
+#'   that holds no p-value at all, such as the effect estimates.
 #'
-#' @return data.frame with `features`, `columns` and `pval_adj`.
+#' @return data.frame with `features`, `columns` and, unless `p_adjust` is
+#'   `NULL`, `pval_adj`.
 #'
 #' @keywords internal
 #' @noRd
@@ -446,7 +372,9 @@ sa_feature_table <- function(feats, columns, label, fun, p_adjust = "none") {
   out <- as.data.frame(do.call(rbind, rows))
   out <- cbind(features = feats, out)
   rownames(out) <- NULL
-  out <- sa_add_padj(out, p_adjust)
+  if (!is.null(p_adjust)) {
+    out <- sa_add_padj(out, p_adjust)
+  }
 
   if (length(notes) > 0L) {
     grouped <- table(notes)

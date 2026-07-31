@@ -1,0 +1,3849 @@
+{
+  "registry_version": "0.0.1",
+  "schema_version": "0.1.0",
+  "generated_at": "2026-07-31T13:36:23Z",
+  "source_checksum": "66eccb1331d49cced9987812a3617e7c",
+  "families": [
+    {
+      "id": "descriptive",
+      "label": "Descriptive statistics",
+      "label_ko": "기술통계",
+      "description": "Summaries of location, dispersion, shape and frequency, plus outlier screening. No inferential claim is made by this family.",
+      "section": "data_overview",
+      "order": 10,
+      "status": "active",
+      "since": "0.0.1"
+    },
+    {
+      "id": "distribution",
+      "label": "Distribution and assumption diagnostics",
+      "label_ko": "분포 및 가정 진단",
+      "description": "Normality and homogeneity-of-variance checks used both standalone and as automatically attached diagnostics for other families.",
+      "section": "data_overview",
+      "order": 20,
+      "status": "active",
+      "since": "0.0.1"
+    },
+    {
+      "id": "one_sample",
+      "label": "One-sample comparison",
+      "label_ko": "단일 표본 비교",
+      "description": "Comparison of a single sample against a hypothesised value.",
+      "section": "group_comparison",
+      "order": 30,
+      "status": "active",
+      "since": "0.0.1"
+    },
+    {
+      "id": "two_group_independent",
+      "label": "Two independent groups",
+      "label_ko": "독립된 두 그룹 비교",
+      "description": "Parametric, rank-based and resampling comparisons of two independent samples.",
+      "section": "group_comparison",
+      "order": 40,
+      "status": "active",
+      "since": "0.0.1"
+    },
+    {
+      "id": "two_group_paired",
+      "label": "Two paired groups",
+      "label_ko": "대응된 두 그룹 비교",
+      "description": "Comparisons of two measurements taken on the same units.",
+      "section": "group_comparison",
+      "order": 50,
+      "status": "active",
+      "since": "0.0.1"
+    },
+    {
+      "id": "multi_group_independent",
+      "label": "Three or more independent groups",
+      "label_ko": "독립된 세 그룹 이상 비교",
+      "description": "Omnibus tests for three or more independent samples and their matching post-hoc procedures.",
+      "section": "group_comparison",
+      "order": 60,
+      "status": "active",
+      "since": "0.0.1"
+    },
+    {
+      "id": "multi_group_repeated",
+      "label": "Three or more repeated conditions",
+      "label_ko": "대응된 세 조건 이상 비교",
+      "description": "Omnibus tests for three or more measurements on the same units, with sphericity correction and matching post-hoc procedures.",
+      "section": "group_comparison",
+      "order": 70,
+      "status": "active",
+      "since": "0.0.1"
+    },
+    {
+      "id": "categorical",
+      "label": "Categorical data analysis",
+      "label_ko": "범주형 자료 분석",
+      "description": "Contingency table tests, proportion comparisons and exact procedures, reported together with risk difference, risk ratio and odds ratio where applicable.",
+      "section": "categorical_and_association",
+      "order": 80,
+      "status": "active",
+      "since": "0.0.1"
+    },
+    {
+      "id": "correlation",
+      "label": "Correlation and association",
+      "label_ko": "상관 및 연관성",
+      "description": "Bivariate and partial association between two continuous or ordinal variables.",
+      "section": "categorical_and_association",
+      "order": 90,
+      "status": "active",
+      "since": "0.0.1"
+    }
+  ],
+  "sections": [
+    {
+      "id": "data_overview",
+      "label": "Data overview and diagnostics",
+      "label_ko": "데이터 개요와 진단",
+      "order": 1
+    },
+    {
+      "id": "group_comparison",
+      "label": "Group comparison and inference",
+      "label_ko": "집단 비교와 추론",
+      "order": 2
+    },
+    {
+      "id": "categorical_and_association",
+      "label": "Categorical data and association",
+      "label_ko": "범주형 자료와 연관성",
+      "order": 3
+    }
+  ],
+  "methods": [
+    {
+      "id": "chisq_independence",
+      "family": "categorical",
+      "label": "Chi-square test of independence",
+      "label_ko": "카이제곱 독립성 검정",
+      "description": "Tests association between two categorical variables in an r x c contingency table. Reports expected counts and flags cells with an expected count below five.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_chisq",
+      "py_function": "chisq_independence",
+      "engine": "stats::chisq.test",
+      "engine_py": "scipy.stats.chi2_contingency",
+      "data_requirements": {
+        "design": "table",
+        "x": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 2
+        },
+        "y": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 2
+        },
+        "table": {
+          "min_rows": 2,
+          "min_cols": 2
+        },
+        "n_min": 4
+      },
+      "assumptions": ["independence", "expected_count_min"],
+      "effect_sizes": ["cramers_v", "phi_coefficient", "contingency_coefficient"],
+      "parameters": [
+        {
+          "name": "correct",
+          "type": "logical",
+          "default": true,
+          "description": "Yates continuity correction, applied to 2 x 2 tables only."
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "simulate_p_value",
+          "type": "logical",
+          "default": false,
+          "description": "Monte Carlo p-value for sparse tables."
+        },
+        {
+          "name": "n_resamples",
+          "type": "integer",
+          "default": 9999,
+          "range": [199, 1000000]
+        },
+        {
+          "name": "seed",
+          "type": "integer",
+          "default": null
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["fisher_exact"],
+      "references": ["Pearson, K. (1900). Philosophical Magazine 50(302), 157-175.", "Cramer, H. (1946). Mathematical Methods of Statistics."],
+      "validation": {
+        "reference_impl": "stats::chisq.test(table(x, y))",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "Titanic"
+    },
+    {
+      "id": "chisq_goodness_of_fit",
+      "family": "categorical",
+      "label": "Chi-square goodness-of-fit test",
+      "label_ko": "카이제곱 적합도 검정",
+      "description": "Compares observed category counts against a specified set of expected proportions.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_chisq_gof",
+      "py_function": "chisq_goodness_of_fit",
+      "engine": "stats::chisq.test",
+      "engine_py": "scipy.stats.chisquare",
+      "data_requirements": {
+        "design": "table",
+        "x": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 2
+        },
+        "n_min": 2
+      },
+      "assumptions": ["independence", "expected_count_min"],
+      "effect_sizes": ["cohens_w"],
+      "parameters": [
+        {
+          "name": "p",
+          "type": "numeric",
+          "default": null,
+          "description": "Expected proportions. NULL means a uniform distribution."
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "rescale_p",
+          "type": "logical",
+          "default": false
+        },
+        {
+          "name": "simulate_p_value",
+          "type": "logical",
+          "default": false
+        },
+        {
+          "name": "seed",
+          "type": "integer",
+          "default": null
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["binomial_exact"],
+      "references": ["Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences, 2nd ed."],
+      "validation": {
+        "reference_impl": "stats::chisq.test(observed, p = expected_p)",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"]
+      },
+      "example_data": "warpbreaks"
+    },
+    {
+      "id": "fisher_exact",
+      "family": "categorical",
+      "label": "Fisher's exact test",
+      "label_ko": "Fisher 정확검정",
+      "description": "Exact conditional test for r x c contingency tables. Preferred over the chi-square test when expected counts are small.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_fisher",
+      "py_function": "fisher_exact",
+      "engine": "stats::fisher.test",
+      "engine_py": "scipy.stats.fisher_exact",
+      "data_requirements": {
+        "design": "table",
+        "x": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 2
+        },
+        "y": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 2
+        },
+        "table": {
+          "min_rows": 2,
+          "min_cols": 2
+        },
+        "n_min": 4
+      },
+      "assumptions": ["independence", "fixed_margins"],
+      "effect_sizes": ["odds_ratio", "cramers_v"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided",
+          "description": "One-sided options apply to 2 x 2 tables only."
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "simulate_p_value",
+          "type": "logical",
+          "default": false,
+          "description": "Monte Carlo variant for large r x c tables where the exact test is infeasible."
+        },
+        {
+          "name": "n_resamples",
+          "type": "integer",
+          "default": 9999,
+          "range": [199, 1000000]
+        },
+        {
+          "name": "seed",
+          "type": "integer",
+          "default": null
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["chisq_independence"],
+      "references": ["Fisher, R. A. (1935). Journal of the Royal Statistical Society 98(1), 39-82.", "Freeman, G. H. and Halton, J. H. (1951). Biometrika 38(1-2), 141-149."],
+      "validation": {
+        "reference_impl": "stats::fisher.test(table(x, y))",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "Titanic"
+    },
+    {
+      "id": "mcnemar_test",
+      "family": "categorical",
+      "label": "McNemar's test",
+      "label_ko": "McNemar 검정",
+      "description": "Tests marginal homogeneity in a paired 2 x 2 table. Uses the exact binomial test on discordant pairs when their total is small.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_mcnemar",
+      "py_function": "mcnemar_test",
+      "engine": "stats::mcnemar.test",
+      "engine_py": "statsmodels.stats.contingency_tables.mcnemar",
+      "data_requirements": {
+        "design": "paired",
+        "x": {
+          "type": "binary",
+          "required": true
+        },
+        "y": {
+          "type": "binary",
+          "required": true
+        },
+        "id": {
+          "type": "any",
+          "required": true
+        },
+        "table": {
+          "min_rows": 2,
+          "min_cols": 2,
+          "square": true
+        },
+        "n_min": 4
+      },
+      "assumptions": ["independence_of_pairs", "marginal_homogeneity", "discordant_pair_count"],
+      "effect_sizes": ["odds_ratio_paired", "risk_difference_paired", "cohens_g"],
+      "parameters": [
+        {
+          "name": "correct",
+          "type": "logical",
+          "default": true,
+          "description": "Continuity correction for the chi-square approximation."
+        },
+        {
+          "name": "exact",
+          "type": "logical",
+          "default": null,
+          "description": "NULL uses the exact binomial test when discordant pairs are fewer than 25."
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["cochran_q"],
+      "references": ["McNemar, Q. (1947). Psychometrika 12(2), 153-157."],
+      "validation": {
+        "reference_impl": "stats::mcnemar.test(table(x, y))",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"]
+      },
+      "example_data": "Titanic"
+    },
+    {
+      "id": "cochran_q",
+      "family": "categorical",
+      "label": "Cochran's Q test",
+      "label_ko": "Cochran Q 검정",
+      "description": "Extension of McNemar's test to three or more repeated binary measurements on the same subjects.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_cochran_q",
+      "py_function": "cochran_q",
+      "engine": "internal",
+      "engine_py": "statsmodels.stats.contingency_tables.cochrans_q",
+      "data_requirements": {
+        "design": "repeated",
+        "outcome": {
+          "type": "binary",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "id": {
+          "type": "any",
+          "required": true
+        },
+        "n_min": 9
+      },
+      "assumptions": ["independence_of_subjects", "balanced_design", "binary_outcome"],
+      "effect_sizes": ["kendalls_w"],
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "posthoc",
+          "type": "logical",
+          "default": false,
+          "description": "When TRUE, pairwise McNemar tests are attached to the posthoc field."
+        },
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
+          "default": "holm"
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "alternatives": ["mcnemar_test", "friedman_test"],
+      "references": ["Cochran, W. G. (1950). Biometrika 37(3-4), 256-266."],
+      "validation": {
+        "reference_impl": "Q = k(k-1) * sum((Cj - N/k)^2) / (k*N - sum(Ri^2)), compared against stats::friedman.test on the binary matrix.",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"],
+        "notes": "Friedman on 0/1 data with no ties within a block is algebraically equal to Cochran's Q."
+      },
+      "example_data": "Titanic"
+    },
+    {
+      "id": "two_proportion_test",
+      "family": "categorical",
+      "label": "Two-proportion test",
+      "label_ko": "두 비율 비교 검정",
+      "description": "Compares two independent proportions and reports risk difference, risk ratio and odds ratio together, since reporting only one of them is a common source of misinterpretation.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_prop_test",
+      "py_function": "two_proportion_test",
+      "engine": "stats::prop.test",
+      "engine_py": "statsmodels.stats.proportion.proportions_ztest",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "binary",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "n_min": 10
+      },
+      "assumptions": ["independence", "sample_size_proportion", "expected_count_min"],
+      "effect_sizes": ["risk_difference", "risk_ratio", "odds_ratio", "cohens_h"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "ci_method",
+          "type": "enum",
+          "values": ["wilson", "wald", "newcombe"],
+          "default": "newcombe",
+          "description": "Interval method for the risk difference."
+        },
+        {
+          "name": "correct",
+          "type": "logical",
+          "default": true
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["fisher_exact", "chisq_independence"],
+      "references": ["Newcombe, R. G. (1998). Statistics in Medicine 17(8), 873-890.", "Agresti, A. (2002). Categorical Data Analysis, 2nd ed."],
+      "validation": {
+        "reference_impl": "stats::prop.test(c(x1, x2), c(n1, n2))",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "Titanic"
+    },
+    {
+      "id": "binomial_exact",
+      "family": "categorical",
+      "label": "Exact binomial test",
+      "label_ko": "정확 이항검정",
+      "description": "Exact test for a single proportion with a Clopper-Pearson confidence interval. Valid for any sample size.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_binom_test",
+      "py_function": "binomial_exact",
+      "engine": "stats::binom.test",
+      "engine_py": "scipy.stats.binomtest",
+      "data_requirements": {
+        "design": "single_sample",
+        "outcome": {
+          "type": "binary",
+          "required": true,
+          "n_min": 1
+        },
+        "n_min": 1
+      },
+      "assumptions": ["independence", "binary_outcome"],
+      "effect_sizes": ["cohens_h", "risk_difference"],
+      "parameters": [
+        {
+          "name": "p",
+          "type": "numeric",
+          "default": 0.5,
+          "range": [0, 1]
+        },
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["one_sample_proportion"],
+      "references": ["Clopper, C. J. and Pearson, E. S. (1934). Biometrika 26(4), 404-413."],
+      "validation": {
+        "reference_impl": "stats::binom.test(x, n, p)",
+        "tolerance": 1e-12,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "pearson_correlation",
+      "family": "correlation",
+      "label": "Pearson correlation",
+      "label_ko": "Pearson 상관분석",
+      "description": "Linear association between two continuous variables, with a Fisher z transformed confidence interval.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_cor_pearson",
+      "py_function": "pearson_correlation",
+      "engine": "stats::cor.test(method = 'pearson')",
+      "engine_py": "scipy.stats.pearsonr",
+      "data_requirements": {
+        "design": "bivariate",
+        "x": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "y": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "n_min": 3
+      },
+      "assumptions": ["bivariate_normality", "linearity", "independence", "no_extreme_outliers"],
+      "effect_sizes": ["pearson_r", "r_squared"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["spearman_correlation", "kendall_correlation"],
+      "references": ["Pearson, K. (1896). Philosophical Transactions of the Royal Society A 187, 253-318.", "Fisher, R. A. (1915). Biometrika 10(4), 507-521."],
+      "validation": {
+        "reference_impl": "stats::cor.test(x, y, method = 'pearson')",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "spearman_correlation",
+      "family": "correlation",
+      "label": "Spearman rank correlation",
+      "label_ko": "Spearman 순위상관",
+      "description": "Monotonic association based on ranks. Robust to outliers and does not require linearity.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_cor_spearman",
+      "py_function": "spearman_correlation",
+      "engine": "stats::cor.test(method = 'spearman')",
+      "engine_py": "scipy.stats.spearmanr",
+      "data_requirements": {
+        "design": "bivariate",
+        "x": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "y": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "n_min": 3
+      },
+      "assumptions": ["monotonicity", "independence"],
+      "effect_sizes": ["spearman_rho"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "ci_method",
+          "type": "enum",
+          "values": ["fisher_z", "bootstrap_bca", "none"],
+          "default": "fisher_z",
+          "description": "stats::cor.test does not return an interval for Spearman, so STATassist computes one itself. fisher_z applies the Bonett-Wright standard error."
+        },
+        {
+          "name": "exact",
+          "type": "logical",
+          "default": null
+        },
+        {
+          "name": "n_resamples",
+          "type": "integer",
+          "default": 9999,
+          "range": [199, 1000000],
+          "description": "Used only when ci_method = 'bootstrap_bca'."
+        },
+        {
+          "name": "seed",
+          "type": "integer",
+          "default": null
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["kendall_correlation", "pearson_correlation"],
+      "references": ["Spearman, C. (1904). American Journal of Psychology 15(1), 72-101.", "Bonett, D. G. and Wright, T. A. (2000). Psychometrika 65(1), 23-28."],
+      "validation": {
+        "reference_impl": "stats::cor.test(x, y, method = 'spearman')",
+        "tolerance": 1e-08,
+        "compare_fields": ["estimates", "statistics"],
+        "notes": "The confidence interval has no stats counterpart and is checked against the Bonett-Wright formula directly."
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "kendall_correlation",
+      "family": "correlation",
+      "label": "Kendall rank correlation",
+      "label_ko": "Kendall 순위상관",
+      "description": "Concordance-based association using tau-b, which corrects for ties. More stable than Spearman in small samples.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_cor_kendall",
+      "py_function": "kendall_correlation",
+      "engine": "stats::cor.test(method = 'kendall')",
+      "engine_py": "scipy.stats.kendalltau",
+      "data_requirements": {
+        "design": "bivariate",
+        "x": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "y": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "n_min": 3
+      },
+      "assumptions": ["monotonicity", "independence"],
+      "effect_sizes": ["kendall_tau_b"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "ci_method",
+          "type": "enum",
+          "values": ["fisher_z", "bootstrap_bca", "none"],
+          "default": "fisher_z"
+        },
+        {
+          "name": "exact",
+          "type": "logical",
+          "default": null
+        },
+        {
+          "name": "n_resamples",
+          "type": "integer",
+          "default": 9999,
+          "range": [199, 1000000]
+        },
+        {
+          "name": "seed",
+          "type": "integer",
+          "default": null
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["spearman_correlation"],
+      "references": ["Kendall, M. G. (1938). Biometrika 30(1-2), 81-93."],
+      "validation": {
+        "reference_impl": "stats::cor.test(x, y, method = 'kendall')",
+        "tolerance": 1e-08,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "partial_correlation",
+      "family": "correlation",
+      "label": "Partial correlation",
+      "label_ko": "편상관분석",
+      "description": "Association between two variables after linearly removing the effect of one or more covariates from both, computed from the residuals.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_partial_cor",
+      "py_function": "partial_correlation",
+      "engine": "internal",
+      "engine_py": "pingouin.partial_corr",
+      "data_requirements": {
+        "design": "bivariate",
+        "x": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 4
+        },
+        "y": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 4
+        },
+        "covariates": {
+          "type": "numeric",
+          "required": true,
+          "multiple": true
+        },
+        "n_min": 4
+      },
+      "assumptions": ["bivariate_normality", "linearity", "independence", "sufficient_df"],
+      "effect_sizes": ["partial_r", "r_squared"],
+      "parameters": [
+        {
+          "name": "cor_method",
+          "type": "enum",
+          "values": ["pearson", "spearman"],
+          "default": "pearson",
+          "description": "Correlation coefficient computed on the residuals."
+        },
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "semi_partial",
+          "type": "logical",
+          "default": false,
+          "description": "When TRUE, covariates are removed from x only."
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["pearson_correlation"],
+      "references": ["Fisher, R. A. (1924). Metron 3, 329-332.", "Kim, S. (2015). Communications for Statistical Applications and Methods 22(6), 665-674."],
+      "validation": {
+        "reference_impl": "stats::cor.test(residuals(lm(x ~ z)), residuals(lm(y ~ z)))",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"],
+        "notes": "Degrees of freedom must be n - 2 - k, not n - 2. The reference implementation adjusts the p-value accordingly."
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "describe_numeric",
+      "family": "descriptive",
+      "label": "Descriptive summary",
+      "label_ko": "기술통계 요약",
+      "description": "Sample size, missingness, central tendency, dispersion, shape and a confidence interval for the mean, optionally split by a grouping variable.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "descriptive",
+      "r_function": "sa_summary",
+      "py_function": "describe_numeric",
+      "engine": "internal",
+      "engine_py": "pandas.DataFrame.describe",
+      "data_requirements": {
+        "design": "none",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "multiple": true,
+          "n_min": 1
+        },
+        "group": {
+          "type": "factor",
+          "required": false,
+          "n_levels_min": 1
+        },
+        "n_min": 1
+      },
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1],
+          "description": "Confidence level for the mean interval."
+        },
+        {
+          "name": "trim",
+          "type": "numeric",
+          "default": 0,
+          "range": [
+            0,
+            0.5
+          ],
+          "description": "Trimming proportion for the trimmed mean."
+        },
+        {
+          "name": "digits",
+          "type": "integer",
+          "default": 3,
+          "description": "Display precision only. Stored values stay unrounded."
+        }
+      ],
+      "returns": ["estimates"],
+      "references": ["Wilcox, R. R. (2017). Introduction to Robust Estimation and Hypothesis Testing, 4th ed."],
+      "validation": {
+        "reference_impl": "c(mean(x), sd(x), median(x), IQR(x), quantile(x))",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates"]
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "frequency_table",
+      "family": "descriptive",
+      "label": "Frequency table",
+      "label_ko": "빈도표",
+      "description": "Counts, proportions and cumulative proportions for one categorical variable, or a cross-tabulation of two.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "descriptive",
+      "r_function": "sa_frequency",
+      "py_function": "frequency_table",
+      "engine": "base::table",
+      "engine_py": "pandas.crosstab",
+      "data_requirements": {
+        "design": "none",
+        "x": {
+          "type": "factor",
+          "required": true
+        },
+        "y": {
+          "type": "factor",
+          "required": false
+        },
+        "n_min": 1
+      },
+      "parameters": [
+        {
+          "name": "margin",
+          "type": "enum",
+          "values": ["none", "row", "column", "total"],
+          "default": "none",
+          "description": "Which margin the proportions are computed over."
+        },
+        {
+          "name": "include_na",
+          "type": "logical",
+          "default": false,
+          "description": "Treat NA as an explicit level."
+        },
+        {
+          "name": "sort",
+          "type": "enum",
+          "values": ["level", "frequency"],
+          "default": "level"
+        }
+      ],
+      "returns": ["estimates"],
+      "validation": {
+        "reference_impl": "table(x, y, useNA = 'no')",
+        "tolerance": 1e-12,
+        "compare_fields": ["estimates"]
+      },
+      "example_data": "warpbreaks"
+    },
+    {
+      "id": "outlier_detection",
+      "family": "descriptive",
+      "label": "Outlier screening",
+      "label_ko": "이상치 탐지",
+      "description": "Flags candidate outliers using the IQR fence, a robust z-score based on the median and MAD, or Grubbs' test. Reports flags rather than removing data.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "descriptive",
+      "r_function": "sa_outlier",
+      "py_function": "outlier_detection",
+      "engine": "internal",
+      "engine_py": "scipy.stats (Grubbs implemented internally)",
+      "data_requirements": {
+        "design": "none",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "group": {
+          "type": "factor",
+          "required": false
+        },
+        "n_min": 3
+      },
+      "parameters": [
+        {
+          "name": "criterion",
+          "type": "enum",
+          "values": ["iqr", "robust_z", "grubbs"],
+          "default": "iqr",
+          "description": "Rule used to flag an observation as a candidate outlier."
+        },
+        {
+          "name": "iqr_multiplier",
+          "type": "numeric",
+          "default": 1.5,
+          "range": [0, 10],
+          "description": "Fence width for criterion = 'iqr'."
+        },
+        {
+          "name": "z_threshold",
+          "type": "numeric",
+          "default": 3.5,
+          "range": [0, 20],
+          "description": "Cut-off for criterion = 'robust_z' (Iglewicz and Hoaglin)."
+        },
+        {
+          "name": "alpha",
+          "type": "numeric",
+          "default": 0.05,
+          "range": [0, 1],
+          "description": "Significance level for criterion = 'grubbs'."
+        }
+      ],
+      "returns": ["estimates", "statistics"],
+      "references": ["Iglewicz, B. and Hoaglin, D. C. (1993). How to Detect and Handle Outliers.", "Grubbs, F. E. (1969). Procedures for Detecting Outlying Observations in Samples. Technometrics 11(1), 1-21."],
+      "validation": {
+        "reference_impl": "abs(x - median(x)) / (1.4826 * mad(x, constant = 1)) > 3.5",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates"]
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "shapiro_wilk",
+      "family": "distribution",
+      "label": "Shapiro-Wilk normality test",
+      "label_ko": "Shapiro-Wilk 정규성 검정",
+      "description": "Tests the null hypothesis that a sample comes from a normal distribution. Applicable for 3 <= n <= 5000.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "diagnostic",
+      "r_function": "sa_shapiro",
+      "py_function": "shapiro_wilk",
+      "engine": "stats::shapiro.test",
+      "engine_py": "scipy.stats.shapiro",
+      "data_requirements": {
+        "design": "none",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "group": {
+          "type": "factor",
+          "required": false,
+          "notes": "When supplied the test is run within each level."
+        },
+        "n_min": 3,
+        "n_max": 5000
+      },
+      "parameters": [
+        {
+          "name": "alpha",
+          "type": "numeric",
+          "default": 0.05,
+          "range": [0, 1],
+          "description": "Threshold used to set the satisfied flag."
+        }
+      ],
+      "returns": ["statistics", "assumptions"],
+      "alternatives": ["kolmogorov_smirnov"],
+      "references": ["Shapiro, S. S. and Wilk, M. B. (1965). Biometrika 52(3-4), 591-611."],
+      "validation": {
+        "reference_impl": "stats::shapiro.test(x)",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"]
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "kolmogorov_smirnov",
+      "family": "distribution",
+      "label": "Kolmogorov-Smirnov goodness-of-fit test",
+      "label_ko": "Kolmogorov-Smirnov 적합도 검정",
+      "description": "One-sample test against a fully specified reference distribution, or a two-sample test comparing two empirical distributions.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "diagnostic",
+      "r_function": "sa_ks_test",
+      "py_function": "kolmogorov_smirnov",
+      "engine": "stats::ks.test",
+      "engine_py": "scipy.stats.kstest",
+      "data_requirements": {
+        "design": "none",
+        "x": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "y": {
+          "type": "numeric",
+          "required": false,
+          "notes": "Supplying y switches to the two-sample test."
+        },
+        "n_min": 2
+      },
+      "parameters": [
+        {
+          "name": "distribution",
+          "type": "enum",
+          "values": ["pnorm", "punif", "pexp", "plnorm"],
+          "default": "pnorm",
+          "description": "Reference distribution for the one-sample test."
+        },
+        {
+          "name": "estimate_parameters",
+          "type": "logical",
+          "default": true,
+          "description": "Estimate distribution parameters from the data. When TRUE the p-value is anti-conservative and SA-W004 is recorded."
+        },
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "alpha",
+          "type": "numeric",
+          "default": 0.05,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["statistics", "assumptions"],
+      "alternatives": ["shapiro_wilk"],
+      "references": ["Massey, F. J. (1951). Journal of the American Statistical Association 46(253), 68-78."],
+      "validation": {
+        "reference_impl": "stats::ks.test(x, 'pnorm', mean(x), sd(x))",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"]
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "levene_test",
+      "family": "distribution",
+      "label": "Levene test for homogeneity of variance",
+      "label_ko": "Levene 등분산 검정",
+      "description": "One-way ANOVA on the absolute deviations from each group centre. The default centre is the median, which is the Brown-Forsythe variant and is robust to non-normality.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "diagnostic",
+      "r_function": "sa_levene",
+      "py_function": "levene_test",
+      "engine": "internal",
+      "engine_py": "scipy.stats.levene",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 2
+        },
+        "n_min": 4
+      },
+      "parameters": [
+        {
+          "name": "center",
+          "type": "enum",
+          "values": ["median", "mean", "trimmed"],
+          "default": "median",
+          "description": "'median' gives the Brown-Forsythe test."
+        },
+        {
+          "name": "trim",
+          "type": "numeric",
+          "default": 0.1,
+          "range": [
+            0,
+            0.5
+          ],
+          "description": "Used only when center = 'trimmed'."
+        },
+        {
+          "name": "alpha",
+          "type": "numeric",
+          "default": 0.05,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["statistics", "assumptions"],
+      "alternatives": ["bartlett_test"],
+      "references": ["Brown, M. B. and Forsythe, A. B. (1974). Journal of the American Statistical Association 69(346), 364-367."],
+      "validation": {
+        "reference_impl": "stats::anova(stats::lm(abs(y - ave(y, g, FUN = median)) ~ g))",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"],
+        "notes": "Cross-checked against car::leveneTest during development only; car is not a package dependency."
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "bartlett_test",
+      "family": "distribution",
+      "label": "Bartlett test for homogeneity of variance",
+      "label_ko": "Bartlett 등분산 검정",
+      "description": "Likelihood-ratio based test of equal variances. More powerful than Levene under normality but sensitive to departures from it.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "diagnostic",
+      "r_function": "sa_bartlett",
+      "py_function": "bartlett_test",
+      "engine": "stats::bartlett.test",
+      "engine_py": "scipy.stats.bartlett",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 2
+        },
+        "n_min": 4
+      },
+      "assumptions": ["normality_shapiro"],
+      "parameters": [
+        {
+          "name": "alpha",
+          "type": "numeric",
+          "default": 0.05,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["statistics", "assumptions"],
+      "alternatives": ["levene_test"],
+      "references": ["Bartlett, M. S. (1937). Proceedings of the Royal Society A 160(901), 268-282."],
+      "validation": {
+        "reference_impl": "stats::bartlett.test(y ~ g)",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"]
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "oneway_anova",
+      "family": "multi_group_independent",
+      "label": "One-way ANOVA",
+      "label_ko": "일원배치 분산분석",
+      "description": "Omnibus F test for equality of means across three or more independent groups, assuming equal variances.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_anova",
+      "py_function": "oneway_anova",
+      "engine": "stats::oneway.test(var.equal = TRUE)",
+      "engine_py": "scipy.stats.f_oneway",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "n_min": 6
+      },
+      "assumptions": ["normality_shapiro", "homogeneity_levene", "independence", "no_extreme_outliers"],
+      "effect_sizes": ["eta_squared", "omega_squared", "epsilon_squared", "cohens_f"],
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        },
+        {
+          "name": "posthoc",
+          "type": "logical",
+          "default": false,
+          "description": "When TRUE, tukey_hsd results are attached to the posthoc field."
+        },
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
+          "default": "holm",
+          "description": "Applies to the posthoc field only; Tukey HSD is already family-wise controlled."
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "posthoc_methods": ["tukey_hsd"],
+      "alternatives": ["welch_anova", "kruskal_wallis"],
+      "references": ["Fisher, R. A. (1925). Statistical Methods for Research Workers.", "Okada, K. (2013). Behaviormetrika 40(2), 129-147."],
+      "validation": {
+        "reference_impl": "summary(stats::aov(y ~ g))",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics", "effect_sizes"]
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "welch_anova",
+      "family": "multi_group_independent",
+      "label": "Welch's one-way ANOVA",
+      "label_ko": "Welch 일원배치 분산분석",
+      "description": "Heteroscedasticity-robust omnibus test for three or more independent groups. Recommended as the default when group variances or sizes differ.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_welch_anova",
+      "py_function": "welch_anova",
+      "engine": "stats::oneway.test(var.equal = FALSE)",
+      "engine_py": "pingouin.welch_anova",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "n_min": 6
+      },
+      "assumptions": ["normality_shapiro", "independence", "no_extreme_outliers"],
+      "effect_sizes": ["omega_squared", "eta_squared"],
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "posthoc",
+          "type": "logical",
+          "default": false,
+          "description": "When TRUE, games_howell results are attached to the posthoc field."
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "posthoc_methods": ["games_howell"],
+      "alternatives": ["oneway_anova", "kruskal_wallis"],
+      "references": ["Welch, B. L. (1951). Biometrika 38(3-4), 330-336.", "Delacre, M. et al. (2019). International Review of Social Psychology 32(1), 13."],
+      "validation": {
+        "reference_impl": "stats::oneway.test(y ~ g, var.equal = FALSE)",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"]
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "kruskal_wallis",
+      "family": "multi_group_independent",
+      "label": "Kruskal-Wallis test",
+      "label_ko": "Kruskal-Wallis 검정",
+      "description": "Rank-based omnibus test for three or more independent groups. Tests stochastic dominance, not equality of medians, unless the distributional shapes are similar.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_kruskal",
+      "py_function": "kruskal_wallis",
+      "engine": "stats::kruskal.test",
+      "engine_py": "scipy.stats.kruskal",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "n_min": 6
+      },
+      "assumptions": ["independence", "similar_shape"],
+      "effect_sizes": ["epsilon_squared_rank", "eta_squared_rank"],
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "posthoc",
+          "type": "logical",
+          "default": false,
+          "description": "When TRUE, dunn_test results are attached to the posthoc field."
+        },
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
+          "default": "holm"
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "posthoc_methods": ["dunn_test"],
+      "alternatives": ["welch_anova", "oneway_anova"],
+      "references": ["Kruskal, W. H. and Wallis, W. A. (1952). Journal of the American Statistical Association 47(260), 583-621.", "Tomczak, M. and Tomczak, E. (2014). Trends in Sport Sciences 1(21), 19-25."],
+      "validation": {
+        "reference_impl": "stats::kruskal.test(y ~ g)",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"]
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "tukey_hsd",
+      "family": "multi_group_independent",
+      "label": "Tukey HSD",
+      "label_ko": "Tukey HSD 사후검정",
+      "description": "All pairwise comparisons with family-wise error control via the studentised range distribution. Assumes equal variances.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "posthoc",
+      "follows": ["oneway_anova"],
+      "r_function": "sa_tukey",
+      "py_function": "tukey_hsd",
+      "engine": "stats::ptukey",
+      "engine_py": "scipy.stats.tukey_hsd",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "n_min": 6
+      },
+      "assumptions": ["normality_shapiro", "homogeneity_levene", "independence"],
+      "effect_sizes": ["mean_difference", "cohens_d"],
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
+      "alternatives": ["games_howell", "dunn_test"],
+      "references": ["Tukey, J. W. (1949). Biometrics 5(2), 99-114."],
+      "validation": {
+        "reference_impl": "stats::TukeyHSD(stats::aov(y ~ g))",
+        "tolerance": 1e-08,
+        "compare_fields": ["posthoc"]
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "games_howell",
+      "family": "multi_group_independent",
+      "label": "Games-Howell post-hoc test",
+      "label_ko": "Games-Howell 사후검정",
+      "description": "Pairwise comparisons using Welch-type degrees of freedom and the studentised range distribution. Does not assume equal variances or equal group sizes.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "posthoc",
+      "follows": ["welch_anova"],
+      "r_function": "sa_games_howell",
+      "py_function": "games_howell",
+      "engine": "internal",
+      "engine_py": "pingouin.pairwise_gameshowell",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "n_min": 6
+      },
+      "assumptions": ["normality_shapiro", "independence"],
+      "effect_sizes": ["mean_difference", "cohens_d"],
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        }
+      ],
+      "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
+      "alternatives": ["tukey_hsd", "dunn_test"],
+      "references": ["Games, P. A. and Howell, J. F. (1976). Journal of Educational Statistics 1(2), 113-125."],
+      "validation": {
+        "reference_impl": "Hand-computed Welch df and ptukey q statistic per pair; cross-checked against rstatix::games_howell_test in development only.",
+        "tolerance": 1e-06,
+        "compare_fields": ["posthoc"],
+        "notes": "rstatix is not a package dependency; expected values are stored as a fixture in Test/."
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "dunn_test",
+      "family": "multi_group_independent",
+      "label": "Dunn's post-hoc test",
+      "label_ko": "Dunn 사후검정",
+      "description": "Pairwise rank-sum comparisons using the pooled ranks from the Kruskal-Wallis test, with a tie correction and a chosen p-value adjustment.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "posthoc",
+      "follows": ["kruskal_wallis"],
+      "r_function": "sa_dunn",
+      "py_function": "dunn_test",
+      "engine": "internal",
+      "engine_py": "scikit_posthocs.posthoc_dunn",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "n_min": 6
+      },
+      "assumptions": ["independence", "similar_shape"],
+      "effect_sizes": ["rank_biserial", "cliffs_delta"],
+      "parameters": [
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
+          "default": "holm"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        }
+      ],
+      "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
+      "alternatives": ["tukey_hsd", "games_howell"],
+      "references": ["Dunn, O. J. (1964). Technometrics 6(3), 241-252."],
+      "validation": {
+        "reference_impl": "Hand-computed z from pooled midranks with tie correction; cross-checked against dunn.test::dunn.test in development only.",
+        "tolerance": 1e-08,
+        "compare_fields": ["posthoc"],
+        "notes": "dunn.test is not a package dependency; expected values are stored as a fixture in Test/."
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "repeated_measures_anova",
+      "family": "multi_group_repeated",
+      "label": "Repeated measures ANOVA",
+      "label_ko": "반복측정 분산분석",
+      "description": "One-way within-subject F test with Mauchly's sphericity check and Greenhouse-Geisser and Huynh-Feldt corrected p-values. Requires a complete balanced design; incomplete subjects are dropped listwise.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_rm_anova",
+      "py_function": "repeated_measures_anova",
+      "engine": "internal",
+      "engine_py": "pingouin.rm_anova",
+      "data_requirements": {
+        "design": "repeated",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3,
+          "notes": "Within-subject condition."
+        },
+        "id": {
+          "type": "any",
+          "required": true,
+          "notes": "Subject identifier. Every subject must have every condition."
+        },
+        "n_min": 9
+      },
+      "assumptions": ["normality_of_residuals", "sphericity_mauchly", "independence_of_subjects", "balanced_design"],
+      "effect_sizes": ["partial_eta_squared", "generalised_eta_squared", "cohens_f"],
+      "parameters": [
+        {
+          "name": "correction",
+          "type": "enum",
+          "values": ["auto", "none", "greenhouse_geisser", "huynh_feldt"],
+          "default": "auto",
+          "description": "'auto' reports uncorrected and both corrected p-values, and flags the recommended one based on the estimated epsilon."
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "posthoc",
+          "type": "logical",
+          "default": false,
+          "description": "When TRUE, paired comparisons with p-value adjustment are attached."
+        },
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
+          "default": "holm"
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "alternatives": ["friedman_test"],
+      "references": ["Mauchly, J. W. (1940). Annals of Mathematical Statistics 11(2), 204-209.", "Greenhouse, S. W. and Geisser, S. (1959). Psychometrika 24(2), 95-112.", "Huynh, H. and Feldt, L. S. (1976). Journal of Educational Statistics 1(1), 69-82.", "Bakeman, R. (2005). Behavior Research Methods 37(3), 379-384."],
+      "validation": {
+        "reference_impl": "summary(stats::aov(y ~ condition + Error(subject / condition)))",
+        "tolerance": 1e-08,
+        "compare_fields": ["statistics", "effect_sizes"],
+        "notes": "Epsilon estimates are cross-checked against a hand-computed covariance matrix in Test/."
+      },
+      "example_data": "ToothGrowth"
+    },
+    {
+      "id": "friedman_test",
+      "family": "multi_group_repeated",
+      "label": "Friedman test",
+      "label_ko": "Friedman 검정",
+      "description": "Rank-based omnibus test for three or more repeated conditions measured on the same subjects. The nonparametric counterpart of repeated measures ANOVA.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_friedman",
+      "py_function": "friedman_test",
+      "engine": "stats::friedman.test",
+      "engine_py": "scipy.stats.friedmanchisquare",
+      "data_requirements": {
+        "design": "repeated",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "id": {
+          "type": "any",
+          "required": true
+        },
+        "n_min": 9
+      },
+      "assumptions": ["independence_of_subjects", "balanced_design", "ordinal_outcome"],
+      "effect_sizes": ["kendalls_w"],
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "posthoc",
+          "type": "logical",
+          "default": false,
+          "description": "When TRUE, conover_posthoc results are attached."
+        },
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
+          "default": "holm"
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "posthoc_methods": ["conover_posthoc"],
+      "alternatives": ["repeated_measures_anova"],
+      "references": ["Friedman, M. (1937). Journal of the American Statistical Association 32(200), 675-701.", "Kendall, M. G. and Babington Smith, B. (1939). Annals of Mathematical Statistics 10(3), 275-287."],
+      "validation": {
+        "reference_impl": "stats::friedman.test(y, groups = condition, blocks = subject)",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"]
+      },
+      "example_data": "warpbreaks"
+    },
+    {
+      "id": "conover_posthoc",
+      "family": "multi_group_repeated",
+      "label": "Conover post-hoc test",
+      "label_ko": "Conover 사후검정",
+      "description": "Pairwise comparisons of within-block rank sums following a significant Friedman test, using a t distribution on the residual degrees of freedom.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "posthoc",
+      "follows": ["friedman_test"],
+      "r_function": "sa_conover",
+      "py_function": "conover_posthoc",
+      "engine": "internal",
+      "engine_py": "scikit_posthocs.posthoc_conover_friedman",
+      "data_requirements": {
+        "design": "repeated",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "id": {
+          "type": "any",
+          "required": true
+        },
+        "n_min": 9
+      },
+      "assumptions": ["independence_of_subjects", "balanced_design"],
+      "effect_sizes": ["kendalls_w"],
+      "parameters": [
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
+          "default": "holm"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        }
+      ],
+      "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
+      "alternatives": ["dunn_test"],
+      "references": ["Conover, W. J. (1999). Practical Nonparametric Statistics, 3rd ed."],
+      "validation": {
+        "reference_impl": "Hand-computed rank-sum t statistic from the Friedman rank matrix; cross-checked against PMCMRplus::frdAllPairsConoverTest in development only.",
+        "tolerance": 1e-08,
+        "compare_fields": ["posthoc"],
+        "notes": "PMCMRplus is not a package dependency; expected values are stored as a fixture in Test/."
+      },
+      "example_data": "warpbreaks"
+    },
+    {
+      "id": "one_sample_t_test",
+      "family": "one_sample",
+      "label": "One-sample t-test",
+      "label_ko": "단일 표본 t-검정",
+      "description": "Tests whether the population mean differs from a hypothesised value mu.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_one_sample_t",
+      "py_function": "one_sample_t_test",
+      "engine": "stats::t.test",
+      "engine_py": "scipy.stats.ttest_1samp",
+      "data_requirements": {
+        "design": "single_sample",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "n_min": 2
+      },
+      "assumptions": ["normality_shapiro", "independence", "no_extreme_outliers"],
+      "effect_sizes": ["cohens_d_one_sample", "mean_difference"],
+      "parameters": [
+        {
+          "name": "mu",
+          "type": "numeric",
+          "default": 0,
+          "description": "Hypothesised population mean."
+        },
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["one_sample_wilcoxon"],
+      "references": ["Student (1908). Biometrika 6(1), 1-25."],
+      "validation": {
+        "reference_impl": "stats::t.test(x, mu = mu)",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "one_sample_wilcoxon",
+      "family": "one_sample",
+      "label": "One-sample Wilcoxon signed-rank test",
+      "label_ko": "단일 표본 Wilcoxon 부호순위 검정",
+      "description": "Rank-based test of location against a hypothesised value. Assumes the distribution of x - mu is symmetric.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_one_sample_wilcoxon",
+      "py_function": "one_sample_wilcoxon",
+      "engine": "stats::wilcox.test",
+      "engine_py": "scipy.stats.wilcoxon",
+      "data_requirements": {
+        "design": "single_sample",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "n_min": 3
+      },
+      "assumptions": ["independence", "symmetry_of_differences"],
+      "effect_sizes": ["rank_biserial_one_sample", "hodges_lehmann"],
+      "parameters": [
+        {
+          "name": "mu",
+          "type": "numeric",
+          "default": 0
+        },
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "exact",
+          "type": "logical",
+          "default": null,
+          "description": "NULL lets the engine decide based on n and ties."
+        },
+        {
+          "name": "correct",
+          "type": "logical",
+          "default": true,
+          "description": "Continuity correction for the normal approximation."
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["one_sample_t_test"],
+      "references": ["Wilcoxon, F. (1945). Biometrics Bulletin 1(6), 80-83."],
+      "validation": {
+        "reference_impl": "stats::wilcox.test(x, mu = mu, conf.int = TRUE)",
+        "tolerance": 1e-08,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "one_sample_proportion",
+      "family": "one_sample",
+      "label": "One-sample proportion test",
+      "label_ko": "단일 표본 비율 검정",
+      "description": "Compares an observed proportion against a hypothesised value using the score test, with a Wilson interval by default.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_one_sample_prop",
+      "py_function": "one_sample_proportion",
+      "engine": "stats::prop.test",
+      "engine_py": "statsmodels.stats.proportion.proportions_ztest",
+      "data_requirements": {
+        "design": "single_sample",
+        "outcome": {
+          "type": "binary",
+          "required": true,
+          "n_min": 5
+        },
+        "n_min": 5
+      },
+      "assumptions": ["independence", "sample_size_proportion"],
+      "effect_sizes": ["cohens_h", "risk_difference"],
+      "parameters": [
+        {
+          "name": "p",
+          "type": "numeric",
+          "default": 0.5,
+          "range": [0, 1],
+          "description": "Hypothesised proportion."
+        },
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "ci_method",
+          "type": "enum",
+          "values": ["wilson", "clopper_pearson", "wald"],
+          "default": "wilson"
+        },
+        {
+          "name": "correct",
+          "type": "logical",
+          "default": true
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["binomial_exact"],
+      "references": ["Wilson, E. B. (1927). Journal of the American Statistical Association 22(158), 209-212.", "Newcombe, R. G. (1998). Statistics in Medicine 17(8), 857-872."],
+      "validation": {
+        "reference_impl": "stats::prop.test(x = successes, n = n, p = p)",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "mtcars"
+    },
+    {
+      "id": "student_t_test",
+      "family": "two_group_independent",
+      "label": "Student's t-test",
+      "label_ko": "Student t-검정",
+      "description": "Compares the means of two independent samples assuming equal variances. Prefer welch_t_test unless equal variances are justified by design.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_student_t",
+      "py_function": "student_t_test",
+      "engine": "stats::t.test(var.equal = TRUE)",
+      "engine_py": "scipy.stats.ttest_ind(equal_var=True)",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "n_min": 4
+      },
+      "assumptions": ["normality_shapiro", "homogeneity_levene", "independence", "no_extreme_outliers"],
+      "effect_sizes": ["cohens_d", "hedges_g", "glass_delta", "mean_difference"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["welch_t_test", "mann_whitney_u", "permutation_two_sample"],
+      "references": ["Student (1908). Biometrika 6(1), 1-25."],
+      "validation": {
+        "reference_impl": "stats::t.test(y ~ g, var.equal = TRUE)",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "sleep"
+    },
+    {
+      "id": "welch_t_test",
+      "family": "two_group_independent",
+      "label": "Welch's t-test",
+      "label_ko": "Welch t-검정",
+      "description": "Compares the means of two independent samples without assuming equal variances. This is the recommended default for two-group comparison.",
+      "status": "implemented",
+      "run_by": "compare_two_groups",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_welch_t",
+      "py_function": "welch_t_test",
+      "engine": "stats::t.test(var.equal = FALSE)",
+      "engine_py": "scipy.stats.ttest_ind(equal_var=False)",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "n_min": 4
+      },
+      "assumptions": ["normality_shapiro", "independence", "no_extreme_outliers"],
+      "effect_sizes": ["cohens_d", "hedges_g", "glass_delta", "mean_difference"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["mann_whitney_u", "permutation_two_sample", "bootstrap_mean_difference"],
+      "references": ["Welch, B. L. (1947). Biometrika 34(1-2), 28-35.", "Delacre, M., Lakens, D. and Leys, C. (2017). International Review of Social Psychology 30(1), 92-101."],
+      "validation": {
+        "reference_impl": "stats::t.test(y ~ g, var.equal = FALSE)",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "sleep"
+    },
+    {
+      "id": "mann_whitney_u",
+      "family": "two_group_independent",
+      "label": "Mann-Whitney U test",
+      "label_ko": "Mann-Whitney U 검정",
+      "description": "Rank-based test of stochastic dominance between two independent samples, equivalent to the Wilcoxon rank-sum test. Reports the Hodges-Lehmann shift estimate rather than a difference in medians.",
+      "status": "implemented",
+      "run_by": "compare_two_groups",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_mann_whitney",
+      "py_function": "mann_whitney_u",
+      "engine": "stats::wilcox.test",
+      "engine_py": "scipy.stats.mannwhitneyu",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "n_min": 4
+      },
+      "assumptions": ["independence", "similar_shape"],
+      "effect_sizes": ["rank_biserial", "cliffs_delta", "hodges_lehmann", "probability_superiority"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "exact",
+          "type": "logical",
+          "default": null,
+          "description": "NULL lets the engine decide based on n and ties."
+        },
+        {
+          "name": "correct",
+          "type": "logical",
+          "default": true
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["welch_t_test", "permutation_two_sample"],
+      "references": ["Mann, H. B. and Whitney, D. R. (1947). Annals of Mathematical Statistics 18(1), 50-60.", "Divine, G. W. et al. (2018). The American Statistician 72(3), 278-286."],
+      "validation": {
+        "reference_impl": "stats::wilcox.test(y ~ g, conf.int = TRUE)",
+        "tolerance": 1e-08,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "sleep"
+    },
+    {
+      "id": "brunner_munzel",
+      "family": "two_group_independent",
+      "label": "Brunner-Munzel test",
+      "label_ko": "Brunner-Munzel 검정",
+      "description": "Rank-based test for the nonparametric Behrens-Fisher problem. Unlike the Wilcoxon rank-sum test it does not assume the two distributions share a shape, so it stays valid when the groups differ in spread. Estimates the relative effect P(X > Y) + 0.5 * P(X = Y) with a Satterthwaite interval.",
+      "status": "implemented",
+      "run_by": "compare_two_groups",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_brunner_munzel",
+      "py_function": "brunner_munzel",
+      "engine": "internal",
+      "engine_py": "internal",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "n_min": 4,
+        "notes": "Fails when the two groups do not overlap at all: the variance estimate is then zero and the statistic undefined. Reported as an error rather than returned as a NaN."
+      },
+      "assumptions": ["independence"],
+      "effect_sizes": ["probability_superiority"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["mann_whitney_u", "welch_t_test"],
+      "references": ["Brunner, E. and Munzel, U. (2000). Biometrical Journal 42(1), 17-25."],
+      "validation": {
+        "reference_impl": "lawstat::brunner.munzel.test(x, y, alternative, alpha)",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics", "effect_sizes"],
+        "notes": "p-value and df must match lawstat exactly. The statistic is the negation of lawstat's and the relative effect is its complement, because STATassist orients both toward the first group level. lawstat returns a two-sided interval whatever the alternative, so only the two-sided interval is comparable, mirrored as 1 - rev(ci)."
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "permutation_two_sample",
+      "family": "two_group_independent",
+      "label": "Two-sample permutation test",
+      "label_ko": "두 표본 순열 검정",
+      "description": "Distribution-free test built by repeatedly reassigning group labels. Valid under the exchangeability assumption without requiring normality.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_permutation_two_sample",
+      "py_function": "permutation_two_sample",
+      "engine": "internal",
+      "engine_py": "scipy.stats.permutation_test",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "n_min": 6
+      },
+      "assumptions": ["independence", "exchangeability"],
+      "effect_sizes": ["mean_difference", "cohens_d"],
+      "parameters": [
+        {
+          "name": "statistic",
+          "type": "enum",
+          "values": ["mean_difference", "median_difference", "trimmed_mean_difference", "t"],
+          "default": "mean_difference"
+        },
+        {
+          "name": "n_resamples",
+          "type": "integer",
+          "default": 9999,
+          "range": [99, 1000000]
+        },
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "seed",
+          "type": "integer",
+          "default": null,
+          "description": "Recorded in metadata$seed even when generated internally."
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["welch_t_test", "bootstrap_mean_difference"],
+      "references": ["Ernst, M. D. (2004). Statistical Science 19(4), 676-685.", "Phipson, B. and Smyth, G. K. (2010). Statistical Applications in Genetics and Molecular Biology 9(1)."],
+      "validation": {
+        "reference_impl": "Analytic check: n_resamples -> Inf converges to stats::t.test p-value within 3 Monte Carlo SE.",
+        "tolerance": 0.005,
+        "compare_fields": ["statistics"],
+        "notes": "p-value uses the (b + 1) / (m + 1) estimator, so it is never exactly zero."
+      },
+      "example_data": "sleep"
+    },
+    {
+      "id": "bootstrap_mean_difference",
+      "family": "two_group_independent",
+      "label": "Bootstrap difference in means",
+      "label_ko": "부트스트랩 평균차",
+      "description": "Resampling-based interval for the difference in means between two independent samples, using percentile or bias-corrected accelerated intervals.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_bootstrap_mean_diff",
+      "py_function": "bootstrap_mean_difference",
+      "engine": "internal",
+      "engine_py": "scipy.stats.bootstrap",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 5
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "n_min": 10
+      },
+      "assumptions": ["independence"],
+      "effect_sizes": ["mean_difference", "cohens_d"],
+      "parameters": [
+        {
+          "name": "statistic",
+          "type": "enum",
+          "values": ["mean", "median", "trimmed_mean"],
+          "default": "mean"
+        },
+        {
+          "name": "ci_method",
+          "type": "enum",
+          "values": ["bca", "percentile", "basic"],
+          "default": "bca"
+        },
+        {
+          "name": "n_resamples",
+          "type": "integer",
+          "default": 9999,
+          "range": [199, 1000000]
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "seed",
+          "type": "integer",
+          "default": null
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["welch_t_test", "permutation_two_sample"],
+      "references": ["Efron, B. and Tibshirani, R. J. (1993). An Introduction to the Bootstrap.", "Davison, A. C. and Hinkley, D. V. (1997). Bootstrap Methods and Their Application."],
+      "validation": {
+        "reference_impl": "Analytic check: percentile CI approaches the Welch CI as n grows; compared against boot::boot.ci in development only.",
+        "tolerance": 0.005,
+        "compare_fields": ["estimates"],
+        "notes": "boot is not a package dependency; the reference run is kept as a stored fixture in Test/."
+      },
+      "example_data": "sleep"
+    },
+    {
+      "id": "paired_t_test",
+      "family": "two_group_paired",
+      "label": "Paired t-test",
+      "label_ko": "대응 표본 t-검정",
+      "description": "One-sample t-test on the within-pair differences. Reports Cohen's dz (difference-based) and Cohen's drm (correlation-corrected) side by side because the two are frequently confused.",
+      "status": "implemented",
+      "run_by": "compare_two_groups",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_paired_t",
+      "py_function": "paired_t_test",
+      "engine": "stats::t.test(paired = TRUE)",
+      "engine_py": "scipy.stats.ttest_rel",
+      "data_requirements": {
+        "design": "paired",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "id": {
+          "type": "any",
+          "required": true,
+          "notes": "Pairing key. Required for the long-format interface."
+        },
+        "n_min": 4
+      },
+      "assumptions": ["normality_of_differences", "independence_of_pairs", "no_extreme_outliers"],
+      "effect_sizes": ["cohens_dz", "cohens_drm", "hedges_g_paired", "mean_difference"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["wilcoxon_signed_rank", "permutation_paired"],
+      "references": ["Lakens, D. (2013). Frontiers in Psychology 4, 863."],
+      "validation": {
+        "reference_impl": "stats::t.test(x, y, paired = TRUE)",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "sleep"
+    },
+    {
+      "id": "wilcoxon_signed_rank",
+      "family": "two_group_paired",
+      "label": "Wilcoxon signed-rank test",
+      "label_ko": "Wilcoxon 부호순위 검정",
+      "description": "Rank-based test on within-pair differences. Assumes the differences are symmetrically distributed around the null value.",
+      "status": "implemented",
+      "run_by": "compare_two_groups",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_wilcoxon_signed_rank",
+      "py_function": "wilcoxon_signed_rank",
+      "engine": "stats::wilcox.test(paired = TRUE)",
+      "engine_py": "scipy.stats.wilcoxon",
+      "data_requirements": {
+        "design": "paired",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 3
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "id": {
+          "type": "any",
+          "required": true
+        },
+        "n_min": 6
+      },
+      "assumptions": ["independence_of_pairs", "symmetry_of_differences"],
+      "effect_sizes": ["rank_biserial_paired", "hodges_lehmann_paired"],
+      "parameters": [
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "exact",
+          "type": "logical",
+          "default": null
+        },
+        {
+          "name": "correct",
+          "type": "logical",
+          "default": true
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["paired_t_test", "permutation_paired"],
+      "references": ["Wilcoxon, F. (1945). Biometrics Bulletin 1(6), 80-83."],
+      "validation": {
+        "reference_impl": "stats::wilcox.test(x, y, paired = TRUE, conf.int = TRUE)",
+        "tolerance": 1e-08,
+        "compare_fields": ["estimates", "statistics"]
+      },
+      "example_data": "sleep"
+    },
+    {
+      "id": "yuen_paired",
+      "family": "two_group_paired",
+      "label": "Yuen's trimmed mean test for dependent samples",
+      "label_ko": "Yuen 절단평균 검정 (대응 표본)",
+      "description": "Compares trimmed means with a standard error built from the winsorised variances and their covariance, so the pairing is kept while outliers in either sample lose their leverage. The robust counterpart of the paired t-test.",
+      "status": "implemented",
+      "run_by": "compare_two_groups",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_yuen_paired",
+      "py_function": "yuen_paired",
+      "engine": "internal",
+      "engine_py": "internal",
+      "data_requirements": {
+        "design": "paired",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 4
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "id": {
+          "type": "any",
+          "required": true,
+          "notes": "Pairing key. Matching by row order is possible but cannot detect reordered rows."
+        },
+        "n_min": 8,
+        "notes": "At least 2 observations must survive trimming, so n_pairs - 2 * floor(tr * n_pairs) >= 2. Fails when the winsorised paired differences are constant, which leaves the standard error at zero."
+      },
+      "assumptions": ["independence_of_pairs"],
+      "effect_sizes": ["trimmed_mean_difference", "robust_dz_akp"],
+      "parameters": [
+        {
+          "name": "tr",
+          "type": "numeric",
+          "default": 0.2,
+          "range": [
+            0,
+            0.5
+          ],
+          "description": "Proportion trimmed at each tail. Must be below 0.5."
+        },
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["paired_t_test", "wilcoxon_signed_rank"],
+      "references": ["Yuen, K. K. (1974). Biometrika 61(1), 165-170.", "Algina, J., Keselman, H. J. and Penfield, R. D. (2005). Psychological Methods 10(3), 317-328."],
+      "validation": {
+        "reference_impl": "WRS2::yuend(x, y, tr)",
+        "tolerance": 1e-10,
+        "compare_fields": ["estimates", "statistics"],
+        "notes": "Statistic, df, standard error, trimmed difference and two-sided p-value must match yuend exactly. The interval only agrees at conf_level 0.95 because yuend hardcodes alpha = 0.05. The effect size is deliberately different: yuend reports an unsigned explanatory-power measure computed as though the samples were independent, replaced here by the signed pairing-aware robust_dz_akp."
+      },
+      "example_data": "sleep"
+    },
+    {
+      "id": "permutation_paired",
+      "family": "two_group_paired",
+      "label": "Paired permutation test",
+      "label_ko": "대응 표본 순열 검정",
+      "description": "Sign-flipping permutation on within-pair differences. Exact enumeration is used when the number of pairs is small enough.",
+      "status": "planned",
+      "since": "0.0.1",
+      "role": "primary",
+      "r_function": "sa_permutation_paired",
+      "py_function": "permutation_paired",
+      "engine": "internal",
+      "engine_py": "scipy.stats.permutation_test(permutation_type='samples')",
+      "data_requirements": {
+        "design": "paired",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 4
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels": 2
+        },
+        "id": {
+          "type": "any",
+          "required": true
+        },
+        "n_min": 8
+      },
+      "assumptions": ["independence_of_pairs", "symmetry_of_differences"],
+      "effect_sizes": ["mean_difference", "cohens_dz"],
+      "parameters": [
+        {
+          "name": "statistic",
+          "type": "enum",
+          "values": ["mean_difference", "median_difference", "t"],
+          "default": "mean_difference"
+        },
+        {
+          "name": "n_resamples",
+          "type": "integer",
+          "default": 9999,
+          "range": [99, 1000000]
+        },
+        {
+          "name": "exact",
+          "type": "logical",
+          "default": null,
+          "description": "NULL enumerates all 2^n sign flips when n <= 20."
+        },
+        {
+          "name": "alternative",
+          "type": "enum",
+          "values": ["two.sided", "less", "greater"],
+          "default": "two.sided"
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "seed",
+          "type": "integer",
+          "default": null
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
+      "alternatives": ["paired_t_test", "wilcoxon_signed_rank"],
+      "references": ["Good, P. I. (2005). Permutation, Parametric and Bootstrap Tests of Hypotheses, 3rd ed."],
+      "validation": {
+        "reference_impl": "Exact enumeration of all 2^n sign flips for n <= 12, compared against the Monte Carlo implementation.",
+        "tolerance": 0.005,
+        "compare_fields": ["statistics"]
+      },
+      "example_data": "sleep"
+    }
+  ],
+  "effect_sizes": [
+    {
+      "id": "mean_difference",
+      "label": "Mean difference",
+      "label_ko": "평균 차이",
+      "formula": "mean(x1) - mean(x2)",
+      "scale": "difference",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "wald",
+      "notes": "Reported on the original measurement scale. No benchmarks apply."
+    },
+    {
+      "id": "risk_difference",
+      "label": "Risk difference",
+      "label_ko": "위험도 차이",
+      "formula": "p1 - p2",
+      "scale": "difference",
+      "range": [-1, 1],
+      "ci_method": "wilson",
+      "notes": "Newcombe hybrid score interval is used for two independent proportions.",
+      "references": ["Newcombe, R. G. (1998). Statistics in Medicine 17(8), 873-890."]
+    },
+    {
+      "id": "risk_difference_paired",
+      "label": "Paired risk difference",
+      "label_ko": "대응 위험도 차이",
+      "formula": "(b - c) / n",
+      "scale": "difference",
+      "range": [-1, 1],
+      "ci_method": "wilson",
+      "notes": "b and c are the discordant cell counts of the paired 2 x 2 table."
+    },
+    {
+      "id": "hodges_lehmann",
+      "label": "Hodges-Lehmann shift estimate",
+      "label_ko": "Hodges-Lehmann 이동 추정치",
+      "formula": "median of all pairwise differences x_i - y_j",
+      "scale": "difference",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "exact_rank",
+      "notes": "The correct location estimate to report with a rank-sum test. It is a shift estimate, not a difference of medians.",
+      "references": ["Hodges, J. L. and Lehmann, E. L. (1963). Annals of Mathematical Statistics 34(2), 598-611."]
+    },
+    {
+      "id": "hodges_lehmann_paired",
+      "label": "Paired Hodges-Lehmann estimate",
+      "label_ko": "대응 Hodges-Lehmann 추정치",
+      "formula": "median of all Walsh averages (d_i + d_j) / 2",
+      "scale": "difference",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "exact_rank"
+    },
+    {
+      "id": "trimmed_mean_difference",
+      "label": "Trimmed mean difference",
+      "label_ko": "절단평균 차이",
+      "formula": "mean(x, trim = tr) - mean(y, trim = tr)",
+      "scale": "difference",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "wald",
+      "notes": "The estimate Yuen's test actually tests, so its interval is the test's own pivot: the estimate plus and minus t(h - 1) times the standard error built from the winsorised variances. On the original measurement scale, so no benchmarks apply. Only defined relative to the trimming proportion, which is reported alongside it.",
+      "references": ["Yuen, K. K. (1974). Biometrika 61(1), 165-170."]
+    },
+    {
+      "id": "cohens_d",
+      "label": "Cohen's d",
+      "label_ko": "Cohen d",
+      "formula": "(mean(x1) - mean(x2)) / pooled_sd",
+      "scale": "standardised_mean",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "noncentral_t",
+      "benchmarks": {
+        "small": 0.2,
+        "medium": 0.5,
+        "large": 0.8,
+        "source": "Cohen (1988)"
+      },
+      "notes": "Uses the pooled standard deviation even when reported next to Welch's t-test, so that d does not change with the variance assumption.",
+      "references": ["Cohen, J. (1988). Statistical Power Analysis for the Behavioral Sciences, 2nd ed."]
+    },
+    {
+      "id": "cohens_d_one_sample",
+      "label": "Cohen's d (one sample)",
+      "label_ko": "Cohen d (단일 표본)",
+      "formula": "(mean(x) - mu) / sd(x)",
+      "scale": "standardised_mean",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "noncentral_t",
+      "benchmarks": {
+        "small": 0.2,
+        "medium": 0.5,
+        "large": 0.8,
+        "source": "Cohen (1988)"
+      }
+    },
+    {
+      "id": "hedges_g",
+      "label": "Hedges' g",
+      "label_ko": "Hedges g",
+      "formula": "cohens_d * J,  J = 1 - 3 / (4 * df - 1)",
+      "scale": "standardised_mean",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "noncentral_t",
+      "benchmarks": {
+        "small": 0.2,
+        "medium": 0.5,
+        "large": 0.8,
+        "source": "Cohen (1988)"
+      },
+      "notes": "Small-sample bias corrected d. Preferred when total n is below about 50.",
+      "references": ["Hedges, L. V. (1981). Journal of Educational Statistics 6(2), 107-128."]
+    },
+    {
+      "id": "hedges_g_paired",
+      "label": "Hedges' g (paired)",
+      "label_ko": "Hedges g (대응)",
+      "formula": "cohens_dz * J,  J = 1 - 3 / (4 * (n - 1) - 1)",
+      "scale": "standardised_mean",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "noncentral_t"
+    },
+    {
+      "id": "glass_delta",
+      "label": "Glass's delta",
+      "label_ko": "Glass delta",
+      "formula": "(mean(x1) - mean(x2)) / sd(control)",
+      "scale": "standardised_mean",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "noncentral_t",
+      "benchmarks": {
+        "small": 0.2,
+        "medium": 0.5,
+        "large": 0.8,
+        "source": "Cohen (1988)"
+      },
+      "notes": "Standardised by the control group SD only. Appropriate when the treatment is expected to change the variance as well as the mean. The first factor level is treated as the control unless stated otherwise."
+    },
+    {
+      "id": "cohens_dz",
+      "label": "Cohen's dz",
+      "label_ko": "Cohen dz",
+      "formula": "mean(d) / sd(d)",
+      "scale": "standardised_mean",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "noncentral_t",
+      "benchmarks": {
+        "small": 0.2,
+        "medium": 0.5,
+        "large": 0.8,
+        "source": "Cohen (1988)"
+      },
+      "notes": "Standardised by the SD of the differences. This is the quantity that corresponds to the paired t statistic and it is not comparable with the independent-samples d.",
+      "references": ["Lakens, D. (2013). Frontiers in Psychology 4, 863."]
+    },
+    {
+      "id": "robust_dz_akp",
+      "label": "Robust dz (Algina-Keselman-Penfield)",
+      "label_ko": "로버스트 dz (AKP)",
+      "formula": "trimmed mean difference / sqrt(winvar(d, tr) / cterm(tr))",
+      "scale": "standardised_mean",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "none",
+      "benchmarks": {
+        "small": 0.2,
+        "medium": 0.5,
+        "large": 0.8,
+        "source": "Cohen (1988), via the AKP rescaling"
+      },
+      "notes": "The robust counterpart of dz. Winsorising shortens the tails, so the winsorised variance of the differences is divided by cterm(tr), the variance of a winsorised standard normal, which puts the result back on the scale of an ordinary dz when the differences are normal. At tr = 0.2 that constant is 0.4120867 and its square root is the 0.642 factor usually quoted. Signed, unlike the explanatory-power measure WRS2::yuend() reports. Reported as a point estimate only; the interval to read is the one on trimmed_mean_difference, which is on the scale the data were measured in.",
+      "references": ["Algina, J., Keselman, H. J. and Penfield, R. D. (2005). Psychological Methods 10(3), 317-328."]
+    },
+    {
+      "id": "cohens_drm",
+      "label": "Cohen's d (repeated measures, correlation corrected)",
+      "label_ko": "Cohen d (반복측정 상관 보정)",
+      "formula": "dz * sqrt(2 * (1 - r))",
+      "scale": "standardised_mean",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "noncentral_t",
+      "notes": "Rescales dz so that it is comparable with an independent-samples d. Reported alongside dz because the two are routinely confused."
+    },
+    {
+      "id": "cohens_f",
+      "label": "Cohen's f",
+      "label_ko": "Cohen f",
+      "formula": "sqrt(eta_squared / (1 - eta_squared))",
+      "scale": "variance_explained",
+      "range": [
+        0,
+        "Inf"
+      ],
+      "ci_method": "none",
+      "benchmarks": {
+        "small": 0.1,
+        "medium": 0.25,
+        "large": 0.4,
+        "source": "Cohen (1988)"
+      }
+    },
+    {
+      "id": "cohens_h",
+      "label": "Cohen's h",
+      "label_ko": "Cohen h",
+      "formula": "2 * asin(sqrt(p1)) - 2 * asin(sqrt(p2))",
+      "scale": "difference",
+      "range": ["-Inf", "Inf"],
+      "ci_method": "wald",
+      "benchmarks": {
+        "small": 0.2,
+        "medium": 0.5,
+        "large": 0.8,
+        "source": "Cohen (1988)"
+      },
+      "notes": "Arcsine transformed difference between two proportions."
+    },
+    {
+      "id": "cohens_w",
+      "label": "Cohen's w",
+      "label_ko": "Cohen w",
+      "formula": "sqrt(sum((p_obs - p_exp)^2 / p_exp))",
+      "scale": "association",
+      "range": [
+        0,
+        "Inf"
+      ],
+      "ci_method": "none",
+      "benchmarks": {
+        "small": 0.1,
+        "medium": 0.3,
+        "large": 0.5,
+        "source": "Cohen (1988)"
+      }
+    },
+    {
+      "id": "cohens_g",
+      "label": "Cohen's g",
+      "label_ko": "Cohen g",
+      "formula": "b / (b + c) - 0.5",
+      "scale": "difference",
+      "range": [-0.5, 0.5],
+      "ci_method": "clopper_pearson",
+      "benchmarks": {
+        "small": 0.05,
+        "medium": 0.15,
+        "large": 0.25,
+        "source": "Cohen (1988)"
+      },
+      "notes": "Departure from marginal homogeneity in a paired 2 x 2 table."
+    },
+    {
+      "id": "rank_biserial",
+      "label": "Rank-biserial correlation",
+      "label_ko": "순위 이연상관",
+      "formula": "1 - 2 * U / (n1 * n2)",
+      "scale": "rank",
+      "range": [-1, 1],
+      "ci_method": "bootstrap_bca",
+      "benchmarks": {
+        "small": 0.1,
+        "medium": 0.3,
+        "large": 0.5,
+        "source": "Cohen (1988) via r conversion"
+      },
+      "notes": "Directly interpretable as the difference between the proportions of favourable and unfavourable pairs."
+    },
+    {
+      "id": "rank_biserial_one_sample",
+      "label": "Rank-biserial correlation (one sample)",
+      "label_ko": "순위 이연상관 (단일 표본)",
+      "formula": "(sum of positive ranks - sum of negative ranks) / total rank sum",
+      "scale": "rank",
+      "range": [-1, 1],
+      "ci_method": "bootstrap_bca"
+    },
+    {
+      "id": "rank_biserial_paired",
+      "label": "Matched-pairs rank-biserial correlation",
+      "label_ko": "대응 순위 이연상관",
+      "formula": "(R_plus - R_minus) / (R_plus + R_minus)",
+      "scale": "rank",
+      "range": [-1, 1],
+      "ci_method": "bootstrap_bca",
+      "references": ["Kerby, D. S. (2014). Comprehensive Psychology 3, 11.IT.3.1."]
+    },
+    {
+      "id": "cliffs_delta",
+      "label": "Cliff's delta",
+      "label_ko": "Cliff delta",
+      "formula": "(#(x > y) - #(x < y)) / (n1 * n2)",
+      "scale": "rank",
+      "range": [-1, 1],
+      "ci_method": "bootstrap_bca",
+      "benchmarks": {
+        "small": 0.147,
+        "medium": 0.33,
+        "large": 0.474,
+        "source": "Romano et al. (2006)"
+      },
+      "references": ["Cliff, N. (1993). Psychological Bulletin 114(3), 494-509."]
+    },
+    {
+      "id": "probability_superiority",
+      "label": "Probability of superiority",
+      "label_ko": "우월 확률",
+      "formula": "P(X > Y) + 0.5 * P(X = Y), estimated as U / (n1 * n2)",
+      "scale": "rank",
+      "range": [0, 1],
+      "ci_method": "bootstrap_bca",
+      "notes": "Also called the common language effect size, and the relative effect of the Brunner-Munzel test. The probability that a randomly drawn observation from group 1 exceeds one from group 2, with ties splitting the difference, so the null value is 0.5 rather than 0. Brunner-Munzel supplies an interval from the Satterthwaite approximation instead of by bootstrap. Published accounts often state the complement, P(X < Y) + 0.5 * P(X = Y); STATassist always orients it toward the first group level so that it points the same way as every other estimate in the result."
+    },
+    {
+      "id": "kendalls_w",
+      "label": "Kendall's W",
+      "label_ko": "Kendall 일치계수",
+      "formula": "chi2_friedman / (n_subjects * (k - 1))",
+      "scale": "agreement",
+      "range": [0, 1],
+      "ci_method": "bootstrap_bca",
+      "benchmarks": {
+        "small": 0.1,
+        "medium": 0.3,
+        "large": 0.5,
+        "source": "Cohen (1988) via w conversion"
+      }
+    },
+    {
+      "id": "eta_squared",
+      "label": "Eta squared",
+      "label_ko": "에타 제곱",
+      "formula": "SS_effect / SS_total",
+      "scale": "variance_explained",
+      "range": [0, 1],
+      "ci_method": "noncentral_t",
+      "benchmarks": {
+        "small": 0.01,
+        "medium": 0.06,
+        "large": 0.14,
+        "source": "Cohen (1988)"
+      },
+      "notes": "Positively biased. Reported together with omega squared."
+    },
+    {
+      "id": "partial_eta_squared",
+      "label": "Partial eta squared",
+      "label_ko": "부분 에타 제곱",
+      "formula": "SS_effect / (SS_effect + SS_error)",
+      "scale": "variance_explained",
+      "range": [0, 1],
+      "ci_method": "noncentral_t",
+      "benchmarks": {
+        "small": 0.01,
+        "medium": 0.06,
+        "large": 0.14,
+        "source": "Cohen (1988)"
+      },
+      "notes": "Not comparable across designs with different error terms."
+    },
+    {
+      "id": "generalised_eta_squared",
+      "label": "Generalised eta squared",
+      "label_ko": "일반화 에타 제곱",
+      "formula": "SS_effect / (SS_effect + sum of measurement error SS)",
+      "scale": "variance_explained",
+      "range": [0, 1],
+      "ci_method": "none",
+      "notes": "Comparable between within-subject and between-subject designs.",
+      "references": ["Bakeman, R. (2005). Behavior Research Methods 37(3), 379-384."]
+    },
+    {
+      "id": "omega_squared",
+      "label": "Omega squared",
+      "label_ko": "오메가 제곱",
+      "formula": "(SS_effect - df_effect * MS_error) / (SS_total + MS_error)",
+      "scale": "variance_explained",
+      "range": [
+        "-Inf",
+        1
+      ],
+      "ci_method": "noncentral_t",
+      "benchmarks": {
+        "small": 0.01,
+        "medium": 0.06,
+        "large": 0.14,
+        "source": "Field (2013)"
+      },
+      "notes": "Less biased than eta squared. Can be slightly negative; the value is reported as computed rather than truncated at zero."
+    },
+    {
+      "id": "epsilon_squared",
+      "label": "Epsilon squared",
+      "label_ko": "엡실론 제곱",
+      "formula": "(SS_effect - df_effect * MS_error) / SS_total",
+      "scale": "variance_explained",
+      "range": [
+        "-Inf",
+        1
+      ],
+      "ci_method": "noncentral_t"
+    },
+    {
+      "id": "eta_squared_rank",
+      "label": "Rank eta squared",
+      "label_ko": "순위 에타 제곱",
+      "formula": "(H - k + 1) / (n - k)",
+      "scale": "variance_explained",
+      "range": [0, 1],
+      "ci_method": "bootstrap_bca",
+      "notes": "Companion effect size for the Kruskal-Wallis H statistic."
+    },
+    {
+      "id": "epsilon_squared_rank",
+      "label": "Rank epsilon squared",
+      "label_ko": "순위 엡실론 제곱",
+      "formula": "H / ((n^2 - 1) / (n + 1))",
+      "scale": "variance_explained",
+      "range": [0, 1],
+      "ci_method": "bootstrap_bca",
+      "references": ["Tomczak, M. and Tomczak, E. (2014). Trends in Sport Sciences 1(21), 19-25."]
+    },
+    {
+      "id": "r_squared",
+      "label": "Coefficient of determination",
+      "label_ko": "결정계수",
+      "formula": "r^2",
+      "scale": "variance_explained",
+      "range": [0, 1],
+      "ci_method": "none"
+    },
+    {
+      "id": "cramers_v",
+      "label": "Cramer's V",
+      "label_ko": "Cramer V",
+      "formula": "sqrt(chi2 / (n * min(r - 1, c - 1)))",
+      "scale": "association",
+      "range": [0, 1],
+      "ci_method": "bootstrap_bca",
+      "benchmarks": {
+        "small": 0.1,
+        "medium": 0.3,
+        "large": 0.5,
+        "source": "Cohen (1988), df = 1"
+      },
+      "notes": "Benchmarks depend on table dimensions; the reported magnitude label uses the df-adjusted thresholds."
+    },
+    {
+      "id": "phi_coefficient",
+      "label": "Phi coefficient",
+      "label_ko": "파이 계수",
+      "formula": "sqrt(chi2 / n)",
+      "scale": "association",
+      "range": [-1, 1],
+      "ci_method": "bootstrap_bca",
+      "benchmarks": {
+        "small": 0.1,
+        "medium": 0.3,
+        "large": 0.5,
+        "source": "Cohen (1988)"
+      },
+      "notes": "Defined for 2 x 2 tables only; a sign is reported there."
+    },
+    {
+      "id": "contingency_coefficient",
+      "label": "Pearson contingency coefficient",
+      "label_ko": "분할계수",
+      "formula": "sqrt(chi2 / (chi2 + n))",
+      "scale": "association",
+      "range": [0, 1],
+      "ci_method": "none",
+      "notes": "Upper bound is below 1 and depends on table size, which limits comparability."
+    },
+    {
+      "id": "pearson_r",
+      "label": "Pearson correlation coefficient",
+      "label_ko": "Pearson 상관계수",
+      "formula": "cov(x, y) / (sd(x) * sd(y))",
+      "scale": "correlation",
+      "range": [-1, 1],
+      "ci_method": "fisher_z",
+      "benchmarks": {
+        "small": 0.1,
+        "medium": 0.3,
+        "large": 0.5,
+        "source": "Cohen (1988)"
+      }
+    },
+    {
+      "id": "spearman_rho",
+      "label": "Spearman's rho",
+      "label_ko": "Spearman 로",
+      "formula": "Pearson correlation of the ranks",
+      "scale": "correlation",
+      "range": [-1, 1],
+      "ci_method": "fisher_z",
+      "benchmarks": {
+        "small": 0.1,
+        "medium": 0.3,
+        "large": 0.5,
+        "source": "Cohen (1988)"
+      },
+      "notes": "The Fisher z interval uses the Bonett-Wright standard error sqrt((1 + rho^2 / 2) / (n - 3))."
+    },
+    {
+      "id": "kendall_tau_b",
+      "label": "Kendall's tau-b",
+      "label_ko": "Kendall 타우-b",
+      "formula": "(C - D) / sqrt((C + D + Tx) * (C + D + Ty))",
+      "scale": "correlation",
+      "range": [-1, 1],
+      "ci_method": "fisher_z",
+      "benchmarks": {
+        "small": 0.07,
+        "medium": 0.21,
+        "large": 0.35,
+        "source": "Gignac and Szodorai (2016) approximation"
+      }
+    },
+    {
+      "id": "partial_r",
+      "label": "Partial correlation coefficient",
+      "label_ko": "편상관계수",
+      "formula": "correlation of the residuals of x and y after regressing on z",
+      "scale": "correlation",
+      "range": [-1, 1],
+      "ci_method": "fisher_z",
+      "notes": "The Fisher z interval uses n - 3 - k degrees of freedom, where k is the number of covariates."
+    },
+    {
+      "id": "odds_ratio",
+      "label": "Odds ratio",
+      "label_ko": "오즈비",
+      "formula": "(a * d) / (b * c)",
+      "scale": "ratio",
+      "range": [
+        0,
+        "Inf"
+      ],
+      "ci_method": "wald",
+      "notes": "Computed and stored on the log scale, then exponentiated, so that the interval is asymmetric on the original scale. When any cell is zero a Haldane-Anscombe 0.5 correction is applied and SA-W013 is recorded."
+    },
+    {
+      "id": "odds_ratio_paired",
+      "label": "Paired odds ratio",
+      "label_ko": "대응 오즈비",
+      "formula": "b / c",
+      "scale": "ratio",
+      "range": [
+        0,
+        "Inf"
+      ],
+      "ci_method": "clopper_pearson",
+      "notes": "Conditional odds ratio from the discordant cells of a paired 2 x 2 table."
+    },
+    {
+      "id": "risk_ratio",
+      "label": "Risk ratio",
+      "label_ko": "위험비",
+      "formula": "p1 / p2",
+      "scale": "ratio",
+      "range": [
+        0,
+        "Inf"
+      ],
+      "ci_method": "wald",
+      "notes": "Computed on the log scale. Undefined when the reference risk is zero."
+    }
+  ],
+  "assumptions": [
+    {
+      "id": "normality_shapiro",
+      "label": "Normality of the outcome within each group",
+      "label_ko": "그룹별 결과변수의 정규성",
+      "target": "normality",
+      "evaluation": "test",
+      "test": "shapiro_wilk",
+      "threshold": 0.05,
+      "on_violation": {
+        "message_code": "SA-W002",
+        "suggest": ["mann_whitney_u", "kruskal_wallis", "permutation_two_sample"]
+      },
+      "references": ["Shapiro, S. S. and Wilk, M. B. (1965). Biometrika 52(3-4), 591-611."]
+    },
+    {
+      "id": "normality_of_differences",
+      "label": "Normality of the within-pair differences",
+      "label_ko": "대응 차이값의 정규성",
+      "target": "normality",
+      "evaluation": "test",
+      "test": "shapiro_wilk",
+      "threshold": 0.05,
+      "on_violation": {
+        "message_code": "SA-W002",
+        "suggest": ["wilcoxon_signed_rank", "permutation_paired"]
+      }
+    },
+    {
+      "id": "normality_of_residuals",
+      "label": "Normality of the model residuals",
+      "label_ko": "잔차의 정규성",
+      "target": "normality",
+      "evaluation": "test",
+      "test": "shapiro_wilk",
+      "threshold": 0.05,
+      "on_violation": {
+        "message_code": "SA-W002",
+        "suggest": ["friedman_test"]
+      }
+    },
+    {
+      "id": "bivariate_normality",
+      "label": "Approximate bivariate normality",
+      "label_ko": "이변량 정규성",
+      "target": "normality",
+      "evaluation": "test",
+      "test": "shapiro_wilk on each margin",
+      "threshold": 0.05,
+      "on_violation": {
+        "message_code": "SA-W002",
+        "suggest": ["spearman_correlation", "kendall_correlation"]
+      },
+      "references": ["Marginal normality is necessary but not sufficient for bivariate normality; recorded as a screening check only."]
+    },
+    {
+      "id": "homogeneity_levene",
+      "label": "Homogeneity of variance across groups",
+      "label_ko": "그룹 간 등분산성",
+      "target": "homogeneity",
+      "evaluation": "test",
+      "test": "levene_test",
+      "threshold": 0.05,
+      "on_violation": {
+        "message_code": "SA-W003",
+        "suggest": ["welch_t_test", "welch_anova", "games_howell"]
+      },
+      "references": ["Brown, M. B. and Forsythe, A. B. (1974). Journal of the American Statistical Association 69(346), 364-367."]
+    },
+    {
+      "id": "independence",
+      "label": "Independence of observations",
+      "label_ko": "관측치의 독립성",
+      "target": "independence",
+      "evaluation": "not_testable",
+      "rule": "Guaranteed by sampling design, not by the data.",
+      "on_violation": {
+        "message_code": "SA-I007",
+        "suggest": []
+      }
+    },
+    {
+      "id": "independence_of_pairs",
+      "label": "Independence between pairs",
+      "label_ko": "쌍 간 독립성",
+      "target": "independence",
+      "evaluation": "not_testable",
+      "rule": "Observations within a pair are dependent by design; pairs must be independent of each other."
+    },
+    {
+      "id": "independence_of_subjects",
+      "label": "Independence between subjects",
+      "label_ko": "피험자 간 독립성",
+      "target": "independence",
+      "evaluation": "not_testable",
+      "rule": "Repeated measurements within a subject are dependent; subjects must be independent."
+    },
+    {
+      "id": "exchangeability",
+      "label": "Exchangeability of group labels under the null",
+      "label_ko": "귀무가설 하 그룹 라벨의 교환가능성",
+      "target": "independence",
+      "evaluation": "not_testable",
+      "rule": "Required for the validity of permutation p-values.",
+      "references": ["Good, P. I. (2005). Permutation, Parametric and Bootstrap Tests of Hypotheses, 3rd ed."]
+    },
+    {
+      "id": "sphericity_mauchly",
+      "label": "Sphericity of the within-subject covariance matrix",
+      "label_ko": "구형성",
+      "target": "sphericity",
+      "evaluation": "test",
+      "test": "mauchly",
+      "threshold": 0.05,
+      "on_violation": {
+        "message_code": "SA-W009",
+        "suggest": ["friedman_test"]
+      },
+      "references": ["Mauchly, J. W. (1940). Annals of Mathematical Statistics 11(2), 204-209."]
+    },
+    {
+      "id": "expected_count_min",
+      "label": "Minimum expected cell count",
+      "label_ko": "최소 기대빈도",
+      "target": "expected_count",
+      "evaluation": "rule",
+      "rule": "All expected counts >= 5, or at most 20 percent of cells below 5 with none below 1.",
+      "threshold": 5,
+      "on_violation": {
+        "message_code": "SA-W012",
+        "suggest": ["fisher_exact"]
+      },
+      "references": ["Cochran, W. G. (1954). Biometrics 10(4), 417-451."]
+    },
+    {
+      "id": "fixed_margins",
+      "label": "Margins treated as fixed",
+      "label_ko": "주변합 고정",
+      "target": "design",
+      "evaluation": "not_testable",
+      "rule": "Fisher's exact test conditions on both margins; the conditional p-value can be conservative when they are not fixed by design."
+    },
+    {
+      "id": "marginal_homogeneity",
+      "label": "Marginal homogeneity is the null hypothesis",
+      "label_ko": "주변 동질성",
+      "target": "marginal_homogeneity",
+      "evaluation": "not_testable",
+      "rule": "McNemar's test evaluates marginal homogeneity; it says nothing about agreement."
+    },
+    {
+      "id": "discordant_pair_count",
+      "label": "Sufficient discordant pairs",
+      "label_ko": "충분한 불일치 쌍",
+      "target": "sample_size",
+      "evaluation": "rule",
+      "rule": "b + c >= 25 for the chi-square approximation; otherwise the exact binomial test is used.",
+      "threshold": 25,
+      "on_violation": {
+        "message_code": "SA-W014",
+        "suggest": []
+      }
+    },
+    {
+      "id": "binary_outcome",
+      "label": "Outcome has exactly two levels",
+      "label_ko": "이분형 결과변수",
+      "target": "design",
+      "evaluation": "rule",
+      "rule": "The outcome must take exactly two distinct non-missing values.",
+      "on_violation": {
+        "message_code": "SA-E004",
+        "suggest": []
+      }
+    },
+    {
+      "id": "sample_size_proportion",
+      "label": "Sample size adequate for the normal approximation",
+      "label_ko": "정규근사에 충분한 표본수",
+      "target": "sample_size",
+      "evaluation": "rule",
+      "rule": "n * p >= 5 and n * (1 - p) >= 5.",
+      "threshold": 5,
+      "on_violation": {
+        "message_code": "SA-W005",
+        "suggest": ["binomial_exact"]
+      }
+    },
+    {
+      "id": "sufficient_df",
+      "label": "Sufficient residual degrees of freedom",
+      "label_ko": "충분한 잔차 자유도",
+      "target": "sample_size",
+      "evaluation": "rule",
+      "rule": "n - 2 - k >= 3, where k is the number of covariates.",
+      "threshold": 3,
+      "on_violation": {
+        "message_code": "SA-W020",
+        "suggest": ["pearson_correlation"]
+      }
+    },
+    {
+      "id": "similar_shape",
+      "label": "Similar distributional shape across groups",
+      "label_ko": "그룹 간 분포 형태의 유사성",
+      "target": "design",
+      "evaluation": "rule",
+      "rule": "Compared via the ratio of group IQRs and the difference in skewness.",
+      "on_violation": {
+        "message_code": "SA-W021",
+        "suggest": []
+      },
+      "references": ["Required if a rank test is to be interpreted as a comparison of medians rather than stochastic dominance."]
+    },
+    {
+      "id": "symmetry_of_differences",
+      "label": "Symmetry of the difference distribution",
+      "label_ko": "차이 분포의 대칭성",
+      "target": "symmetry",
+      "evaluation": "rule",
+      "rule": "Screened by the sample skewness of the differences; flagged when abs(skewness) > 1.",
+      "threshold": 1,
+      "on_violation": {
+        "message_code": "SA-W010",
+        "suggest": ["permutation_paired"]
+      }
+    },
+    {
+      "id": "no_extreme_outliers",
+      "label": "No extreme outliers",
+      "label_ko": "극단적 이상치 없음",
+      "target": "outlier",
+      "evaluation": "rule",
+      "rule": "No observation beyond the 3 x IQR fence.",
+      "threshold": 3,
+      "on_violation": {
+        "message_code": "SA-W008",
+        "suggest": ["mann_whitney_u", "bootstrap_mean_difference"]
+      }
+    },
+    {
+      "id": "linearity",
+      "label": "Linear relationship between the variables",
+      "label_ko": "변수 간 선형성",
+      "target": "linearity",
+      "evaluation": "rule",
+      "rule": "Screened by comparing Pearson r with Spearman rho; flagged when the absolute difference exceeds 0.1.",
+      "threshold": 0.1,
+      "on_violation": {
+        "message_code": "SA-W021",
+        "suggest": ["spearman_correlation"]
+      }
+    },
+    {
+      "id": "monotonicity",
+      "label": "Monotonic relationship between the variables",
+      "label_ko": "변수 간 단조성",
+      "target": "monotonicity",
+      "evaluation": "not_testable",
+      "rule": "Rank correlations detect monotonic association only; a U-shaped relationship yields rho near zero."
+    },
+    {
+      "id": "ordinal_outcome",
+      "label": "Outcome is at least ordinal",
+      "label_ko": "최소 순서형 결과변수",
+      "target": "design",
+      "evaluation": "not_testable",
+      "rule": "Rank-based tests require that the outcome can be meaningfully ordered."
+    },
+    {
+      "id": "balanced_design",
+      "label": "Complete balanced repeated-measures design",
+      "label_ko": "완전 균형 반복측정 설계",
+      "target": "design",
+      "evaluation": "rule",
+      "rule": "Every subject contributes exactly one observation to every condition.",
+      "on_violation": {
+        "message_code": "SA-E007",
+        "suggest": []
+      }
+    }
+  ],
+  "messages": [
+    {
+      "code": "SA-E001",
+      "severity": "error",
+      "text": "Unknown method id '{method}'. Use sa_methods() to list available methods.",
+      "text_ko": "알 수 없는 method id '{method}'입니다. sa_methods()로 사용 가능한 분석법을 확인하세요.",
+      "field": "method"
+    },
+    {
+      "code": "SA-E002",
+      "severity": "error",
+      "text": "Required variable '{role}' is missing.",
+      "text_ko": "필수 변수 '{role}'이(가) 지정되지 않았습니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-E003",
+      "severity": "error",
+      "text": "The formula interface and the vector interface cannot be used at the same time.",
+      "text_ko": "formula 인터페이스와 vector 인터페이스를 동시에 사용할 수 없습니다.",
+      "field": "data_meta",
+      "description": "Raised when both `formula` and `x`/`y` are supplied."
+    },
+    {
+      "code": "SA-E004",
+      "severity": "error",
+      "text": "Variable '{name}' must be of type {expected}, but {actual} was supplied.",
+      "text_ko": "변수 '{name}'은(는) {expected} 타입이어야 하지만 {actual}이(가) 전달되었습니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-E005",
+      "severity": "error",
+      "text": "Only {n_used} usable observations remain after missing value removal, but {n_min} are required.",
+      "text_ko": "결측 제거 후 사용 가능한 관측치가 {n_used}개로, 필요한 최소 {n_min}개에 미치지 못합니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-E006",
+      "severity": "error",
+      "text": "The grouping variable has {n_levels} levels, but this method requires {expected}.",
+      "text_ko": "그룹 변수의 수준이 {n_levels}개이지만, 이 분석법은 {expected}개를 요구합니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-E007",
+      "severity": "error",
+      "text": "The repeated measures design is incomplete: {n_incomplete} subjects do not have all {k} conditions.",
+      "text_ko": "반복측정 설계가 불완전합니다. {n_incomplete}명의 피험자가 {k}개 조건을 모두 갖지 않았습니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-E008",
+      "severity": "error",
+      "text": "Parameter '{name}' must lie in [{lower}, {upper}], but {value} was supplied.",
+      "text_ko": "파라미터 '{name}'은(는) [{lower}, {upper}] 범위여야 하지만 {value}이(가) 전달되었습니다."
+    },
+    {
+      "code": "SA-E009",
+      "severity": "error",
+      "text": "Variable '{name}' has zero variance, so the statistic is undefined.",
+      "text_ko": "변수 '{name}'의 분산이 0이어서 통계량을 정의할 수 없습니다.",
+      "field": "statistics"
+    },
+    {
+      "code": "SA-E010",
+      "severity": "error",
+      "text": "A pairing identifier is required for a {design} design but none was supplied.",
+      "text_ko": "{design} 설계에는 대응 식별자가 필요하지만 지정되지 않았습니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-E011",
+      "severity": "error",
+      "text": "Variable '{name}' contains non-finite values (Inf or NaN).",
+      "text_ko": "변수 '{name}'에 유한하지 않은 값(Inf 또는 NaN)이 있습니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-E012",
+      "severity": "error",
+      "text": "Missing values were found and na_action = 'fail' was requested.",
+      "text_ko": "결측치가 발견되었으며 na_action = 'fail'이 지정되었습니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-E013",
+      "severity": "error",
+      "text": "The contingency table is degenerate: {n_empty} of {n_cells} cells are empty after dropping unused levels.",
+      "text_ko": "분할표가 축퇴되었습니다. 미사용 수준 제거 후 전체 {n_cells}개 셀 중 {n_empty}개가 비어 있습니다.",
+      "field": "estimates"
+    },
+    {
+      "code": "SA-E014",
+      "severity": "error",
+      "text": "The registry was built for schema_version {found}, but this version of STATassist requires {expected}.",
+      "text_ko": "레지스트리가 schema_version {found}로 생성되었으나, 현재 STATassist는 {expected}를 요구합니다.",
+      "description": "Guards against shipping a stale inst/extdata/registry.json."
+    },
+    {
+      "code": "SA-W001",
+      "severity": "warning",
+      "text": "{pct}% of observations were removed because of missing values.",
+      "text_ko": "결측으로 인해 관측치의 {pct}%가 제거되었습니다.",
+      "field": "data_meta",
+      "description": "Emitted when the removal proportion exceeds 20 percent."
+    },
+    {
+      "code": "SA-W002",
+      "severity": "warning",
+      "text": "Normality was rejected (p = {p}). Consider a rank-based or resampling alternative.",
+      "text_ko": "정규성이 기각되었습니다 (p = {p}). 순위 기반 또는 재표집 대안을 고려하세요.",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-W003",
+      "severity": "warning",
+      "text": "Homogeneity of variance was rejected (p = {p}). A Welch-type procedure is recommended.",
+      "text_ko": "등분산성이 기각되었습니다 (p = {p}). Welch 계열 절차를 권장합니다.",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-W004",
+      "severity": "warning",
+      "text": "Distribution parameters were estimated from the same data, so the Kolmogorov-Smirnov p-value is anti-conservative.",
+      "text_ko": "동일 데이터에서 분포 모수를 추정했으므로 Kolmogorov-Smirnov p-value가 보수적이지 않습니다.",
+      "field": "statistics"
+    },
+    {
+      "code": "SA-W005",
+      "severity": "warning",
+      "text": "Group '{group}' has only {n} observations, which is below the recommended minimum of {n_min}.",
+      "text_ko": "그룹 '{group}'의 관측치가 {n}개로, 권장 최소값 {n_min}개보다 적습니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-W006",
+      "severity": "warning",
+      "text": "Group sizes are strongly unbalanced (largest / smallest = {ratio}).",
+      "text_ko": "그룹 크기가 크게 불균형합니다 (최대/최소 = {ratio}).",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-W007",
+      "severity": "warning",
+      "text": "Ties are present, so an exact p-value could not be computed. A normal approximation was used.",
+      "text_ko": "동점값이 있어 정확 p-value를 계산할 수 없었습니다. 정규근사를 사용했습니다.",
+      "field": "statistics"
+    },
+    {
+      "code": "SA-W008",
+      "severity": "warning",
+      "text": "{n} observations lie beyond the 3 x IQR fence.",
+      "text_ko": "{n}개 관측치가 3 x IQR 범위를 벗어났습니다.",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-W009",
+      "severity": "warning",
+      "text": "Sphericity was rejected (Mauchly p = {p}, epsilon = {epsilon}). The {correction} corrected p-value is recommended.",
+      "text_ko": "구형성이 기각되었습니다 (Mauchly p = {p}, epsilon = {epsilon}). {correction} 보정 p-value를 권장합니다.",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-W010",
+      "severity": "warning",
+      "text": "The difference distribution is skewed (skewness = {skewness}), which weakens the symmetry assumption.",
+      "text_ko": "차이 분포가 치우쳐 있습니다 (왜도 = {skewness}). 대칭성 가정이 약화됩니다.",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-W011",
+      "severity": "warning",
+      "text": "Shapiro-Wilk requires 3 <= n <= 5000, but n = {n}. Normality was not assessed.",
+      "text_ko": "Shapiro-Wilk는 3 <= n <= 5000이 필요하지만 n = {n}입니다. 정규성을 평가하지 않았습니다.",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-W012",
+      "severity": "warning",
+      "text": "{pct}% of cells have an expected count below 5 (minimum {min_expected}). Fisher's exact test is recommended.",
+      "text_ko": "기대빈도가 5 미만인 셀이 {pct}%입니다 (최소 {min_expected}). Fisher 정확검정을 권장합니다.",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-W013",
+      "severity": "warning",
+      "text": "A zero cell was present, so a Haldane-Anscombe correction of 0.5 was added to every cell before computing the ratio.",
+      "text_ko": "0인 셀이 있어 비율 계산 전에 모든 셀에 Haldane-Anscombe 보정값 0.5를 더했습니다.",
+      "field": "effect_sizes"
+    },
+    {
+      "code": "SA-W014",
+      "severity": "warning",
+      "text": "Only {n} discordant pairs are available, so the exact binomial test was used instead of the chi-square approximation.",
+      "text_ko": "불일치 쌍이 {n}개뿐이어서 카이제곱 근사 대신 정확 이항검정을 사용했습니다.",
+      "field": "statistics"
+    },
+    {
+      "code": "SA-W015",
+      "severity": "warning",
+      "text": "A confidence interval for '{effect_size}' could not be computed ({reason}).",
+      "text_ko": "'{effect_size}'의 신뢰구간을 계산할 수 없었습니다 ({reason}).",
+      "field": "effect_sizes"
+    },
+    {
+      "code": "SA-W016",
+      "severity": "warning",
+      "text": "n_resamples = {n} is low for a {conf_level} interval; at least {recommended} is recommended.",
+      "text_ko": "n_resamples = {n}은(는) {conf_level} 구간에 비해 적습니다. 최소 {recommended} 이상을 권장합니다.",
+      "field": "metadata"
+    },
+    {
+      "code": "SA-W017",
+      "severity": "warning",
+      "text": "The permutation p-value reached the resolution limit of 1 / ({n} + 1) = {limit}; it is reported as p <= {limit}.",
+      "text_ko": "순열 p-value가 해상도 한계 1 / ({n} + 1) = {limit}에 도달했습니다. p <= {limit}로 보고합니다.",
+      "field": "statistics"
+    },
+    {
+      "code": "SA-W018",
+      "severity": "warning",
+      "text": "The BCa acceleration constant could not be estimated stably; a percentile interval was used instead.",
+      "text_ko": "BCa 가속 상수를 안정적으로 추정할 수 없어 percentile 구간을 사용했습니다.",
+      "field": "effect_sizes"
+    },
+    {
+      "code": "SA-W019",
+      "severity": "warning",
+      "text": "Post-hoc comparisons were requested although the omnibus test was not significant (p = {p}).",
+      "text_ko": "옴니버스 검정이 유의하지 않은 상태(p = {p})에서 사후검정이 요청되었습니다.",
+      "field": "posthoc"
+    },
+    {
+      "code": "SA-W020",
+      "severity": "warning",
+      "text": "{k} covariates were used with n = {n}, leaving {df} residual degrees of freedom.",
+      "text_ko": "n = {n}에서 공변량 {k}개를 사용해 잔차 자유도가 {df}만 남았습니다.",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-W021",
+      "severity": "warning",
+      "text": "The relationship may not satisfy the {assumption} assumption ({detail}).",
+      "text_ko": "{assumption} 가정을 만족하지 않을 수 있습니다 ({detail}).",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-I001",
+      "severity": "info",
+      "text": "No seed was supplied, so {seed} was generated and recorded for reproducibility.",
+      "text_ko": "seed가 지정되지 않아 재현성을 위해 {seed}을(를) 생성해 기록했습니다.",
+      "field": "metadata"
+    },
+    {
+      "code": "SA-I002",
+      "severity": "info",
+      "text": "An exact p-value was computed.",
+      "text_ko": "정확 p-value를 계산했습니다.",
+      "field": "statistics"
+    },
+    {
+      "code": "SA-I003",
+      "severity": "info",
+      "text": "A normal approximation was used{correction_note}.",
+      "text_ko": "정규근사를 사용했습니다{correction_note}.",
+      "field": "statistics"
+    },
+    {
+      "code": "SA-I004",
+      "severity": "info",
+      "text": "The {correction} correction was applied (epsilon = {epsilon}).",
+      "text_ko": "{correction} 보정을 적용했습니다 (epsilon = {epsilon}).",
+      "field": "statistics"
+    },
+    {
+      "code": "SA-I005",
+      "severity": "info",
+      "text": "{n} observations were removed by {reason} deletion.",
+      "text_ko": "{reason} 방식으로 관측치 {n}개를 제거했습니다.",
+      "field": "data_meta"
+    },
+    {
+      "code": "SA-I006",
+      "severity": "info",
+      "text": "The confidence interval was computed with the '{ci_method}' method.",
+      "text_ko": "신뢰구간을 '{ci_method}' 방법으로 계산했습니다.",
+      "field": "effect_sizes"
+    },
+    {
+      "code": "SA-I007",
+      "severity": "info",
+      "text": "Independence cannot be verified from the data; it must be guaranteed by the study design.",
+      "text_ko": "독립성은 데이터로 검증할 수 없으며 연구설계로 보장해야 합니다.",
+      "field": "assumptions"
+    },
+    {
+      "code": "SA-I008",
+      "severity": "info",
+      "text": "p-values were adjusted for multiplicity using the '{method}' method across {n} comparisons.",
+      "text_ko": "{n}개 비교에 대해 '{method}' 방법으로 다중비교 보정을 적용했습니다.",
+      "field": "posthoc"
+    }
+  ],
+  "excluded": [
+    {
+      "id": "regression",
+      "label": "Regression models",
+      "label_ko": "회귀모형",
+      "reason": "Requires a formula-driven model contract distinct from the test-driven one.",
+      "target_version": "0.1.0"
+    },
+    {
+      "id": "mixed_models",
+      "label": "Mixed effects and longitudinal models",
+      "label_ko": "혼합효과 및 종단 모형",
+      "reason": "Would introduce lme4/nlme dependencies.",
+      "target_version": "0.3.0"
+    },
+    {
+      "id": "survival",
+      "label": "Survival analysis",
+      "label_ko": "생존분석",
+      "reason": "Requires the survival package and a censoring-aware data contract.",
+      "target_version": "0.2.0"
+    },
+    {
+      "id": "multivariate",
+      "label": "Multivariate analysis",
+      "label_ko": "다변량 분석",
+      "reason": "PCA, factor analysis and clustering need a matrix-oriented result contract.",
+      "target_version": "0.2.0"
+    },
+    {
+      "id": "information_theory",
+      "label": "Information theory",
+      "label_ko": "정보이론",
+      "reason": "Entropy and mutual information need a density estimation layer first.",
+      "target_version": "0.3.0"
+    },
+    {
+      "id": "markov",
+      "label": "Markov chains and state transition",
+      "label_ko": "Markov chain 및 상태전이",
+      "reason": "Sequence-shaped input is outside the current tabular data contract.",
+      "target_version": "0.3.0"
+    },
+    {
+      "id": "time_series",
+      "label": "Time series",
+      "label_ko": "시계열",
+      "reason": "Requires an ordered-index data contract.",
+      "target_version": "0.3.0"
+    },
+    {
+      "id": "bayesian",
+      "label": "Bayesian analysis",
+      "label_ko": "Bayesian 분석",
+      "reason": "Posterior summaries do not fit the current statistics/p_value contract.",
+      "target_version": "0.4.0"
+    },
+    {
+      "id": "machine_learning",
+      "label": "Predictive modelling and machine learning",
+      "label_ko": "예측모형 및 머신러닝",
+      "reason": "Needs a resampling and leakage-prevention framework of its own.",
+      "target_version": "0.4.0"
+    },
+    {
+      "id": "meta_analysis",
+      "label": "Meta-analysis",
+      "label_ko": "메타분석",
+      "reason": "Operates on study-level effect sizes rather than raw data.",
+      "target_version": "0.3.0"
+    },
+    {
+      "id": "missing_data",
+      "label": "Missing data imputation",
+      "label_ko": "결측자료 대치",
+      "reason": "v0.0.1 only supports listwise and pairwise deletion.",
+      "target_version": "0.2.0"
+    },
+    {
+      "id": "causal_inference",
+      "label": "Causal inference and mediation",
+      "label_ko": "인과추론 및 매개분석",
+      "reason": "Requires an estimand and DAG layer.",
+      "target_version": "0.4.0"
+    },
+    {
+      "id": "power_analysis",
+      "label": "Sample size and power",
+      "label_ko": "표본수 및 검정력",
+      "reason": "Design-stage functionality, not analysis-stage.",
+      "target_version": "0.2.0"
+    },
+    {
+      "id": "method_recommendation",
+      "label": "Automatic method recommendation",
+      "label_ko": "자동 분석법 추천",
+      "reason": "Conflicts with design principle P5 until the diagnostic layer is proven.",
+      "target_version": "0.5.0"
+    },
+    {
+      "id": "reporting",
+      "label": "Automatic Methods and Results text",
+      "label_ko": "자동 논문 문장 생성",
+      "reason": "Deferred until the result contract is stable.",
+      "target_version": "0.5.0"
+    },
+    {
+      "id": "visualisation",
+      "label": "Plot methods",
+      "label_ko": "시각화",
+      "reason": "plot.sa_comparison() generic is reserved but not implemented in v0.0.1.",
+      "target_version": "0.1.0"
+    }
+  ]
+}

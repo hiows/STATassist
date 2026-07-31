@@ -4,18 +4,25 @@
 \name{STATassist-package}
 \alias{STATassist}
 \alias{STATassist-package}
-\title{STATassist: Standardised Statistical Comparison Workflows}
+\title{STATassist: Run Every Applicable Statistical Test at Once}
 \description{
-STATassist runs several complementary statistical tests in one call and
-returns feature-wise result tables with a shared column layout. The guiding
-idea is that a group comparison should never rest on a single test: a
-parametric, a rank-based and a robust procedure are reported side by side so
-that disagreement between them becomes visible instead of hidden.
+STATassist is organised around comparison scenarios rather than around
+individual tests. One function covers one situation and runs everything that
+applies to it, returning feature-wise result tables with a shared column
+layout. The guiding idea is that a group comparison should never rest on a
+single test: a parametric, a rank-based and a robust procedure are reported
+side by side so that disagreement between them becomes visible instead of
+hidden, and the choice of what to report stays with the analyst.
 }
-\section{Two-group comparison}{
+\details{
+Everything is vectorised over features, so the same call serves one
+measurement or several thousand.
+}
+\section{Comparison}{
 
 \code{\link[=compare_two_groups]{compare_two_groups()}} compares exactly two group levels across any number
-of numeric features and returns three tables:
+of numeric features. It returns the fold change between the groups plus three
+test tables:
 
 \describe{
 \item{\code{t_test}}{Welch's t-test (independent) or paired t-test.}
@@ -26,6 +33,26 @@ mean test for dependent samples (paired).}
 }
 }
 
+\section{Significance and visualisation}{
+
+\code{\link[=estimate_significance]{estimate_significance()}} reduces a comparison to one row per feature holding
+both axes of a volcano plot and a multiplicity adjusted verdict, and
+\code{\link[=draw_volcano_plot]{draw_volcano_plot()}} draws it. Because the significance table is derived from
+the comparison object rather than assembled from loose vectors, the effect size
+and the p-value beside it always describe the same observations and the same
+direction.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{res <- compare_two_groups(data, feats, group, group_lv)
+sig <- estimate_significance(res, test = "t_test")
+draw_volcano_plot(sig)
+}\if{html}{\out{</div>}}
+
+\code{\link[=draw_grouped_boxplot]{draw_grouped_boxplot()}} draws a grouped boxplot for the same wide-format
+input and optionally returns the box summary statistics and median
+confidence intervals behind the plot. \code{\link[=draw_butterfly_hist]{draw_butterfly_hist()}} puts the two
+group distributions of a single feature back to back on shared breaks.
+}
+
 \section{Descriptive summary}{
 
 \code{\link[=summarize_descriptive_stats]{summarize_descriptive_stats()}} reduces each feature to one row of sample
@@ -33,31 +60,14 @@ size, central tendency, dispersion, quartiles, outlier fences and
 distribution shape, split by group level when a grouping vector is supplied.
 }
 
-\section{Effect size and significance}{
+\section{Result contract}{
 
-\code{\link[=calculate_fold_change]{calculate_fold_change()}} reduces each feature to a ratio of group means, and
-\code{\link[=evaluate_significance]{evaluate_significance()}} pairs those ratios with p-values from
-\code{\link[=compare_two_groups]{compare_two_groups()}} to produce one table holding both axes of a volcano
-plot together with a multiplicity adjusted verdict:
-
-\if{html}{\out{<div class="sourceCode">}}\preformatted{fc  <- calculate_fold_change(data, feats, group, group_lv)
-pv  <- compare_two_groups(data, feats, group, group_lv)$test_results$t_test$pval
-sig <- evaluate_significance(feats, fc, pv)
-draw_volcano_plot(sig$features, sig$log2fc, sig$adj_pvalue)
-}\if{html}{\out{</div>}}
-
-These three functions are joined by feature order alone, so each one checks
-that its per-feature vectors line up, and reorders them by name when the names
-are available.
-}
-
-\section{Visualisation}{
-
-\code{\link[=draw_grouped_boxplot]{draw_grouped_boxplot()}} draws a grouped boxplot for the same wide-format
-input and optionally returns the box summary statistics and median
-confidence intervals behind the plot. \code{\link[=draw_butterfly_hist]{draw_butterfly_hist()}} puts the two
-group distributions of a single feature back to back on shared breaks.
-\code{\link[=draw_volcano_plot]{draw_volcano_plot()}} plots the output of \code{\link[=evaluate_significance]{evaluate_significance()}}.
+\code{\link[=compare_two_groups]{compare_two_groups()}} returns a \code{sa_comparison} object, a plain named list of
+scalars, character vectors and data.frames with an S3 class on top that only
+supplies \code{\link[=print]{print()}}. No fitted model or other R-only object is stored anywhere,
+so the result can be written out as JSON and rebuilt elsewhere. Every test
+kernel is likewise a plain function of numeric vectors. Both choices exist to
+keep a future Python implementation a transcription rather than a redesign.
 }
 
 \seealso{

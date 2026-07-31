@@ -2,7 +2,7 @@
 % Please edit documentation in R/compare_two_groups.R
 \name{compare_two_groups}
 \alias{compare_two_groups}
-\title{Compare two groups with parametric, rank-based and robust tests at once}
+\title{Run every applicable two-group test at once}
 \usage{
 compare_two_groups(
   data,
@@ -14,6 +14,7 @@ compare_two_groups(
   paired = FALSE,
   conf_level = 0.95,
   tr = 0.2,
+  fc_mean = c("arith", "geom"),
   p_adjust = "BH"
 )
 }
@@ -28,8 +29,8 @@ One output row per entry.}
 
 \item{group_lv}{Character vector of exactly two group levels. The first is
 treated as \code{x}, the second as \code{y}, so all differences read as
-\code{group_lv[1] - group_lv[2]}. Rows belonging to any other level are
-dropped.}
+\code{group_lv[1] - group_lv[2]} and all ratios as \code{group_lv[1] / group_lv[2]}.
+Rows belonging to any other level are dropped.}
 
 \item{id}{Optional pairing key with one entry per row of \code{data}, used only
 when \code{paired = TRUE}. Supplying it matches observations by key instead of
@@ -48,17 +49,43 @@ one group are dropped.}
 \item{tr}{Trimming proportion for Yuen's test, in \verb{[0, 0.5)}. Ignored when
 \code{paired = FALSE}.}
 
+\item{fc_mean}{Which centre the fold change divides, \code{"arith"} for the
+arithmetic mean or \code{"geom"} for the geometric mean. The geometric mean
+requires strictly positive values and is the usual choice for
+concentration-like data.}
+
 \item{p_adjust}{Multiplicity adjustment applied across \code{feats} within each
-table, passed to \code{\link[stats:p.adjust]{stats::p.adjust()}}. Use \code{"none"} to disable.}
+test table, passed to \code{\link[stats:p.adjust]{stats::p.adjust()}}. Use \code{"none"} to disable.}
 }
 \value{
-A list with three elements.
+A \code{sa_comparison} object: a plain list, so it survives being written
+out as JSON and read back in another language, with an S3 class on top that
+only supplies \code{\link[=print]{print()}}. Its elements are
 
-\code{test_results} holds one data.frame per test family, each with one row per
-feature. Every table starts with \code{features}, the per-group sample sizes
-\code{n_x} / \code{n_y} and \code{n_used} (total observations for independent samples,
-complete pairs for paired samples), and carries \code{pval}, \code{pval_adj},
-\code{lower_conf} and \code{upper_conf}. The remaining columns are:
+\describe{
+\item{\code{schema_version}}{Version of this layout, \code{"0.1.0"}.}
+\item{\code{analysis}}{\code{"two_group_comparison"}.}
+\item{\code{features}}{The feature names, in the row order every table uses.}
+\item{\code{design}}{\code{group_lv}, \code{paired}, \code{pairing} (\code{"order"}, \code{"id"} or
+\code{NA} when not paired), \code{n_dropped} (rows removed for belonging to a
+level outside \code{group_lv}) and \code{unmatched_ids}.}
+\item{\code{parameters}}{\code{alternative}, \code{conf_level}, \code{tr}, \code{fc_mean} and
+\code{p_adjust}, as used.}
+\item{\code{effect}}{One row per feature: \code{x_center}, \code{y_center} (the two
+centres \code{fc_mean} selected), \code{fold_change} and \code{log2fc}.}
+\item{\code{tests}}{\code{t_test}, \code{wilcox_test} and \code{robust_test}, described
+below.}
+\item{\code{test_info}}{Per test, the method \code{id}, a readable \code{label} and
+whether it was the paired variant.}
+\item{\code{metadata}}{\code{package_version}, \code{r_version}, \code{platform} and an
+ISO-8601 \code{timestamp}.}
+}
+
+Every table in \code{tests} has one row per feature and starts with \code{features},
+the per-group sample sizes \code{n_x} / \code{n_y} and \code{n_used} (total observations
+for independent samples, complete pairs for paired samples), and carries
+\code{pval}, \code{pval_adj}, \code{lower_conf} and \code{upper_conf}. The remaining columns
+are:
 
 \describe{
 \item{\code{t_test}}{\code{x_mean}, \code{y_mean}, \code{mean_diff}, \code{stderr}, \code{t_stat},
@@ -67,27 +94,21 @@ for paired and independent designs.}
 \item{\code{wilcox_test}}{\code{hl_shift} (Hodges-Lehmann location shift, the
 pseudo-median of differences when paired) and \code{w_stat}.}
 \item{\code{robust_test}, independent}{\code{relative_effect}
-(\code{P(X < Y) + 0.5 * P(X = Y)}), \code{bm_stat}, \code{df}. The interval is the
-two-sided interval for \code{relative_effect} reported by
-\code{\link[lawstat:brunner.munzel.test]{lawstat::brunner.munzel.test()}} even for a one-sided \code{alternative}.}
+(\code{P(X > Y) + 0.5 * P(X = Y)}, above 0.5 when \code{group_lv[1]} is the
+larger group), \code{bm_stat} and \code{df}. The interval is on the probability
+scale, so a one-sided alternative leaves it open at 0 or at 1 rather
+than at infinity.}
 \item{\code{robust_test}, paired}{\code{x_trim_mean}, \code{y_trim_mean}, \code{trim_diff},
-\code{stderr}, \code{yuen_stat}, \code{df}, \code{effect_size} (explanatory power).}
+\code{stderr}, \code{yuen_stat}, \code{df} and \code{robust_dz}, a robust counterpart of
+Cohen's \code{dz}.}
 }
-
-\code{test_type} names the test actually used in each family, plus \code{paired}.
-
-\code{parameters} records \code{group_lv}, \code{alternative}, \code{paired}, \code{pairing}
-(\code{"order"}, \code{"id"} or \code{NA} when not paired), \code{conf_level}, \code{tr},
-\code{p_adjust}, \code{n_feats}, \code{n_dropped} (rows removed for belonging to a level
-outside \code{group_lv}) and \code{unmatched_ids}.
-
-\code{alternative} is repeated at the top level for convenience.
 }
 \description{
 Compares exactly two group levels across any number of numeric features and
-returns three result tables side by side: a t-test, a Wilcoxon test and a
-robust test. Reporting all three makes disagreement between them visible,
-which is the situation where the choice of test actually matters.
+returns a parametric, a rank-based and a robust test side by side, together
+with the fold change between the two groups. Nothing is chosen on the user's
+behalf: reporting all of them makes disagreement between them visible, which
+is the situation where the choice of test actually matters.
 }
 \details{
 Which member of each family is used depends on \code{paired}:\tabular{lll}{
@@ -98,8 +119,11 @@ Which member of each family is used depends on \code{paired}:\tabular{lll}{
 }
 
 
-\code{alternative} means the same direction in all three families: \code{"greater"}
-tests whether \code{group_lv[1]} exceeds \code{group_lv[2]}.
+Direction is set once, by the order of \code{group_lv}, and every quantity in the
+result follows it. \code{alternative = "greater"} tests whether \code{group_lv[1]}
+exceeds \code{group_lv[2]} in all three families, and \code{mean_diff}, \code{hl_shift},
+\code{trim_diff}, \code{fold_change} and \code{relative_effect} are all above their null
+value when \code{group_lv[1]} is the larger group.
 
 Features that cannot be tested do not abort the run. Their row is filled
 with \code{NA} and all such features are reported together in a single warning.
@@ -108,7 +132,9 @@ because of ties, are grouped into one \code{message()}.
 
 Missing values are handled per feature: independent samples drop \code{NA} within
 each group, paired samples keep only complete pairs. \code{n_x}, \code{n_y} and
-\code{n_used} therefore vary between features when the data are incomplete.
+\code{n_used} therefore vary between features when the data are incomplete. The
+fold change is computed from those same observations, so it never rests on a
+different subset of the data than the p-value beside it.
 }
 \section{Pairing}{
 
@@ -131,8 +157,10 @@ res <- compare_two_groups(
   group    = iris2$Species,
   group_lv = c("versicolor", "virginica")
 )
-res$test_results$t_test
-res$test_results$robust_test
+res
+res$tests$t_test
+res$tests$robust_test
+res$effect
 
 ## setosa is perfectly separated from the others on petal size, which leaves
 ## the Brunner-Munzel variance at zero. Those rows come back NA with a
@@ -143,7 +171,7 @@ suppressWarnings(
     feats    = c("Sepal.Length", "Petal.Length"),
     group    = iris$Species[iris$Species != "virginica"],
     group_lv = c("setosa", "versicolor")
-  )$test_results$robust_test
+  )$tests$robust_test
 )
 
 ## Paired samples: sleep holds 10 subjects under 2 drugs, listed in the same
@@ -156,7 +184,7 @@ paired_res <- compare_two_groups(
   paired   = TRUE,
   alternative = "less"
 )
-paired_res$test_results$robust_test
+paired_res$tests$robust_test
 
 ## Same data with the second group shuffled. Row order pairing silently uses
 ## the wrong partners, while `id` recovers the correct result.
@@ -171,8 +199,8 @@ by_id <- compare_two_groups(
   id = shuffled$ID, paired = TRUE
 )
 ## The means agree but the paired standard error, and so the p-value, do not.
-rbind(order = by_order$test_results$t_test,
-      id    = by_id$test_results$t_test)
+rbind(order = by_order$tests$t_test,
+      id    = by_id$tests$t_test)
 
 }
 \references{
@@ -194,5 +222,7 @@ Yuen, K. K. (1974). The two-sample trimmed t for unequal population
 variances. \emph{Biometrika}, 61(1), 165-170.
 }
 \seealso{
-\code{\link[=draw_grouped_boxplot]{draw_grouped_boxplot()}} to visualise the same input.
+\code{\link[=estimate_significance]{estimate_significance()}} to reduce the result to one significance
+verdict per feature, and \code{\link[=draw_grouped_boxplot]{draw_grouped_boxplot()}} to visualise the same
+input.
 }

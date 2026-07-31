@@ -1,20 +1,24 @@
-#' Compare two groups with parametric, rank-based and robust tests at once
+#' Run every applicable two-group test at once
 #'
 #' Compares exactly two group levels across any number of numeric features and
-#' returns three result tables side by side: a t-test, a Wilcoxon test and a
-#' robust test. Reporting all three makes disagreement between them visible,
-#' which is the situation where the choice of test actually matters.
+#' returns a parametric, a rank-based and a robust test side by side, together
+#' with the fold change between the two groups. Nothing is chosen on the user's
+#' behalf: reporting all of them makes disagreement between them visible, which
+#' is the situation where the choice of test actually matters.
 #'
 #' Which member of each family is used depends on `paired`:
 #'
-#' | family  | `paired = FALSE`     | `paired = TRUE`                  |
-#' |---------|----------------------|----------------------------------|
-#' | t       | Welch's t-test       | Paired t-test                    |
-#' | Wilcoxon| Rank-sum (Mann-Whitney U) | Signed-rank                 |
-#' | robust  | Brunner-Munzel       | Yuen's trimmed mean (dependent)  |
+#' | family  | `paired = FALSE`          | `paired = TRUE`                 |
+#' |---------|---------------------------|---------------------------------|
+#' | t       | Welch's t-test            | Paired t-test                   |
+#' | Wilcoxon| Rank-sum (Mann-Whitney U) | Signed-rank                     |
+#' | robust  | Brunner-Munzel            | Yuen's trimmed mean (dependent) |
 #'
-#' `alternative` means the same direction in all three families: `"greater"`
-#' tests whether `group_lv[1]` exceeds `group_lv[2]`.
+#' Direction is set once, by the order of `group_lv`, and every quantity in the
+#' result follows it. `alternative = "greater"` tests whether `group_lv[1]`
+#' exceeds `group_lv[2]` in all three families, and `mean_diff`, `hl_shift`,
+#' `trim_diff`, `fold_change` and `relative_effect` are all above their null
+#' value when `group_lv[1]` is the larger group.
 #'
 #' @param data A data.frame (or matrix) in wide format, one row per
 #'   observation and one column per feature.
@@ -23,8 +27,8 @@
 #' @param group Grouping vector with one entry per row of `data`.
 #' @param group_lv Character vector of exactly two group levels. The first is
 #'   treated as `x`, the second as `y`, so all differences read as
-#'   `group_lv[1] - group_lv[2]`. Rows belonging to any other level are
-#'   dropped.
+#'   `group_lv[1] - group_lv[2]` and all ratios as `group_lv[1] / group_lv[2]`.
+#'   Rows belonging to any other level are dropped.
 #' @param id Optional pairing key with one entry per row of `data`, used only
 #'   when `paired = TRUE`. Supplying it matches observations by key instead of
 #'   by row order, which is the safer choice whenever the rows may have been
@@ -37,16 +41,41 @@
 #' @param conf_level Confidence level for all reported intervals.
 #' @param tr Trimming proportion for Yuen's test, in `[0, 0.5)`. Ignored when
 #'   `paired = FALSE`.
+#' @param fc_mean Which centre the fold change divides, `"arith"` for the
+#'   arithmetic mean or `"geom"` for the geometric mean. The geometric mean
+#'   requires strictly positive values and is the usual choice for
+#'   concentration-like data.
 #' @param p_adjust Multiplicity adjustment applied across `feats` within each
-#'   table, passed to [stats::p.adjust()]. Use `"none"` to disable.
+#'   test table, passed to [stats::p.adjust()]. Use `"none"` to disable.
 #'
-#' @return A list with three elements.
+#' @return A `sa_comparison` object: a plain list, so it survives being written
+#'   out as JSON and read back in another language, with an S3 class on top that
+#'   only supplies [print()]. Its elements are
 #'
-#'   `test_results` holds one data.frame per test family, each with one row per
-#'   feature. Every table starts with `features`, the per-group sample sizes
-#'   `n_x` / `n_y` and `n_used` (total observations for independent samples,
-#'   complete pairs for paired samples), and carries `pval`, `pval_adj`,
-#'   `lower_conf` and `upper_conf`. The remaining columns are:
+#'   \describe{
+#'     \item{`schema_version`}{Version of this layout, `"0.1.0"`.}
+#'     \item{`analysis`}{`"two_group_comparison"`.}
+#'     \item{`features`}{The feature names, in the row order every table uses.}
+#'     \item{`design`}{`group_lv`, `paired`, `pairing` (`"order"`, `"id"` or
+#'       `NA` when not paired), `n_dropped` (rows removed for belonging to a
+#'       level outside `group_lv`) and `unmatched_ids`.}
+#'     \item{`parameters`}{`alternative`, `conf_level`, `tr`, `fc_mean` and
+#'       `p_adjust`, as used.}
+#'     \item{`effect`}{One row per feature: `x_center`, `y_center` (the two
+#'       centres `fc_mean` selected), `fold_change` and `log2fc`.}
+#'     \item{`tests`}{`t_test`, `wilcox_test` and `robust_test`, described
+#'       below.}
+#'     \item{`test_info`}{Per test, the method `id`, a readable `label` and
+#'       whether it was the paired variant.}
+#'     \item{`metadata`}{`package_version`, `r_version`, `platform` and an
+#'       ISO-8601 `timestamp`.}
+#'   }
+#'
+#'   Every table in `tests` has one row per feature and starts with `features`,
+#'   the per-group sample sizes `n_x` / `n_y` and `n_used` (total observations
+#'   for independent samples, complete pairs for paired samples), and carries
+#'   `pval`, `pval_adj`, `lower_conf` and `upper_conf`. The remaining columns
+#'   are:
 #'
 #'   \describe{
 #'     \item{`t_test`}{`x_mean`, `y_mean`, `mean_diff`, `stderr`, `t_stat`,
@@ -55,21 +84,14 @@
 #'     \item{`wilcox_test`}{`hl_shift` (Hodges-Lehmann location shift, the
 #'       pseudo-median of differences when paired) and `w_stat`.}
 #'     \item{`robust_test`, independent}{`relative_effect`
-#'       (`P(X < Y) + 0.5 * P(X = Y)`), `bm_stat`, `df`. The interval is the
-#'       two-sided interval for `relative_effect` reported by
-#'       [lawstat::brunner.munzel.test()] even for a one-sided `alternative`.}
+#'       (`P(X > Y) + 0.5 * P(X = Y)`, above 0.5 when `group_lv[1]` is the
+#'       larger group), `bm_stat` and `df`. The interval is on the probability
+#'       scale, so a one-sided alternative leaves it open at 0 or at 1 rather
+#'       than at infinity.}
 #'     \item{`robust_test`, paired}{`x_trim_mean`, `y_trim_mean`, `trim_diff`,
-#'       `stderr`, `yuen_stat`, `df`, `effect_size` (explanatory power).}
+#'       `stderr`, `yuen_stat`, `df` and `robust_dz`, a robust counterpart of
+#'       Cohen's `dz`.}
 #'   }
-#'
-#'   `test_type` names the test actually used in each family, plus `paired`.
-#'
-#'   `parameters` records `group_lv`, `alternative`, `paired`, `pairing`
-#'   (`"order"`, `"id"` or `NA` when not paired), `conf_level`, `tr`,
-#'   `p_adjust`, `n_feats`, `n_dropped` (rows removed for belonging to a level
-#'   outside `group_lv`) and `unmatched_ids`.
-#'
-#'   `alternative` is repeated at the top level for convenience.
 #'
 #' @section Pairing:
 #' With `paired = TRUE` and no `id`, the only available information is row
@@ -89,9 +111,13 @@
 #'
 #' Missing values are handled per feature: independent samples drop `NA` within
 #' each group, paired samples keep only complete pairs. `n_x`, `n_y` and
-#' `n_used` therefore vary between features when the data are incomplete.
+#' `n_used` therefore vary between features when the data are incomplete. The
+#' fold change is computed from those same observations, so it never rests on a
+#' different subset of the data than the p-value beside it.
 #'
-#' @seealso [draw_grouped_boxplot()] to visualise the same input.
+#' @seealso [estimate_significance()] to reduce the result to one significance
+#'   verdict per feature, and [draw_grouped_boxplot()] to visualise the same
+#'   input.
 #'
 #' @references
 #' Welch, B. L. (1947). The generalization of Student's problem when several
@@ -120,8 +146,10 @@
 #'   group    = iris2$Species,
 #'   group_lv = c("versicolor", "virginica")
 #' )
-#' res$test_results$t_test
-#' res$test_results$robust_test
+#' res
+#' res$tests$t_test
+#' res$tests$robust_test
+#' res$effect
 #'
 #' ## setosa is perfectly separated from the others on petal size, which leaves
 #' ## the Brunner-Munzel variance at zero. Those rows come back NA with a
@@ -132,7 +160,7 @@
 #'     feats    = c("Sepal.Length", "Petal.Length"),
 #'     group    = iris$Species[iris$Species != "virginica"],
 #'     group_lv = c("setosa", "versicolor")
-#'   )$test_results$robust_test
+#'   )$tests$robust_test
 #' )
 #'
 #' ## Paired samples: sleep holds 10 subjects under 2 drugs, listed in the same
@@ -145,7 +173,7 @@
 #'   paired   = TRUE,
 #'   alternative = "less"
 #' )
-#' paired_res$test_results$robust_test
+#' paired_res$tests$robust_test
 #'
 #' ## Same data with the second group shuffled. Row order pairing silently uses
 #' ## the wrong partners, while `id` recovers the correct result.
@@ -160,8 +188,8 @@
 #'   id = shuffled$ID, paired = TRUE
 #' )
 #' ## The means agree but the paired standard error, and so the p-value, do not.
-#' rbind(order = by_order$test_results$t_test,
-#'       id    = by_id$test_results$t_test)
+#' rbind(order = by_order$tests$t_test,
+#'       id    = by_id$tests$t_test)
 #'
 #' @export
 compare_two_groups <- function(data,
@@ -173,18 +201,16 @@ compare_two_groups <- function(data,
                                paired = FALSE,
                                conf_level = 0.95,
                                tr = 0.2,
+                               fc_mean = c("arith", "geom"),
                                p_adjust = "BH") {
 
   alternative <- match.arg(alternative)
+  fc_mean <- match.arg(fc_mean)
   sa_check_flag(paired, "paired")
   sa_check_scalar_num(conf_level, "conf_level", 0, 1,
                       lower_open = TRUE, upper_open = TRUE)
   sa_check_scalar_num(tr, "tr", 0, 0.5, upper_open = TRUE)
-  if (!is.character(p_adjust) || length(p_adjust) != 1L ||
-      !p_adjust %in% stats::p.adjust.methods) {
-    stop("`p_adjust` must be one of: ",
-         paste(stats::p.adjust.methods, collapse = ", "), ".", call. = FALSE)
-  }
+  sa_check_p_adjust(p_adjust, "p_adjust")
 
   if (!is.null(id) && !paired) {
     warning("`id` is only used to form pairs and is ignored when ",
@@ -199,7 +225,6 @@ compare_two_groups <- function(data,
   group <- input$group
   id <- input$id
   group_lv <- levels(group)
-  n_feats <- length(feats)
 
   if (input$n_dropped > 0L) {
     message("Dropped ", input$n_dropped,
@@ -241,20 +266,11 @@ compare_two_groups <- function(data,
   })
   names(samples) <- feats
 
-  t_label <- if (paired) "Paired t-test" else "Welch's t-test"
-  w_label <- if (paired) {
-    "Wilcoxon signed-rank test"
-  } else {
-    "Wilcoxon rank sum test (Mann-Whitney U test)"
-  }
-  robust_label <- if (paired) {
-    "Yuen's trimmed mean test for dependent samples"
-  } else {
-    "Brunner-Munzel test"
-  }
+  effect <- sa_fold_change(samples, feats, group_lv, fc_mean)
 
 
   # T-test
+  t_label <- if (paired) "Paired t-test" else "Welch's t-test"
   t_columns <- c("n_x", "n_y", "n_used", "x_mean", "y_mean", "mean_diff",
                  "stderr", "t_stat", "df", "pval", "lower_conf", "upper_conf")
 
@@ -268,7 +284,7 @@ compare_two_groups <- function(data,
              n_x, " and ", n_y, ".", call. = FALSE)
       }
       res <- stats::t.test(s$x, s$y, alternative = alternative,
-                           paired = paired, conf.level = conf_level)
+                          paired = paired, conf.level = conf_level)
       # t.test()$estimate is two group means when independent but a single mean
       # difference when paired, so the means are computed here instead to keep
       # one column layout for both designs.
@@ -288,6 +304,11 @@ compare_two_groups <- function(data,
 
 
   # Wilcoxon Test
+  w_label <- if (paired) {
+    "Wilcoxon signed-rank test"
+  } else {
+    "Wilcoxon rank sum test (Mann-Whitney U test)"
+  }
   w_columns <- c("n_x", "n_y", "n_used", "hl_shift", "w_stat", "pval",
                  "lower_conf", "upper_conf")
 
@@ -317,6 +338,7 @@ compare_two_groups <- function(data,
   # Robust Test
   if (!paired) {
     ## Brunner-Munzel Test
+    robust_label <- "Brunner-Munzel test"
     robust_columns <- c("n_x", "n_y", "n_used", "relative_effect", "bm_stat",
                         "df", "pval", "lower_conf", "upper_conf")
 
@@ -330,32 +352,16 @@ compare_two_groups <- function(data,
           stop("needs at least 2 usable observations per group, got ",
                n_x, " and ", n_y, ".", call. = FALSE)
         }
-        res <- lawstat::brunner.munzel.test(s$x, s$y,
-                                            alternative = alternative,
-                                            alpha = 1 - conf_level)
-        # Perfectly separated groups give zero within-group rank variance, so
-        # the statistic is +/-Inf and both df and p-value come out NaN.
-        if (!is.finite(res$statistic) || !is.finite(res$p.value)) {
-          stop("the groups do not overlap, leaving the Brunner-Munzel ",
-               "variance estimate at zero and the statistic undefined.",
-               call. = FALSE)
-        }
-        sa_row(n_x             = n_x,
-               n_y             = n_y,
-               n_used          = n_x + n_y,
-               relative_effect = res$estimate,
-               bm_stat         = res$statistic,
-               df              = res$parameter,
-               pval            = res$p.value,
-               lower_conf      = res$conf.int[1],
-               upper_conf      = res$conf.int[2])
+        c(sa_row(n_x = n_x, n_y = n_y, n_used = n_x + n_y),
+          sa_brunner_munzel(s$x, s$y, alternative = alternative,
+                            conf_level = conf_level))
       })
   } else {
     ## Yuen's trimmed mean test
+    robust_label <- "Yuen's trimmed mean test for dependent samples"
     robust_columns <- c("n_x", "n_y", "n_used", "x_trim_mean", "y_trim_mean",
                         "trim_diff", "stderr", "yuen_stat", "df", "pval",
-                        "lower_conf", "upper_conf", "effect_size")
-    alpha <- 1 - conf_level
+                        "lower_conf", "upper_conf", "robust_dz")
 
     robust_result <- sa_feature_table(feats, robust_columns, robust_label,
       p_adjust = p_adjust,
@@ -368,69 +374,59 @@ compare_two_groups <- function(data,
                " from each tail of ", n_pairs, " pair(s); 2 are needed.",
                call. = FALSE)
         }
-        # yuend() is the dependent-samples form and returns a signed statistic.
-        # yuen() is for independent samples and returns abs(dif / se), which
-        # destroys the sign and makes any one-sided p-value meaningless.
-        res <- WRS2::yuend(s$x, s$y, tr = tr)
-        pval <- switch(alternative,
-          two.sided = 2 * stats::pt(-abs(res$test), df = res$df),
-          greater   = stats::pt(res$test, df = res$df, lower.tail = FALSE),
-          less      = stats::pt(res$test, df = res$df, lower.tail = TRUE)
-        )
-        # yuend() hardcodes alpha = 0.05, so the interval is rebuilt here to
-        # honour conf_level and to open the irrelevant side when one-sided.
-        ci <- switch(alternative,
-          two.sided = res$diff +
-            c(-1, 1) * stats::qt(1 - alpha / 2, df = res$df) * res$se,
-          greater   = c(res$diff - stats::qt(1 - alpha, df = res$df) * res$se,
-                        Inf),
-          less      = c(-Inf,
-                        res$diff + stats::qt(1 - alpha, df = res$df) * res$se)
-        )
-        sa_row(n_x         = n_pairs,
-               n_y         = n_pairs,
-               n_used      = n_pairs,
-               # s has already been reduced to complete pairs, matching the
-               # pairwise deletion yuend() applies internally.
-               x_trim_mean = mean(s$x, trim = tr),
-               y_trim_mean = mean(s$y, trim = tr),
-               trim_diff   = res$diff,
-               stderr      = res$se,
-               yuen_stat   = res$test,
-               df          = res$df,
-               pval        = pval,
-               lower_conf  = ci[1],
-               upper_conf  = ci[2],
-               effect_size = res$effsize)
+        c(sa_row(n_x = n_pairs, n_y = n_pairs, n_used = n_pairs),
+          sa_yuen_paired(s$x, s$y, tr = tr, alternative = alternative,
+                         conf_level = conf_level))
       })
   }
 
 
-  # Merge Results
-  list(
-    test_results = list(
+  sa_new_comparison(
+    analysis  = "two_group_comparison",
+    features  = feats,
+    design    = list(
+      group_lv      = group_lv,
+      paired        = paired,
+      pairing       = if (!paired) {
+        NA_character_
+      } else if (is.null(id)) {
+        "order"
+      } else {
+        "id"
+      },
+      n_dropped     = input$n_dropped,
+      unmatched_ids = unmatched
+    ),
+    parameters = list(
+      alternative = alternative,
+      conf_level  = conf_level,
+      tr          = if (paired) tr else NA_real_,
+      fc_mean     = fc_mean,
+      p_adjust    = p_adjust
+    ),
+    effect    = effect,
+    tests     = list(
       t_test      = t_result,
       wilcox_test = w_result,
       robust_test = robust_result
     ),
-    test_type = list(
-      paired            = paired,
-      t_test_type       = t_label,
-      wilcox_test_type  = w_label,
-      robust_test_type  = robust_label
+    test_info = list(
+      t_test = list(
+        id     = if (paired) "paired_t_test" else "welch_t_test",
+        label  = t_label,
+        paired = paired
+      ),
+      wilcox_test = list(
+        id     = if (paired) "wilcoxon_signed_rank" else "mann_whitney_u",
+        label  = w_label,
+        paired = paired
+      ),
+      robust_test = list(
+        id     = if (paired) "yuen_paired" else "brunner_munzel",
+        label  = robust_label,
+        paired = paired
+      )
     ),
-    parameters = list(
-      group_lv      = group_lv,
-      alternative   = alternative,
-      paired        = paired,
-      pairing       = if (!paired) NA_character_ else if (is.null(id)) "order" else "id",
-      conf_level    = conf_level,
-      tr            = if (paired) tr else NA_real_,
-      p_adjust      = p_adjust,
-      n_feats       = n_feats,
-      n_dropped     = input$n_dropped,
-      unmatched_ids = unmatched
-    ),
-    alternative = alternative
+    subclass  = "sa_two_group"
   )
 }

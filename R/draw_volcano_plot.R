@@ -1,20 +1,19 @@
 #' Draw a volcano plot
 #'
-#' Plots `log2fc` against `-log10(pvalue)`, colours the features that clear both
+#' Plots `log2fc` against `-log10(pvalue)` for the table
+#' [estimate_significance()] returns, colours the features that clear both
 #' cutoffs by direction and labels the strongest of them.
 #'
-#' @param feats Character vector of feature names, used for the labels. One
-#'   point per entry.
-#' @param log2fc Numeric vector of log2 fold changes, one per feature.
-#' @param pvalue Numeric vector of p-values, one per feature. Pass whichever
-#'   p-values the cutoff should apply to, adjusted or not.
-#' @param is_adj_pvalue Logical. Only decides whether the y axis is labelled as
-#'   adjusted; it does not change what is plotted or which points are called
-#'   significant. Set it to match what `pvalue` actually holds.
-#' @param log2fc_cutoff Minimum `abs(log2fc)` for a point to count as changed.
-#'   Drawn as a pair of vertical guides.
-#' @param pval_cutoff Largest `pvalue` for a point to count as significant.
-#'   Drawn as a horizontal guide.
+#' @param x The data.frame returned by [estimate_significance()].
+#' @param use_adjusted Logical. If `TRUE`, plot and threshold the `adj_pvalue`
+#'   column; if `FALSE`, use the unadjusted `pvalue` column. The axis label
+#'   follows, so the y axis always describes what was actually plotted.
+#' @param log2fc_cutoff,pval_cutoff Cutoffs for calling a feature changed and
+#'   significant, drawn as guides. `NULL`, the default, takes the values
+#'   [estimate_significance()] recorded on `x`, so the guides agree with its
+#'   `is_signif` column. Supply a number to override them. Selecting a subset of
+#'   rows keeps the recorded values, but selecting columns drops them, in which
+#'   case both must be given.
 #' @param anno_feats Logical. If `TRUE`, label the strongest significant
 #'   features.
 #' @param anno_top How many features to label in each direction, so up to
@@ -35,54 +34,46 @@
 #' deliberately left in place, so [graphics::points()], [graphics::text()] and
 #' friends can still be used to add to the finished plot.
 #'
-#' A p-value of exactly zero, which the Brunner-Munzel and permutation-style
-#' tests do produce, has no finite `-log10()`. Rather than dropping the most
-#' significant points or letting an infinite axis limit blank the plot, the axis
-#' is scaled to the largest finite value and those points are drawn at the top of
-#' it. Non-finite `log2fc`, which [calculate_fold_change()] returns when a group
-#' mean is zero, is capped at the edge of the x axis the same way. Either kind of
-#' capping is reported in a `message()`, since a capped point no longer sits at
-#' its true coordinate.
+#' A p-value of exactly zero has no finite `-log10()`. Rather than dropping the
+#' most significant points or letting an infinite axis limit blank the plot, the
+#' axis is scaled to the largest finite value and those points are drawn at the
+#' top of it. Non-finite `log2fc`, which [compare_two_groups()] produces when a
+#' group centre is zero, is capped at the edge of the x axis the same way. Either
+#' kind of capping is reported in a `message()`, since a capped point no longer
+#' sits at its true coordinate.
 #'
 #' Points are coloured by the same masks that select the labels, so which
-#' features are highlighted and which are labelled can never disagree. The
+#' features are highlighted and which are labelled can never disagree. With the
+#' default arguments those masks reproduce the `is_signif` column of `x`. The
 #' labels are drawn in a brighter shade than the points on purpose, so that a
 #' label stays legible where it overlaps them.
 #'
-#' @seealso [evaluate_significance()], whose output supplies every argument here,
-#'   and [calculate_fold_change()].
+#' @seealso [estimate_significance()], whose output is the only argument this
+#'   function needs.
 #'
 #' @examples
 #' iris2 <- iris[iris$Species != "setosa", ]
-#' feats <- c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width")
-#' lv <- c("versicolor", "virginica")
-#'
-#' fc <- calculate_fold_change(iris2, feats, iris2$Species, lv,
-#'                             case_label = "virginica")
-#' pv <- compare_two_groups(iris2, feats, iris2$Species,
-#'                          lv)$test_results$t_test$pval
-#' sig <- evaluate_significance(feats, fc, pv, log2fc_cutoff = 0.1)
-#'
-#' draw_volcano_plot(
-#'   feats         = sig$features,
-#'   log2fc        = sig$log2fc,
-#'   pvalue        = sig$adj_pvalue,
-#'   log2fc_cutoff = 0.1,
-#'   main          = "virginica vs versicolor"
+#' res <- compare_two_groups(
+#'   data     = iris2,
+#'   feats    = c("Sepal.Length", "Sepal.Width", "Petal.Length", "Petal.Width"),
+#'   group    = iris2$Species,
+#'   group_lv = c("virginica", "versicolor")
 #' )
+#' sig <- estimate_significance(res, log2fc_cutoff = 0.1)
+#'
+#' draw_volcano_plot(sig, main = "virginica vs versicolor")
 #'
 #' ## Unadjusted p-values, no labels
-#' draw_volcano_plot(sig$features, sig$log2fc, sig$pvalue,
-#'                   is_adj_pvalue = FALSE, log2fc_cutoff = 0.1,
-#'                   anno_feats = FALSE)
+#' draw_volcano_plot(sig, use_adjusted = FALSE, anno_feats = FALSE)
+#'
+#' ## A cutoff other than the one the verdict used
+#' draw_volcano_plot(sig, log2fc_cutoff = 0.3)
 #'
 #' @export
-draw_volcano_plot <- function(feats,
-                              log2fc,
-                              pvalue,
-                              is_adj_pvalue = TRUE,
-                              log2fc_cutoff = 1,
-                              pval_cutoff = 0.05,
+draw_volcano_plot <- function(x,
+                              use_adjusted = TRUE,
+                              log2fc_cutoff = NULL,
+                              pval_cutoff = NULL,
                               anno_feats = TRUE,
                               anno_top = 10,
                               cex.anno = 1,
@@ -95,10 +86,8 @@ draw_volcano_plot <- function(feats,
                               margin = c(5, 5, 4, 3),
                               ...) {
 
-  sa_check_flag(is_adj_pvalue, "is_adj_pvalue")
+  sa_check_flag(use_adjusted, "use_adjusted")
   sa_check_flag(anno_feats, "anno_feats")
-  sa_check_scalar_num(log2fc_cutoff, "log2fc_cutoff", 0)
-  sa_check_scalar_num(pval_cutoff, "pval_cutoff", 0, 1, lower_open = TRUE)
   sa_check_scalar_num(anno_top, "anno_top", 0)
   sa_check_scalar_num(cex.anno, "cex.anno", 0, lower_open = TRUE)
   sa_check_scalar_num(cex.lab, "cex.lab", 0, lower_open = TRUE)
@@ -108,10 +97,39 @@ draw_volcano_plot <- function(feats,
   sa_check_lim(xlim, "xlim")
   sa_check_lim(ylim, "ylim")
 
+  if (!is.data.frame(x)) {
+    stop("`x` must be the data.frame returned by estimate_significance().",
+         call. = FALSE)
+  }
+  p_col <- if (use_adjusted) "adj_pvalue" else "pvalue"
+  absent <- setdiff(c("features", "log2fc", p_col), names(x))
+  if (length(absent) > 0L) {
+    stop("`x` is missing the column(s) ", paste(absent, collapse = ", "),
+         ". Pass the table returned by estimate_significance().",
+         call. = FALSE)
+  }
+
+  # Falling back to the recorded cutoffs is what keeps the guides on the plot and
+  # the verdict in the table describing the same rule.
+  if (is.null(log2fc_cutoff)) {
+    log2fc_cutoff <- attr(x, "log2fc_cutoff")
+  }
+  if (is.null(pval_cutoff)) {
+    pval_cutoff <- attr(x, "pval_cutoff")
+  }
+  if (is.null(log2fc_cutoff) || is.null(pval_cutoff)) {
+    stop("`x` does not carry the cutoffs estimate_significance() records, so ",
+         "`log2fc_cutoff` and `pval_cutoff` must be supplied. Selecting ",
+         "columns from the table drops them.", call. = FALSE)
+  }
+  sa_check_scalar_num(log2fc_cutoff, "log2fc_cutoff", 0)
+  sa_check_scalar_num(pval_cutoff, "pval_cutoff", 0, 1, lower_open = TRUE)
+
+  feats <- as.character(x$features)
   sa_check_feat_names(feats)
-  log2fc <- sa_align_to_feats(log2fc, feats, "log2fc")
-  pvalue <- sa_align_to_feats(pvalue, feats, "pvalue")
-  sa_check_pvalues(pvalue)
+  log2fc <- x$log2fc
+  pvalue <- x[[p_col]]
+  sa_check_pvalues(pvalue, p_col)
 
   up_color   <- "#D73027"  # red
   down_color <- "#4575B4"  # blue
@@ -129,7 +147,7 @@ draw_volcano_plot <- function(feats,
   x_finite <- log2fc[is.finite(log2fc)]
   if (length(y_finite) == 0L || length(x_finite) == 0L) {
     stop("nothing can be plotted: no feature has both a finite `log2fc` and a ",
-         "finite -log10(`pvalue`).", call. = FALSE)
+         "finite -log10(`", p_col, "`).", call. = FALSE)
   }
 
   y_top <- max(y_finite)
@@ -182,7 +200,7 @@ draw_volcano_plot <- function(feats,
   on.exit(graphics::par(mar = old_mar), add = TRUE)
   graphics::par(mar = margin)
 
-  y_lab <- if (is_adj_pvalue) {
+  y_lab <- if (use_adjusted) {
     expression(-log[10] ~ adjusted ~ italic(P))
   } else {
     expression(-log[10] ~ italic(P))
