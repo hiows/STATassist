@@ -1,0 +1,36 @@
+Package: STATassist
+Title: Standardised Statistical Comparison Workflows
+Version: 0.0.0.9000
+Authors@R: 
+    person("Wonseok", "Oh", , "hiows97@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0009-0002-0687-8466"))
+Description: Runs a family of complementary statistical tests through a single
+    consistent function call and returns standardised, feature-wise result
+    tables. Two-group comparison reports parametric, rank-based and robust
+    results side by side, together with effect estimates, confidence intervals
+    and multiplicity adjusted p-values, so that a conclusion is never based on
+    a single test. Grouped boxplot visualisation with matching summary
+    statistics is included. The implemented methods include those described by
+    Welch (1947) <doi:10.1093/biomet/34.1-2.28>, Wilcoxon (1945)
+    <doi:10.2307/3001968>, Mann and Whitney (1947)
+    <doi:10.1214/aoms/1177730491>, Yuen (1974)
+    <doi:10.1093/biomet/61.1.165>, and Brunner and Munzel (2000)
+    <doi:10.1002/(SICI)1521-4036(200001)42:1%3C17::AID-BIMJ17%3E3.0.CO;2-U>.
+License: MIT + file LICENSE
+URL: https://github.com/hiows/STATassist
+BugReports: https://github.com/hiows/STATassist/issues
+Encoding: UTF-8
+Depends: 
+    R (>= 4.1.0)
+Imports: 
+    colorspace,
+    graphics,
+    lawstat,
+    stats,
+    tidyr,
+    WRS2
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.0.0
