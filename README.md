@@ -28,12 +28,15 @@ Grouped boxplots and a back-to-back histogram use the same wide data interface:
 
 ## Installation
 
-Install the development version from GitHub (branch `STATassist_v0.1.0`):
+Install from GitHub:
 
 ```r
 # install.packages("remotes")
-remotes::install_github("hiows/STATassist", ref = "STATassist_v0.1.0")
+remotes::install_github("hiows/STATassist")          # latest
+remotes::install_github("hiows/STATassist@v0.1.0")   # pinned to a release
 ```
+
+Each release is tagged, so the pinned form keeps returning the same code no matter what lands on the default branch afterwards. `v0.0.1` is the previous release.
 
 The package is not on CRAN yet. When it is submitted, this README will note the CRAN line as well.
 
