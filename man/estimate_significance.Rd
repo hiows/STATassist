@@ -6,18 +6,20 @@
 \usage{
 estimate_significance(
   res,
-  test = "t_test",
+  test = names(res$tests)[1],
   log2fc_cutoff = 1,
   pval_cutoff = 0.05,
   adj_type = NULL
 )
 }
 \arguments{
-\item{res}{A comparison result, as returned by \code{\link[=compare_two_groups]{compare_two_groups()}}.}
+\item{res}{A comparison result, as returned by \code{\link[=compare_two_groups]{compare_two_groups()}},
+\code{\link[=compare_multiple_groups]{compare_multiple_groups()}} or \code{\link[=compare_one_sample]{compare_one_sample()}}.}
 
 \item{test}{Which test in \code{res} supplies the p-values. One of
 \code{names(res$tests)}, so \code{"t_test"}, \code{"wilcox_test"} or \code{"robust_test"} for a
-two-group comparison.}
+two-group comparison. Defaults to the first test the scenario ran, which is
+the parametric one in every scenario.}
 
 \item{log2fc_cutoff}{Minimum \code{abs(log2fc)} required to call a feature
 significant. The default of 1 is a two-fold change.}

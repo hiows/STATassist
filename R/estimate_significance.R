@@ -6,10 +6,12 @@
 #' be read out through the parametric, the rank-based or the robust lens without
 #' recomputing anything.
 #'
-#' @param res A comparison result, as returned by [compare_two_groups()].
+#' @param res A comparison result, as returned by [compare_two_groups()],
+#'   [compare_multiple_groups()] or [compare_one_sample()].
 #' @param test Which test in `res` supplies the p-values. One of
 #'   `names(res$tests)`, so `"t_test"`, `"wilcox_test"` or `"robust_test"` for a
-#'   two-group comparison.
+#'   two-group comparison. Defaults to the first test the scenario ran, which is
+#'   the parametric one in every scenario.
 #' @param log2fc_cutoff Minimum `abs(log2fc)` required to call a feature
 #'   significant. The default of 1 is a two-fold change.
 #' @param pval_cutoff Largest `adj_pvalue` allowed for a feature to be called
@@ -68,7 +70,7 @@
 #'
 #' @export
 estimate_significance <- function(res,
-                                  test = "t_test",
+                                  test = names(res$tests)[1],
                                   log2fc_cutoff = 1,
                                   pval_cutoff = 0.05,
                                   adj_type = NULL) {

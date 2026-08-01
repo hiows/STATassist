@@ -20,17 +20,30 @@ measurement or several thousand.
 }
 \section{Comparison}{
 
-\code{\link[=compare_two_groups]{compare_two_groups()}} compares exactly two group levels across any number
-of numeric features. It returns the fold change between the groups plus three
-test tables:
+One function per situation, chosen by how many groups there are:
 
 \describe{
-\item{\code{t_test}}{Welch's t-test (independent) or paired t-test.}
-\item{\code{wilcox_test}}{Wilcoxon rank-sum test (independent) or signed-rank
-test (paired), with the Hodges-Lehmann shift estimate.}
-\item{\code{robust_test}}{Brunner-Munzel test (independent) or Yuen's trimmed
-mean test for dependent samples (paired).}
+\item{\code{\link[=compare_one_sample]{compare_one_sample()}}}{One sample against a hypothesised value: a
+one-sample t-test, a Wilcoxon signed-rank test and a proportion test.}
+\item{\code{\link[=compare_two_groups]{compare_two_groups()}}}{Exactly two levels: Welch's or paired t,
+Wilcoxon rank-sum or signed-rank, and Brunner-Munzel or Yuen's trimmed
+mean test for dependent samples. The fold change comes with them.}
+\item{\code{\link[=compare_multiple_groups]{compare_multiple_groups()}}}{Three or more levels, independent or
+repeated: one-way, Welch's, trimmed mean and Kruskal-Wallis omnibus
+tests, or repeated measures ANOVA and Friedman, each followed by the
+post-hoc procedure that shares its assumptions.}
 }
+}
+
+\section{Assumption diagnostics}{
+
+\code{\link[=diagnose_distribution]{diagnose_distribution()}} reports the normality tests, the homogeneity of
+variance tests and \code{\link[=screen_outliers]{screen_outliers()}} together. The same checks are attached
+to every comparison result as \verb{$diagnostics}, computed on the observations
+that were actually tested, so an assumption is never silently ignored. A
+failed check never changes which tests run: it changes which member of the
+reported family deserves the most weight, and that judgement stays with the
+analyst.
 }
 
 \section{Significance and visualisation}{
@@ -62,12 +75,19 @@ distribution shape, split by group level when a grouping vector is supplied.
 
 \section{Result contract}{
 
-\code{\link[=compare_two_groups]{compare_two_groups()}} returns a \code{sa_comparison} object, a plain named list of
+Every comparison returns a \code{sa_comparison} object, a plain named list of
 scalars, character vectors and data.frames with an S3 class on top that only
-supplies \code{\link[=print]{print()}}. No fitted model or other R-only object is stored anywhere,
-so the result can be written out as JSON and rebuilt elsewhere. Every test
-kernel is likewise a plain function of numeric vectors. Both choices exist to
-keep a future Python implementation a transcription rather than a redesign.
+supplies \code{\link[=print]{print()}} and \code{\link[=plot]{plot()}}. No fitted model or other R-only object is
+stored anywhere, so the result can be written out as JSON and rebuilt
+elsewhere. Every test kernel is likewise a plain function of numeric vectors.
+Both choices exist to keep a future Python implementation a transcription
+rather than a redesign.
+
+The contract is at version \verb{0.2.0}. Alongside the \code{effect} and \code{tests} tables
+of \verb{0.1.0} it carries \code{posthoc}, one table per test holding one row per
+feature and pair of levels, and \code{diagnostics}. Both are present in every
+result, empty where the scenario has nothing to put in them, so a consumer
+reads all three scenarios the same way.
 }
 
 \seealso{
