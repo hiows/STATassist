@@ -1,8 +1,8 @@
 {
-  "registry_version": "0.0.1",
+  "registry_version": "0.1.0",
   "schema_version": "0.1.0",
-  "generated_at": "2026-07-31T13:36:23Z",
-  "source_checksum": "66eccb1331d49cced9987812a3617e7c",
+  "generated_at": "2026-08-01T12:19:08Z",
+  "source_checksum": "2e35fd0dc90995ba0157b81371ed4e95",
   "families": [
     {
       "id": "descriptive",
@@ -849,7 +849,8 @@
       "label": "Descriptive summary",
       "label_ko": "기술통계 요약",
       "description": "Sample size, missingness, central tendency, dispersion, shape and a confidence interval for the mean, optionally split by a grouping variable.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "summarize_descriptive_stats",
       "since": "0.0.1",
       "role": "descriptive",
       "r_function": "sa_summary",
@@ -965,7 +966,8 @@
       "label": "Outlier screening",
       "label_ko": "이상치 탐지",
       "description": "Flags candidate outliers using the IQR fence, a robust z-score based on the median and MAD, or Grubbs' test. Reports flags rather than removing data.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "screen_outliers",
       "since": "0.0.1",
       "role": "descriptive",
       "r_function": "sa_outlier",
@@ -1030,7 +1032,8 @@
       "label": "Shapiro-Wilk normality test",
       "label_ko": "Shapiro-Wilk 정규성 검정",
       "description": "Tests the null hypothesis that a sample comes from a normal distribution. Applicable for 3 <= n <= 5000.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "diagnose_distribution",
       "since": "0.0.1",
       "role": "diagnostic",
       "r_function": "sa_shapiro",
@@ -1077,7 +1080,8 @@
       "label": "Kolmogorov-Smirnov goodness-of-fit test",
       "label_ko": "Kolmogorov-Smirnov 적합도 검정",
       "description": "One-sample test against a fully specified reference distribution, or a two-sample test comparing two empirical distributions.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "diagnose_distribution",
       "since": "0.0.1",
       "role": "diagnostic",
       "r_function": "sa_ks_test",
@@ -1141,7 +1145,8 @@
       "label": "Levene test for homogeneity of variance",
       "label_ko": "Levene 등분산 검정",
       "description": "One-way ANOVA on the absolute deviations from each group centre. The default centre is the median, which is the Brown-Forsythe variant and is robust to non-normality.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "diagnose_distribution",
       "since": "0.0.1",
       "role": "diagnostic",
       "r_function": "sa_levene",
@@ -1203,7 +1208,8 @@
       "label": "Bartlett test for homogeneity of variance",
       "label_ko": "Bartlett 등분산 검정",
       "description": "Likelihood-ratio based test of equal variances. More powerful than Levene under normality but sensitive to departures from it.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "diagnose_distribution",
       "since": "0.0.1",
       "role": "diagnostic",
       "r_function": "sa_bartlett",
@@ -1248,7 +1254,8 @@
       "label": "One-way ANOVA",
       "label_ko": "일원배치 분산분석",
       "description": "Omnibus F test for equality of means across three or more independent groups, assuming equal variances.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_anova",
@@ -1294,7 +1301,7 @@
       ],
       "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
       "posthoc_methods": ["tukey_hsd"],
-      "alternatives": ["welch_anova", "kruskal_wallis"],
+      "alternatives": ["welch_anova", "yuen_anova", "kruskal_wallis"],
       "references": ["Fisher, R. A. (1925). Statistical Methods for Research Workers.", "Okada, K. (2013). Behaviormetrika 40(2), 129-147."],
       "validation": {
         "reference_impl": "summary(stats::aov(y ~ g))",
@@ -1309,7 +1316,8 @@
       "label": "Welch's one-way ANOVA",
       "label_ko": "Welch 일원배치 분산분석",
       "description": "Heteroscedasticity-robust omnibus test for three or more independent groups. Recommended as the default when group variances or sizes differ.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_welch_anova",
@@ -1347,7 +1355,7 @@
       ],
       "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
       "posthoc_methods": ["games_howell"],
-      "alternatives": ["oneway_anova", "kruskal_wallis"],
+      "alternatives": ["oneway_anova", "yuen_anova", "kruskal_wallis"],
       "references": ["Welch, B. L. (1951). Biometrika 38(3-4), 330-336.", "Delacre, M. et al. (2019). International Review of Social Psychology 32(1), 13."],
       "validation": {
         "reference_impl": "stats::oneway.test(y ~ g, var.equal = FALSE)",
@@ -1357,12 +1365,142 @@
       "example_data": "iris"
     },
     {
+      "id": "yuen_anova",
+      "family": "multi_group_independent",
+      "label": "Yuen's trimmed mean one-way ANOVA",
+      "label_ko": "Yuen 절사평균 일원배치 분산분석",
+      "description": "Welch's construction applied to trimmed means and winsorised variances. The robust member of the independent omnibus family: heavy tails and stray observations lose the leverage they hold over an ordinary F test, without giving up the mean-like interpretation a rank test gives up.",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
+      "since": "0.1.0",
+      "role": "primary",
+      "r_function": "sa_yuen_anova",
+      "py_function": "yuen_anova",
+      "engine": "internal",
+      "engine_py": "internal (transcribed from R)",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true,
+          "n_min": 2
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "n_min": 6
+      },
+      "assumptions": ["independence", "similar_shape"],
+      "effect_sizes": ["robust_eta_squared"],
+      "parameters": [
+        {
+          "name": "tr",
+          "type": "numeric",
+          "default": 0.2,
+          "range": [
+            0,
+            0.5
+          ],
+          "description": "Proportion trimmed at each tail."
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95,
+          "range": [0, 1]
+        },
+        {
+          "name": "posthoc",
+          "type": "logical",
+          "default": true,
+          "description": "When TRUE, pairwise_yuen results are attached to the posthoc field."
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "posthoc_methods": ["pairwise_yuen"],
+      "alternatives": ["welch_anova", "oneway_anova", "kruskal_wallis"],
+      "references": ["Yuen, K. K. (1974). Biometrika 61(1), 165-170.", "Wilcox, R. R. (2017). Introduction to Robust Estimation and Hypothesis Testing, 4th ed."],
+      "validation": {
+        "reference_impl": "WRS2::t1way(y ~ g, tr = tr)",
+        "tolerance": 1e-10,
+        "compare_fields": ["statistics"],
+        "notes": "WRS2 is not a package dependency; it is used in Test/ only."
+      },
+      "example_data": "iris"
+    },
+    {
+      "id": "pairwise_yuen",
+      "family": "multi_group_independent",
+      "label": "Pairwise Yuen tests",
+      "label_ko": "쌍별 Yuen 검정",
+      "description": "Independent-samples Yuen tests over every pair of levels, at the same trimming proportion the omnibus test used. Not family-wise on its own, so the caller adjusts across the contrasts within each feature.",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
+      "since": "0.1.0",
+      "role": "posthoc",
+      "follows": ["yuen_anova"],
+      "r_function": "sa_pairwise_yuen",
+      "py_function": "pairwise_yuen",
+      "engine": "internal",
+      "engine_py": "internal (transcribed from R)",
+      "data_requirements": {
+        "design": "independent",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "n_min": 6
+      },
+      "assumptions": ["independence"],
+      "effect_sizes": ["trimmed_mean_difference"],
+      "parameters": [
+        {
+          "name": "tr",
+          "type": "numeric",
+          "default": 0.2,
+          "range": [
+            0,
+            0.5
+          ]
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
+          "default": "holm"
+        }
+      ],
+      "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
+      "alternatives": ["games_howell", "dunn_test", "tukey_hsd"],
+      "references": ["Yuen, K. K. (1974). Biometrika 61(1), 165-170."],
+      "validation": {
+        "reference_impl": "WRS2::yuen(y ~ g, tr = tr) on each pair",
+        "tolerance": 1e-10,
+        "compare_fields": ["posthoc"],
+        "notes": "WRS2 is not a package dependency; it is used in Test/ only."
+      },
+      "example_data": "iris"
+    },
+    {
       "id": "kruskal_wallis",
       "family": "multi_group_independent",
       "label": "Kruskal-Wallis test",
       "label_ko": "Kruskal-Wallis 검정",
       "description": "Rank-based omnibus test for three or more independent groups. Tests stochastic dominance, not equality of medians, unless the distributional shapes are similar.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_kruskal",
@@ -1406,7 +1544,7 @@
       ],
       "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
       "posthoc_methods": ["dunn_test"],
-      "alternatives": ["welch_anova", "oneway_anova"],
+      "alternatives": ["welch_anova", "oneway_anova", "yuen_anova"],
       "references": ["Kruskal, W. H. and Wallis, W. A. (1952). Journal of the American Statistical Association 47(260), 583-621.", "Tomczak, M. and Tomczak, E. (2014). Trends in Sport Sciences 1(21), 19-25."],
       "validation": {
         "reference_impl": "stats::kruskal.test(y ~ g)",
@@ -1421,7 +1559,8 @@
       "label": "Tukey HSD",
       "label_ko": "Tukey HSD 사후검정",
       "description": "All pairwise comparisons with family-wise error control via the studentised range distribution. Assumes equal variances.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
       "since": "0.0.1",
       "role": "posthoc",
       "follows": ["oneway_anova"],
@@ -1453,7 +1592,7 @@
         }
       ],
       "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
-      "alternatives": ["games_howell", "dunn_test"],
+      "alternatives": ["games_howell", "pairwise_yuen", "dunn_test"],
       "references": ["Tukey, J. W. (1949). Biometrics 5(2), 99-114."],
       "validation": {
         "reference_impl": "stats::TukeyHSD(stats::aov(y ~ g))",
@@ -1468,7 +1607,8 @@
       "label": "Games-Howell post-hoc test",
       "label_ko": "Games-Howell 사후검정",
       "description": "Pairwise comparisons using Welch-type degrees of freedom and the studentised range distribution. Does not assume equal variances or equal group sizes.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
       "since": "0.0.1",
       "role": "posthoc",
       "follows": ["welch_anova"],
@@ -1499,7 +1639,7 @@
         }
       ],
       "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
-      "alternatives": ["tukey_hsd", "dunn_test"],
+      "alternatives": ["tukey_hsd", "pairwise_yuen", "dunn_test"],
       "references": ["Games, P. A. and Howell, J. F. (1976). Journal of Educational Statistics 1(2), 113-125."],
       "validation": {
         "reference_impl": "Hand-computed Welch df and ptukey q statistic per pair; cross-checked against rstatix::games_howell_test in development only.",
@@ -1515,7 +1655,8 @@
       "label": "Dunn's post-hoc test",
       "label_ko": "Dunn 사후검정",
       "description": "Pairwise rank-sum comparisons using the pooled ranks from the Kruskal-Wallis test, with a tie correction and a chosen p-value adjustment.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
       "since": "0.0.1",
       "role": "posthoc",
       "follows": ["kruskal_wallis"],
@@ -1552,7 +1693,7 @@
         }
       ],
       "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
-      "alternatives": ["tukey_hsd", "games_howell"],
+      "alternatives": ["tukey_hsd", "games_howell", "pairwise_yuen"],
       "references": ["Dunn, O. J. (1964). Technometrics 6(3), 241-252."],
       "validation": {
         "reference_impl": "Hand-computed z from pooled midranks with tie correction; cross-checked against dunn.test::dunn.test in development only.",
@@ -1568,7 +1709,8 @@
       "label": "Repeated measures ANOVA",
       "label_ko": "반복측정 분산분석",
       "description": "One-way within-subject F test with Mauchly's sphericity check and Greenhouse-Geisser and Huynh-Feldt corrected p-values. Requires a complete balanced design; incomplete subjects are dropped listwise.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_rm_anova",
@@ -1623,6 +1765,7 @@
         }
       ],
       "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "posthoc_methods": ["pairwise_paired_t"],
       "alternatives": ["friedman_test"],
       "references": ["Mauchly, J. W. (1940). Annals of Mathematical Statistics 11(2), 204-209.", "Greenhouse, S. W. and Geisser, S. (1959). Psychometrika 24(2), 95-112.", "Huynh, H. and Feldt, L. S. (1976). Journal of Educational Statistics 1(1), 69-82.", "Bakeman, R. (2005). Behavior Research Methods 37(3), 379-384."],
       "validation": {
@@ -1634,12 +1777,70 @@
       "example_data": "ToothGrowth"
     },
     {
+      "id": "pairwise_paired_t",
+      "family": "multi_group_repeated",
+      "label": "Pairwise paired t-tests",
+      "label_ko": "쌍별 대응표본 t-검정",
+      "description": "Paired t-tests over every pair of conditions. Each pair is tested on its own differences rather than against the pooled residual error, so a pair whose difference happens to be far more variable than the rest is not judged as though it were not. Not family-wise on its own.",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
+      "since": "0.1.0",
+      "role": "posthoc",
+      "follows": ["repeated_measures_anova"],
+      "r_function": "sa_pairwise_paired_t",
+      "py_function": "pairwise_paired_t",
+      "engine": "stats::t.test(paired = TRUE)",
+      "engine_py": "scipy.stats.ttest_rel",
+      "data_requirements": {
+        "design": "repeated",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "group": {
+          "type": "factor",
+          "required": true,
+          "n_levels_min": 3
+        },
+        "id": {
+          "type": "any",
+          "required": true
+        },
+        "n_min": 9
+      },
+      "assumptions": ["normality_of_differences", "independence_of_subjects", "balanced_design"],
+      "effect_sizes": ["mean_difference", "cohens_dz"],
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
+          "default": "holm"
+        }
+      ],
+      "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
+      "alternatives": ["conover_posthoc"],
+      "references": ["Maxwell, S. E. (1980). Journal of Educational Statistics 5(3), 269-287."],
+      "validation": {
+        "reference_impl": "stats::t.test(x, y, paired = TRUE) on each pair",
+        "tolerance": 1e-10,
+        "compare_fields": ["posthoc"]
+      },
+      "example_data": "ChickWeight"
+    },
+    {
       "id": "friedman_test",
       "family": "multi_group_repeated",
       "label": "Friedman test",
       "label_ko": "Friedman 검정",
       "description": "Rank-based omnibus test for three or more repeated conditions measured on the same subjects. The nonparametric counterpart of repeated measures ANOVA.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_friedman",
@@ -1701,7 +1902,8 @@
       "label": "Conover post-hoc test",
       "label_ko": "Conover 사후검정",
       "description": "Pairwise comparisons of within-block rank sums following a significant Friedman test, using a t distribution on the residual degrees of freedom.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_multiple_groups",
       "since": "0.0.1",
       "role": "posthoc",
       "follows": ["friedman_test"],
@@ -1742,7 +1944,7 @@
         }
       ],
       "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
-      "alternatives": ["dunn_test"],
+      "alternatives": ["pairwise_paired_t", "dunn_test"],
       "references": ["Conover, W. J. (1999). Practical Nonparametric Statistics, 3rd ed."],
       "validation": {
         "reference_impl": "Hand-computed rank-sum t statistic from the Friedman rank matrix; cross-checked against PMCMRplus::frdAllPairsConoverTest in development only.",
@@ -1758,7 +1960,8 @@
       "label": "One-sample t-test",
       "label_ko": "단일 표본 t-검정",
       "description": "Tests whether the population mean differs from a hypothesised value mu.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_one_sample",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_one_sample_t",
@@ -1812,7 +2015,8 @@
       "label": "One-sample Wilcoxon signed-rank test",
       "label_ko": "단일 표본 Wilcoxon 부호순위 검정",
       "description": "Rank-based test of location against a hypothesised value. Assumes the distribution of x - mu is symmetric.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_one_sample",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_one_sample_wilcoxon",
@@ -1876,7 +2080,8 @@
       "label": "One-sample proportion test",
       "label_ko": "단일 표본 비율 검정",
       "description": "Compares an observed proportion against a hypothesised value using the score test, with a Wilson interval by default.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_one_sample",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_one_sample_prop",
@@ -2988,6 +3193,16 @@
       "range": [0, 1],
       "ci_method": "bootstrap_bca",
       "notes": "Companion effect size for the Kruskal-Wallis H statistic."
+    },
+    {
+      "id": "robust_eta_squared",
+      "label": "Robust eta squared",
+      "label_ko": "강건 에타 제곱",
+      "formula": "Vb / (Vb + Vw), Vb = sum((theta_j - mean(theta))^2) / k, Vw = mean(winvar_j / (1 - 2 * tr)^2)",
+      "scale": "variance_explained",
+      "range": [0, 1],
+      "ci_method": "none",
+      "notes": "Companion effect size for the trimmed mean one-way ANOVA. Defined by STATassist rather than borrowed: it is the spread of the trimmed means around their unweighted centre over that spread plus the mean winsorised variance rescaled onto the trimmed mean scale. It is not Wilcox's explanatory measure of effect size and does not reproduce it."
     },
     {
       "id": "epsilon_squared_rank",
