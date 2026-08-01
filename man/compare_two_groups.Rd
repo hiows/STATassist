@@ -15,7 +15,8 @@ compare_two_groups(
   conf_level = 0.95,
   tr = 0.2,
   fc_mean = c("arith", "geom"),
-  p_adjust = "BH"
+  p_adjust = "BH",
+  diagnose = TRUE
 )
 }
 \arguments{
@@ -56,6 +57,10 @@ concentration-like data.}
 
 \item{p_adjust}{Multiplicity adjustment applied across \code{feats} within each
 test table, passed to \code{\link[stats:p.adjust]{stats::p.adjust()}}. Use \code{"none"} to disable.}
+
+\item{diagnose}{Logical. If \code{TRUE}, the normality and homogeneity of variance
+checks the tests rest on are attached as \verb{$diagnostics}, computed on the
+same observations the tests used. See \code{\link[=diagnose_distribution]{diagnose_distribution()}}.}
 }
 \value{
 A \code{sa_comparison} object: a plain list, so it survives being written
@@ -75,8 +80,13 @@ level outside \code{group_lv}) and \code{unmatched_ids}.}
 centres \code{fc_mean} selected), \code{fold_change} and \code{log2fc}.}
 \item{\code{tests}}{\code{t_test}, \code{wilcox_test} and \code{robust_test}, described
 below.}
+\item{\code{posthoc}}{Empty: with two groups the omnibus comparison is
+already the only contrast there is. The slot exists so that a consumer
+reads every comparison result the same way.}
 \item{\code{test_info}}{Per test, the method \code{id}, a readable \code{label} and
 whether it was the paired variant.}
+\item{\code{diagnostics}}{Assumption checks, or \code{NULL} when \code{diagnose} is
+\code{FALSE}.}
 \item{\code{metadata}}{\code{package_version}, \code{r_version}, \code{platform} and an
 ISO-8601 \code{timestamp}.}
 }

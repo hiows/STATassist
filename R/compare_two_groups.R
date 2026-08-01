@@ -47,6 +47,9 @@
 #'   concentration-like data.
 #' @param p_adjust Multiplicity adjustment applied across `feats` within each
 #'   test table, passed to [stats::p.adjust()]. Use `"none"` to disable.
+#' @param diagnose Logical. If `TRUE`, the normality and homogeneity of variance
+#'   checks the tests rest on are attached as `$diagnostics`, computed on the
+#'   same observations the tests used. See [diagnose_distribution()].
 #'
 #' @return A `sa_comparison` object: a plain list, so it survives being written
 #'   out as JSON and read back in another language, with an S3 class on top that
@@ -65,8 +68,13 @@
 #'       centres `fc_mean` selected), `fold_change` and `log2fc`.}
 #'     \item{`tests`}{`t_test`, `wilcox_test` and `robust_test`, described
 #'       below.}
+#'     \item{`posthoc`}{Empty: with two groups the omnibus comparison is
+#'       already the only contrast there is. The slot exists so that a consumer
+#'       reads every comparison result the same way.}
 #'     \item{`test_info`}{Per test, the method `id`, a readable `label` and
 #'       whether it was the paired variant.}
+#'     \item{`diagnostics`}{Assumption checks, or `NULL` when `diagnose` is
+#'       `FALSE`.}
 #'     \item{`metadata`}{`package_version`, `r_version`, `platform` and an
 #'       ISO-8601 `timestamp`.}
 #'   }
@@ -202,11 +210,13 @@ compare_two_groups <- function(data,
                                conf_level = 0.95,
                                tr = 0.2,
                                fc_mean = c("arith", "geom"),
-                               p_adjust = "BH") {
+                               p_adjust = "BH",
+                               diagnose = TRUE) {
 
   alternative <- match.arg(alternative)
   fc_mean <- match.arg(fc_mean)
   sa_check_flag(paired, "paired")
+  sa_check_flag(diagnose, "diagnose")
   sa_check_scalar_num(conf_level, "conf_level", 0, 1,
                       lower_open = TRUE, upper_open = TRUE)
   sa_check_scalar_num(tr, "tr", 0, 0.5, upper_open = TRUE)
@@ -427,6 +437,17 @@ compare_two_groups <- function(data,
         paired = paired
       )
     ),
+    diagnostics = if (diagnose) {
+      # Built from `samples`, not from the original columns: a paired design
+      # keeps complete pairs only, and a diagnosis run on the full column would
+      # describe a different set of observations than the p-value beside it.
+      sa_diagnose_samples(
+        lapply(samples, function(s) stats::setNames(list(s$x, s$y), group_lv)),
+        feats, group_lv, paired = FALSE
+      )
+    } else {
+      NULL
+    },
     subclass  = "sa_two_group"
   )
 }
