@@ -7,7 +7,8 @@
 \method{print}{sa_comparison}(x, alpha = 0.05, ...)
 }
 \arguments{
-\item{x}{A comparison result, as returned by \code{\link[=compare_two_groups]{compare_two_groups()}}.}
+\item{x}{A comparison result, as returned by \code{\link[=compare_two_groups]{compare_two_groups()}},
+\code{\link[=compare_multiple_groups]{compare_multiple_groups()}} or \code{\link[=compare_one_sample]{compare_one_sample()}}.}
 
 \item{alpha}{Threshold applied to \code{pval_adj} for the significant counts.}
 
@@ -19,7 +20,7 @@
 \description{
 Summarises which tests were run and how many features each one called
 significant, rather than printing the tables themselves. Reach into
-\code{x$tests} for those.
+\code{x$tests} for those, and into \code{x$posthoc} for the pairwise stage.
 }
 \examples{
 iris2 <- iris[iris$Species != "setosa", ]

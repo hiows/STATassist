@@ -276,6 +276,66 @@ sa_pair_by_id <- function(id, group, group_lv) {
 }
 
 
+#' Line up three or more repeated conditions by subject
+#'
+#' The many-condition counterpart of `sa_pair_by_id()`. A within-subject omnibus
+#' test needs a complete rectangle, so subjects missing any condition are dropped
+#' rather than partially used, and the caller is told how many went.
+#'
+#' Row order pairing is deliberately not offered here. With two groups it is at
+#' least well defined; with `k` conditions it would also have to assume that the
+#' groups are stored in the same subject order, and there is no way to notice
+#' when they are not.
+#'
+#' @param id Subject identifier, one entry per row.
+#' @param group Condition factor whose levels are `group_lv`.
+#' @param group_lv Condition levels, in display order.
+#'
+#' @return List with `idx`, a subjects-by-conditions matrix of row indices whose
+#'   columns follow `group_lv`, `subjects` in row order, and `unmatched`.
+#'
+#' @keywords internal
+#' @noRd
+sa_align_by_subject <- function(id, group, group_lv) {
+  if (anyNA(id)) {
+    stop("`id` must not contain NA when it is used to align conditions.",
+         call. = FALSE)
+  }
+  per_level <- lapply(group_lv, function(lv) {
+    rows <- which(group == lv)
+    ids <- id[rows]
+    repeated <- unique(ids[duplicated(ids)])
+    if (length(repeated) > 0L) {
+      stop("`id` must be unique within each condition, otherwise the design ",
+           "is ambiguous. Repeated id(s) in `", lv, "`: ",
+           paste(repeated, collapse = ", "), ".", call. = FALSE)
+    }
+    stats::setNames(rows, ids)
+  })
+  names(per_level) <- group_lv
+
+  all_ids <- unique(unlist(lapply(per_level, names), use.names = FALSE))
+  complete <- Reduce(intersect, lapply(per_level, names))
+  # Ordered by first appearance rather than sorted, so the subject order is the
+  # data's own and a numeric id is not silently reordered as text.
+  complete <- all_ids[all_ids %in% complete]
+
+  if (length(complete) < 2L) {
+    stop("only ", length(complete), " subject(s) have all ", length(group_lv),
+         " condition(s); at least 2 complete subjects are needed.",
+         call. = FALSE)
+  }
+
+  idx <- vapply(per_level, function(rows) unname(rows[complete]),
+                integer(length(complete)))
+  idx <- matrix(idx, nrow = length(complete), ncol = length(group_lv),
+                dimnames = list(complete, group_lv))
+
+  list(idx = idx, subjects = complete,
+       unmatched = setdiff(all_ids, complete))
+}
+
+
 #' Check a vector of p-values
 #'
 #' @keywords internal
@@ -402,4 +462,110 @@ sa_add_padj <- function(df, method) {
   df$pval_adj <- stats::p.adjust(df$pval, method = method)
   nms <- setdiff(names(df), "pval_adj")
   df[append(nms, "pval_adj", after = match("pval", nms))]
+}
+
+
+#' Every unordered pair of group levels, in display order
+#'
+#' Pairs are generated so that the first member is always the earlier level of
+#' `group_lv`. Every post-hoc estimate therefore reads as
+#' `group_lv[i] - group_lv[j]` with `i < j`, which is the same direction rule
+#' `group_lv` already fixes for the two-group case.
+#'
+#' @keywords internal
+#' @noRd
+sa_level_pairs <- function(group_lv) {
+  idx <- utils::combn(seq_along(group_lv), 2L)
+  data.frame(
+    i        = idx[1, ],
+    j        = idx[2, ],
+    group1   = group_lv[idx[1, ]],
+    group2   = group_lv[idx[2, ]],
+    contrast = paste(group_lv[idx[1, ]], group_lv[idx[2, ]], sep = " - "),
+    stringsAsFactors = FALSE
+  )
+}
+
+
+#' Run one post-hoc procedure across features and assemble a table
+#'
+#' The counterpart of `sa_feature_table()` for the pairwise stage. Two things
+#' differ. A post-hoc row is a feature and a pair rather than a feature, so `fun`
+#' returns all pairs of one feature at once, in the row order of
+#' `sa_level_pairs()`. And a feature whose omnibus test was not significant is
+#' left out of the table entirely rather than filled with `NA`, because an absent
+#' row means "not asked" while an `NA` row means "asked and failed".
+#'
+#' @param feats Feature names to run, already reduced to those that qualified.
+#' @param group_lv Group levels, fixing the pair order and the direction.
+#' @param columns Numeric column names `fun` is expected to return per pair.
+#' @param label Human readable procedure name used in the warning text.
+#' @param fun Function of the feature name returning a matrix or data.frame with
+#'   one row per pair and `columns` as its columns.
+#' @param p_adjust Method passed to [stats::p.adjust()], applied across the pairs
+#'   within each feature. The pairwise family is the set of contrasts of one
+#'   feature, so adjusting across features here as well would mix two families.
+#'
+#' @return data.frame with the columns of `sa_posthoc_table_columns()`, or a
+#'   zero-row frame with the same columns when `feats` is empty.
+#'
+#' @keywords internal
+#' @noRd
+sa_posthoc_table <- function(feats, group_lv, columns, label, fun,
+                             p_adjust = "holm") {
+  pairs <- sa_level_pairs(group_lv)
+  n_pairs <- nrow(pairs)
+  empty <- data.frame(features = character(0), pairs[0, c("contrast", "group1",
+                                                          "group2")],
+                      stringsAsFactors = FALSE)
+
+  if (length(feats) == 0L) {
+    for (nm in setdiff(sa_posthoc_table_columns(), names(empty))) {
+      empty[[nm]] <- numeric(0)
+    }
+    return(empty[sa_posthoc_table_columns()])
+  }
+
+  failures <- character(0)
+  blocks <- lapply(feats, function(f) {
+    mat <- tryCatch(
+      fun(f),
+      error = function(e) {
+        failures[[f]] <<- conditionMessage(e)
+        matrix(NA_real_, nrow = n_pairs, ncol = length(columns),
+               dimnames = list(NULL, columns))
+      }
+    )
+    mat <- as.data.frame(mat)
+    if (nrow(mat) != n_pairs) {
+      stop("internal error: ", label, " returned ", nrow(mat), " row(s) for `",
+           f, "`, expected ", n_pairs, ".", call. = FALSE)
+    }
+    absent <- setdiff(columns, names(mat))
+    if (length(absent) > 0L) {
+      stop("internal error: ", label, " table for `", f,
+           "` is missing column(s): ", paste(absent, collapse = ", "),
+           call. = FALSE)
+    }
+    out <- data.frame(
+      features = rep(f, n_pairs),
+      pairs[c("contrast", "group1", "group2")],
+      mat[columns],
+      stringsAsFactors = FALSE
+    )
+    out$pval_adj <- stats::p.adjust(out$pval, method = p_adjust)
+    out
+  })
+
+  out <- do.call(rbind, blocks)
+  rownames(out) <- NULL
+
+  if (length(failures) > 0L) {
+    warning(label, " could not be computed for ", length(failures), " of ",
+            length(feats), " feature(s); those rows are NA:\n",
+            paste0("  ", names(failures), ": ", failures, collapse = "\n"),
+            call. = FALSE)
+  }
+
+  out[sa_posthoc_table_columns()]
 }
