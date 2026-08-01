@@ -1,20 +1,27 @@
 Package: STATassist
 Title: Standardised Statistical Comparison Workflows
-Version: 0.0.1
+Version: 0.1.0
 Authors@R: 
     person("Wonseok", "Oh", , "hiows97@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0009-0002-0687-8466"))
 Description: Runs every test applicable to a comparison through a single
-    function call and returns standardised, feature-wise result tables. Two-group
-    comparison reports parametric, rank-based and robust results side by side,
-    together with fold changes, effect estimates, confidence intervals and
-    multiplicity adjusted p-values, so that a conclusion is never based on a
-    single test. Significance tables and volcano, boxplot and back-to-back
-    histogram visualisations are derived from the same result object, which keeps
-    effect sizes and p-values describing the same observations. The implemented
-    methods include those described by Welch (1947)
-    <doi:10.1093/biomet/34.1-2.28>, Wilcoxon (1945) <doi:10.2307/3001968>, Mann
-    and Whitney (1947) <doi:10.1214/aoms/1177730491>, Yuen (1974)
+    function call and returns standardised, feature-wise result tables. One
+    sample, two groups and three or more groups each have one function, and each
+    reports parametric, rank-based and robust results side by side, together with
+    fold changes, effect estimates, confidence intervals and multiplicity
+    adjusted p-values, so that a conclusion is never based on a single test.
+    Multi-group comparison pairs each omnibus test with the post-hoc procedure
+    that shares its assumptions. Assumption diagnostics are attached to every
+    result and never change which tests run. Significance tables and volcano,
+    forest, boxplot and back-to-back histogram visualisations are derived from
+    the same result object, which keeps effect sizes and p-values describing the
+    same observations. The implemented methods include those described by Welch
+    (1947) <doi:10.1093/biomet/34.1-2.28>, Wilcoxon (1945)
+    <doi:10.2307/3001968>, Mann and Whitney (1947)
+    <doi:10.1214/aoms/1177730491>, Kruskal and Wallis (1952)
+    <doi:10.1080/01621459.1952.10483441>, Friedman (1937)
+    <doi:10.1080/01621459.1937.10503522>, Tukey (1949) <doi:10.2307/3001913>,
+    Dunn (1964) <doi:10.1080/00401706.1964.10490181>, Yuen (1974)
     <doi:10.1093/biomet/61.1.165>, Brunner and Munzel (2000)
     <doi:10.1002/(SICI)1521-4036(200001)42:1%3C17::AID-BIMJ17%3E3.0.CO;2-U>, and
     Algina, Keselman and Penfield (2005) <doi:10.1037/1082-989X.10.3.317>.
@@ -30,7 +37,9 @@ Imports:
     stats,
     utils
 Suggests: 
-    testthat (>= 3.0.0)
+    jsonlite,
+    testthat (>= 3.0.0),
+    withr
 Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
 Config/roxygen2/version: 8.0.0

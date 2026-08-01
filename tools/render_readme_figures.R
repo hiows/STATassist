@@ -40,4 +40,34 @@ invisible(draw_volcano_plot(
 ))
 dev.off()
 
+# Must match README Quick start §2 (compare_multiple_groups + plot).
+multi <- compare_multiple_groups(
+  data = iris, feats = feats4, group = iris$Species,
+  group_lv = levels(iris$Species)
+)
+
+png(file.path(fig_dir, "README-forest.png"), width = 800, height = 620, res = 110)
+invisible(plot(
+  res, test = "t_test", sort_by = "pvalue",
+  main = "Mean difference: virginica - versicolor"
+))
+dev.off()
+
+# The omnibus table has no interval to draw, so the pairwise stage is the view
+# that carries the numbers. Petal.Length separates all three species, which is
+# what makes every contrast worth showing.
+png(file.path(fig_dir, "README-posthoc.png"), width = 800, height = 500, res = 110)
+invisible(plot(
+  multi, test = "anova_test", type = "posthoc", feature = "Petal.Length",
+  main = "Tukey HSD: petal length"
+))
+dev.off()
+
+png(file.path(fig_dir, "README-pvalue.png"), width = 800, height = 620, res = 110)
+invisible(plot(
+  multi, test = "kruskal_test", type = "pvalue",
+  main = "Kruskal-Wallis across the three species"
+))
+dev.off()
+
 cat("Wrote figures to", fig_dir, "\n")
