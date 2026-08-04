@@ -15,6 +15,7 @@ compare_two_groups(
   conf_level = 0.95,
   tr = 0.2,
   fc_mean = c("arith", "geom"),
+  input_scale = c("raw", "log2"),
   p_adjust = "BH",
   diagnose = TRUE
 )
@@ -53,7 +54,12 @@ one group are dropped.}
 \item{fc_mean}{Which centre the fold change divides, \code{"arith"} for the
 arithmetic mean or \code{"geom"} for the geometric mean. The geometric mean
 requires strictly positive values and is the usual choice for
-concentration-like data.}
+concentration-like data. Defaults to \code{"geom"} when
+\code{input_scale = "log2"}, where it is the convention, and to \code{"arith"}
+otherwise.}
+
+\item{input_scale}{The scale \code{data} arrives on, \code{"raw"} or \code{"log2"}. See
+the section below: this changes the \code{effect} table only, never the tests.}
 
 \item{p_adjust}{Multiplicity adjustment applied across \code{feats} within each
 test table, passed to \code{\link[stats:p.adjust]{stats::p.adjust()}}. Use \code{"none"} to disable.}
@@ -68,14 +74,14 @@ out as JSON and read back in another language, with an S3 class on top that
 only supplies \code{\link[=print]{print()}}. Its elements are
 
 \describe{
-\item{\code{schema_version}}{Version of this layout, \code{"0.1.0"}.}
+\item{\code{schema_version}}{Version of this layout, \code{"0.2.1"}.}
 \item{\code{analysis}}{\code{"two_group_comparison"}.}
 \item{\code{features}}{The feature names, in the row order every table uses.}
 \item{\code{design}}{\code{group_lv}, \code{paired}, \code{pairing} (\code{"order"}, \code{"id"} or
 \code{NA} when not paired), \code{n_dropped} (rows removed for belonging to a
 level outside \code{group_lv}) and \code{unmatched_ids}.}
-\item{\code{parameters}}{\code{alternative}, \code{conf_level}, \code{tr}, \code{fc_mean} and
-\code{p_adjust}, as used.}
+\item{\code{parameters}}{\code{alternative}, \code{conf_level}, \code{tr}, \code{fc_mean},
+\code{input_scale} and \code{p_adjust}, as used.}
 \item{\code{effect}}{One row per feature: \code{x_center}, \code{y_center} (the two
 centres \code{fc_mean} selected), \code{fold_change} and \code{log2fc}.}
 \item{\code{tests}}{\code{t_test}, \code{wilcox_test} and \code{robust_test}, described
@@ -158,6 +164,30 @@ key, ids appearing in only one group are dropped with a message, and an id
 repeated within a group is an error.
 }
 
+\section{Log-transformed input}{
+
+A ratio only means something on the scale the measurement was made on.
+Dividing two means of already logged values answers a different question and
+can even come out with the wrong sign: two log2 centres of -1 and -2 are a
+two-fold increase, but their ratio, 0.5, reads as a two-fold decrease. With
+\code{input_scale = "log2"} each observation is raised back through \code{2^x} before
+the centres are taken, so \code{fold_change} and \code{log2fc} mean the same thing they
+do for raw input and \code{fold_change} still equals \code{x_center / y_center}.
+
+Under the default \code{fc_mean = "geom"} this reduces exactly to
+\code{log2fc = mean(x) - mean(y)}, the usual definition for log-scale data.
+\code{fc_mean = "arith"} is accepted but averages the back-transformed values,
+which the largest observations dominate, and is not the conventional log2
+fold change.
+
+Only the \code{effect} table is converted. The tests run on the values as
+supplied, which is the reason for logging them in the first place, so with
+\code{input_scale = "log2"} the centres in \code{effect} are on the original scale
+while \code{x_mean} and \code{y_mean} in \code{tests$t_test} are on the log2 scale. For raw
+input with \code{fc_mean = "arith"} those columns hold the same numbers; here they
+do not.
+}
+
 \examples{
 ## Independent samples: two of the three iris species
 iris2 <- iris[iris$Species != "setosa", ]
@@ -233,6 +263,6 @@ variances. \emph{Biometrika}, 61(1), 165-170.
 }
 \seealso{
 \code{\link[=estimate_significance]{estimate_significance()}} to reduce the result to one significance
-verdict per feature, and \code{\link[=draw_grouped_boxplot]{draw_grouped_boxplot()}} to visualise the same
-input.
+verdict per feature, \code{\link[=draw_grouped_boxplot]{draw_grouped_boxplot()}} to visualise the same input,
+and \code{\link[=simulate_two_groups]{simulate_two_groups()}} for input whose answer is known in advance.
 }

@@ -2,9 +2,17 @@
 # planned Python port agree on, so it is tested across all four scenarios at
 # once rather than scenario by scenario.
 
-test_that("every scenario reports schema version 0.2.0", {
+test_that("every scenario reports schema version 0.2.1", {
   for (res in sa_all_scenarios()) {
-    expect_identical(res$schema_version, "0.2.0")
+    expect_identical(res$schema_version, "0.2.1")
+  }
+})
+
+test_that("every scenario records the scale its effect table was built on", {
+  for (res in sa_all_scenarios()) {
+    expect_identical(res$parameters$input_scale, "raw", info = res$analysis)
+    expect_true(res$parameters$fc_mean %in% c("arith", "geom"),
+                info = res$analysis)
   }
 })
 

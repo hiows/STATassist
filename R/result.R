@@ -17,7 +17,7 @@
 #' @keywords internal
 #' @noRd
 sa_schema_version <- function() {
-  "0.2.0"
+  "0.2.1"
 }
 
 

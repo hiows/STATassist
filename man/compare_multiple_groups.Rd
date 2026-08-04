@@ -16,6 +16,7 @@ compare_multiple_groups(
   posthoc = TRUE,
   posthoc_alpha = 0.05,
   fc_mean = c("arith", "geom"),
+  input_scale = c("raw", "log2"),
   p_adjust = "BH",
   posthoc_p_adjust = "holm",
   diagnose = TRUE
@@ -54,7 +55,14 @@ an empty list.}
 regardless of its omnibus result.}
 
 \item{fc_mean}{Which centre the fold change divides, \code{"arith"} for the
-arithmetic mean or \code{"geom"} for the geometric mean.}
+arithmetic mean or \code{"geom"} for the geometric mean. Defaults to \code{"geom"}
+when \code{input_scale = "log2"} and to \code{"arith"} otherwise.}
+
+\item{input_scale}{The scale \code{data} arrives on, \code{"raw"} or \code{"log2"}. On the
+log2 scale each observation is raised back through \code{2^x} before the centres
+are taken, so the ratios mean what they do for raw input. This changes the
+\code{effect} table only, never the tests. See \code{\link[=compare_two_groups]{compare_two_groups()}} for the
+full account.}
 
 \item{p_adjust}{Multiplicity adjustment applied across \code{feats} within each
 omnibus table, passed to \code{\link[stats:p.adjust]{stats::p.adjust()}}. Use \code{"none"} to disable.}
@@ -72,7 +80,7 @@ A \code{sa_comparison} object with the same layout
 elements are
 
 \describe{
-\item{\code{schema_version}}{Version of this layout, \code{"0.2.0"}.}
+\item{\code{schema_version}}{Version of this layout, \code{"0.2.1"}.}
 \item{\code{analysis}}{\code{"multi_group_comparison"}.}
 \item{\code{features}}{The feature names, in the row order every table uses.}
 \item{\code{design}}{\code{group_lv}, \code{paired}, \code{pairing}, \code{n_dropped} and

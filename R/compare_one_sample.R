@@ -20,7 +20,8 @@
 #' @param feats Character vector of numeric column names in `data` to test.
 #'   One output row per entry.
 #' @param mu Hypothesised value for the mean and the pseudo-median. A single
-#'   number applied to every feature.
+#'   number applied to every feature, read on the same scale as `data`, so with
+#'   `input_scale = "log2"` it is a log2 value.
 #' @param p Hypothesised proportion for `prop_test`, in `(0, 1)`.
 #' @param success The value counted as a success when a feature is binary.
 #'   Defaults to 1, so a 0/1 coded column needs nothing further.
@@ -28,6 +29,15 @@
 #'   `"two.sided"`, `"less"` or `"greater"`. `"greater"` tests whether the
 #'   sample exceeds `mu`, and every reported quantity follows that direction.
 #' @param conf_level Confidence level for all reported intervals.
+#' @param fc_mean Which centre the fold change divides `mu` into, `"arith"` for
+#'   the arithmetic mean or `"geom"` for the geometric mean. Defaults to
+#'   `"geom"` when `input_scale = "log2"` and to `"arith"` otherwise. Affects
+#'   the `effect` table only: the t-test is a test of the mean either way.
+#' @param input_scale The scale `data` and `mu` arrive on, `"raw"` or `"log2"`.
+#'   On the log2 scale both are raised back through `2^x` before the ratio is
+#'   taken, so `fold_change` means what it does for raw input. This changes the
+#'   `effect` table only, never the tests. See [compare_two_groups()] for the
+#'   full account.
 #' @param p_adjust Multiplicity adjustment applied across `feats` within each
 #'   test table, passed to [stats::p.adjust()]. Use `"none"` to disable.
 #' @param diagnose Logical. If `TRUE`, the normality check the t-test rests on
@@ -36,9 +46,12 @@
 #' @return A `sa_comparison` object with the layout described in
 #'   [compare_two_groups()], with two differences. `design` carries `mu`,
 #'   `p` and `success` instead of `group_lv`, since there are no groups, and
-#'   `effect` holds `n_used`, `center` (the sample mean), `mu`, `diff`,
-#'   `fold_change` and `log2fc`, the ratio being the sample mean over `mu`.
-#'   `posthoc` is empty.
+#'   `effect` holds `n_used`, `center` (the centre `fc_mean` selected), `mu`,
+#'   `diff`, `fold_change` and `log2fc`, the ratio being that centre over `mu`.
+#'   Every column of `effect` is on the original measurement scale, so with
+#'   `input_scale = "log2"` its `center`, `mu` and `diff` are back-transformed
+#'   and differ from the same-named columns of `tests$t_test`, which stay on the
+#'   scale the tests ran on. `posthoc` is empty.
 #'
 #'   Every test table starts with `n_used` and carries `pval`, `pval_adj`,
 #'   `lower_conf` and `upper_conf`. The remaining columns are:
@@ -60,6 +73,11 @@
 #' [estimate_significance()] will call every feature undecided. Reporting `Inf`
 #' would read as an infinitely large increase when what actually happened is
 #' that the question has no answer.
+#'
+#' This cannot arise under `input_scale = "log2"`. There the reference is
+#' `2^mu`, which is positive whatever `mu` is, and `mu = 0` simply means a
+#' reference of 1. Under the default `fc_mean = "geom"` the whole row reduces to
+#' `log2fc = mean(x) - mu`.
 #'
 #' @details
 #' Missing values are dropped per feature, so `n_used` varies between features
@@ -112,10 +130,14 @@ compare_one_sample <- function(data,
                                success = 1,
                                alternative = c("two.sided", "less", "greater"),
                                conf_level = 0.95,
+                               fc_mean = c("arith", "geom"),
+                               input_scale = c("raw", "log2"),
                                p_adjust = "BH",
                                diagnose = TRUE) {
 
   alternative <- match.arg(alternative)
+  input_scale <- match.arg(input_scale)
+  fc_mean <- sa_resolve_fc_mean(fc_mean, input_scale, missing(fc_mean))
   sa_check_scalar_num(mu, "mu")
   sa_check_scalar_num(p, "p", 0, 1, lower_open = TRUE, upper_open = TRUE)
   sa_check_scalar_num(conf_level, "conf_level", 0, 1,
@@ -137,6 +159,14 @@ compare_one_sample <- function(data,
   })
   names(samples) <- feats
 
+  # The tests take `mu` as supplied, but a ratio needs both sides on the scale
+  # the measurement was made on, so the `effect` table compares against this.
+  mu_ref <- if (input_scale == "log2") 2^mu else mu
+  if (!is.finite(mu_ref)) {
+    stop("2^`mu` overflows to infinity, so `mu` = ", mu, " is not on the log2 ",
+         "scale; use `input_scale = \"raw\"` instead.", call. = FALSE)
+  }
+
   effect <- sa_feature_table(
     feats, c("n_used", "center", "mu", "diff", "fold_change", "log2fc"),
     "Fold change against mu", p_adjust = NULL,
@@ -145,20 +175,22 @@ compare_one_sample <- function(data,
       if (length(v) == 0L) {
         stop("no usable observation left.", call. = FALSE)
       }
-      center <- mean(v)
+      center <- sa_fc_center(v, "sample", fc_mean, input_scale)
       # mu = 0 is both the usual default and the one value a ratio cannot be
       # taken against. Reporting Inf would suggest an infinitely large increase
-      # when what happened is that the question has no answer.
-      ratio <- if (mu == 0) NA_real_ else center / mu
+      # when what happened is that the question has no answer. On the log2 scale
+      # the reference is 2^mu, which is positive whatever mu is, so the case
+      # cannot arise there.
+      ratio <- if (mu_ref == 0) NA_real_ else center / mu_ref
       c(n_used      = length(v),
         center      = center,
-        mu          = mu,
-        diff        = center - mu,
+        mu          = mu_ref,
+        diff        = center - mu_ref,
         fold_change = ratio,
         log2fc      = suppressWarnings(log2(ratio)))
     }
   )
-  if (mu == 0) {
+  if (mu_ref == 0) {
     message("`mu` is 0, so `fold_change` and `log2fc` are undefined and the ",
             "`effect` table reports them as NA.")
   }
@@ -228,6 +260,8 @@ compare_one_sample <- function(data,
     parameters = list(
       alternative = alternative,
       conf_level  = conf_level,
+      fc_mean     = fc_mean,
+      input_scale = input_scale,
       p_adjust    = p_adjust
     ),
     effect    = effect,

@@ -12,6 +12,8 @@ compare_one_sample(
   success = 1,
   alternative = c("two.sided", "less", "greater"),
   conf_level = 0.95,
+  fc_mean = c("arith", "geom"),
+  input_scale = c("raw", "log2"),
   p_adjust = "BH",
   diagnose = TRUE
 )
@@ -24,7 +26,8 @@ observation and one column per feature.}
 One output row per entry.}
 
 \item{mu}{Hypothesised value for the mean and the pseudo-median. A single
-number applied to every feature.}
+number applied to every feature, read on the same scale as \code{data}, so with
+\code{input_scale = "log2"} it is a log2 value.}
 
 \item{p}{Hypothesised proportion for \code{prop_test}, in \verb{(0, 1)}.}
 
@@ -37,6 +40,17 @@ sample exceeds \code{mu}, and every reported quantity follows that direction.}
 
 \item{conf_level}{Confidence level for all reported intervals.}
 
+\item{fc_mean}{Which centre the fold change divides \code{mu} into, \code{"arith"} for
+the arithmetic mean or \code{"geom"} for the geometric mean. Defaults to
+\code{"geom"} when \code{input_scale = "log2"} and to \code{"arith"} otherwise. Affects
+the \code{effect} table only: the t-test is a test of the mean either way.}
+
+\item{input_scale}{The scale \code{data} and \code{mu} arrive on, \code{"raw"} or \code{"log2"}.
+On the log2 scale both are raised back through \code{2^x} before the ratio is
+taken, so \code{fold_change} means what it does for raw input. This changes the
+\code{effect} table only, never the tests. See \code{\link[=compare_two_groups]{compare_two_groups()}} for the
+full account.}
+
 \item{p_adjust}{Multiplicity adjustment applied across \code{feats} within each
 test table, passed to \code{\link[stats:p.adjust]{stats::p.adjust()}}. Use \code{"none"} to disable.}
 
@@ -47,9 +61,12 @@ is attached as \verb{$diagnostics}.}
 A \code{sa_comparison} object with the layout described in
 \code{\link[=compare_two_groups]{compare_two_groups()}}, with two differences. \code{design} carries \code{mu},
 \code{p} and \code{success} instead of \code{group_lv}, since there are no groups, and
-\code{effect} holds \code{n_used}, \code{center} (the sample mean), \code{mu}, \code{diff},
-\code{fold_change} and \code{log2fc}, the ratio being the sample mean over \code{mu}.
-\code{posthoc} is empty.
+\code{effect} holds \code{n_used}, \code{center} (the centre \code{fc_mean} selected), \code{mu},
+\code{diff}, \code{fold_change} and \code{log2fc}, the ratio being that centre over \code{mu}.
+Every column of \code{effect} is on the original measurement scale, so with
+\code{input_scale = "log2"} its \code{center}, \code{mu} and \code{diff} are back-transformed
+and differ from the same-named columns of \code{tests$t_test}, which stay on the
+scale the tests ran on. \code{posthoc} is empty.
 
 Every test table starts with \code{n_used} and carries \code{pval}, \code{pval_adj},
 \code{lower_conf} and \code{upper_conf}. The remaining columns are:
@@ -94,6 +111,11 @@ columns are \code{NA} in that case rather than infinite, a message says so, and
 \code{\link[=estimate_significance]{estimate_significance()}} will call every feature undecided. Reporting \code{Inf}
 would read as an infinitely large increase when what actually happened is
 that the question has no answer.
+
+This cannot arise under \code{input_scale = "log2"}. There the reference is
+\code{2^mu}, which is positive whatever \code{mu} is, and \code{mu = 0} simply means a
+reference of 1. Under the default \code{fc_mean = "geom"} the whole row reduces to
+\code{log2fc = mean(x) - mu}.
 }
 
 \examples{

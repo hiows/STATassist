@@ -45,7 +45,13 @@
 #'   `pval_adj` is at or below this value. Set it to 1 to compare every feature
 #'   regardless of its omnibus result.
 #' @param fc_mean Which centre the fold change divides, `"arith"` for the
-#'   arithmetic mean or `"geom"` for the geometric mean.
+#'   arithmetic mean or `"geom"` for the geometric mean. Defaults to `"geom"`
+#'   when `input_scale = "log2"` and to `"arith"` otherwise.
+#' @param input_scale The scale `data` arrives on, `"raw"` or `"log2"`. On the
+#'   log2 scale each observation is raised back through `2^x` before the centres
+#'   are taken, so the ratios mean what they do for raw input. This changes the
+#'   `effect` table only, never the tests. See [compare_two_groups()] for the
+#'   full account.
 #' @param p_adjust Multiplicity adjustment applied across `feats` within each
 #'   omnibus table, passed to [stats::p.adjust()]. Use `"none"` to disable.
 #' @param posthoc_p_adjust Multiplicity adjustment applied across the contrasts
@@ -59,7 +65,7 @@
 #'   elements are
 #'
 #'   \describe{
-#'     \item{`schema_version`}{Version of this layout, `"0.2.0"`.}
+#'     \item{`schema_version`}{Version of this layout, `"0.2.1"`.}
 #'     \item{`analysis`}{`"multi_group_comparison"`.}
 #'     \item{`features`}{The feature names, in the row order every table uses.}
 #'     \item{`design`}{`group_lv`, `paired`, `pairing`, `n_dropped` and
@@ -197,11 +203,13 @@ compare_multiple_groups <- function(data,
                                     posthoc = TRUE,
                                     posthoc_alpha = 0.05,
                                     fc_mean = c("arith", "geom"),
+                                    input_scale = c("raw", "log2"),
                                     p_adjust = "BH",
                                     posthoc_p_adjust = "holm",
                                     diagnose = TRUE) {
 
-  fc_mean <- match.arg(fc_mean)
+  input_scale <- match.arg(input_scale)
+  fc_mean <- sa_resolve_fc_mean(fc_mean, input_scale, missing(fc_mean))
   sa_check_flag(paired, "paired")
   sa_check_flag(posthoc, "posthoc")
   sa_check_flag(diagnose, "diagnose")
@@ -263,7 +271,8 @@ compare_multiple_groups <- function(data,
   }
   names(per_feature) <- feats
 
-  effect <- sa_multi_fold_change(per_feature, feats, group_lv, fc_mean, paired)
+  effect <- sa_multi_fold_change(per_feature, feats, group_lv, fc_mean, paired,
+                                 input_scale)
 
   specs <- if (paired) {
     sa_multi_specs_repeated(per_feature, conf_level)
@@ -316,6 +325,7 @@ compare_multiple_groups <- function(data,
       conf_level       = conf_level,
       tr               = if (paired) NA_real_ else tr,
       fc_mean          = fc_mean,
+      input_scale      = input_scale,
       p_adjust         = p_adjust,
       posthoc          = posthoc,
       posthoc_alpha    = posthoc_alpha,
@@ -453,6 +463,7 @@ sa_require_groups <- function(samples, n_min) {
 #' @param group_lv Group levels, the first being the reference denominator.
 #' @param mean_type `"arith"` or `"geom"`.
 #' @param paired Whether `per_feature` holds matrices rather than sample lists.
+#' @param input_scale `"raw"` or `"log2"`.
 #'
 #' @return data.frame with `features`, `n_used`, `n_groups`, `ref_center`,
 #'   `extreme_level`, `extreme_center`, `fold_change` and `log2fc`.
@@ -460,7 +471,7 @@ sa_require_groups <- function(samples, n_min) {
 #' @keywords internal
 #' @noRd
 sa_multi_fold_change <- function(per_feature, feats, group_lv, mean_type,
-                                 paired) {
+                                 paired, input_scale = "raw") {
   label <- paste0(if (mean_type == "arith") "Arithmetic" else "Geometric",
                   " mean fold change")
 
@@ -479,7 +490,7 @@ sa_multi_fold_change <- function(per_feature, feats, group_lv, mean_type,
         per_feature[[i]]
       }
       centers <- vapply(seq_along(samples), function(j) {
-        sa_fc_center(samples[[j]], group_lv[j], mean_type)
+        sa_fc_center(samples[[j]], group_lv[j], mean_type, input_scale)
       }, numeric(1))
 
       ratios <- centers / centers[1]

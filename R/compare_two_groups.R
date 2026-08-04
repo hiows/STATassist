@@ -44,7 +44,11 @@
 #' @param fc_mean Which centre the fold change divides, `"arith"` for the
 #'   arithmetic mean or `"geom"` for the geometric mean. The geometric mean
 #'   requires strictly positive values and is the usual choice for
-#'   concentration-like data.
+#'   concentration-like data. Defaults to `"geom"` when
+#'   `input_scale = "log2"`, where it is the convention, and to `"arith"`
+#'   otherwise.
+#' @param input_scale The scale `data` arrives on, `"raw"` or `"log2"`. See
+#'   the section below: this changes the `effect` table only, never the tests.
 #' @param p_adjust Multiplicity adjustment applied across `feats` within each
 #'   test table, passed to [stats::p.adjust()]. Use `"none"` to disable.
 #' @param diagnose Logical. If `TRUE`, the normality and homogeneity of variance
@@ -56,14 +60,14 @@
 #'   only supplies [print()]. Its elements are
 #'
 #'   \describe{
-#'     \item{`schema_version`}{Version of this layout, `"0.1.0"`.}
+#'     \item{`schema_version`}{Version of this layout, `"0.2.1"`.}
 #'     \item{`analysis`}{`"two_group_comparison"`.}
 #'     \item{`features`}{The feature names, in the row order every table uses.}
 #'     \item{`design`}{`group_lv`, `paired`, `pairing` (`"order"`, `"id"` or
 #'       `NA` when not paired), `n_dropped` (rows removed for belonging to a
 #'       level outside `group_lv`) and `unmatched_ids`.}
-#'     \item{`parameters`}{`alternative`, `conf_level`, `tr`, `fc_mean` and
-#'       `p_adjust`, as used.}
+#'     \item{`parameters`}{`alternative`, `conf_level`, `tr`, `fc_mean`,
+#'       `input_scale` and `p_adjust`, as used.}
 #'     \item{`effect`}{One row per feature: `x_center`, `y_center` (the two
 #'       centres `fc_mean` selected), `fold_change` and `log2fc`.}
 #'     \item{`tests`}{`t_test`, `wilcox_test` and `robust_test`, described
@@ -111,6 +115,28 @@
 #' key, ids appearing in only one group are dropped with a message, and an id
 #' repeated within a group is an error.
 #'
+#' @section Log-transformed input:
+#' A ratio only means something on the scale the measurement was made on.
+#' Dividing two means of already logged values answers a different question and
+#' can even come out with the wrong sign: two log2 centres of -1 and -2 are a
+#' two-fold increase, but their ratio, 0.5, reads as a two-fold decrease. With
+#' `input_scale = "log2"` each observation is raised back through `2^x` before
+#' the centres are taken, so `fold_change` and `log2fc` mean the same thing they
+#' do for raw input and `fold_change` still equals `x_center / y_center`.
+#'
+#' Under the default `fc_mean = "geom"` this reduces exactly to
+#' `log2fc = mean(x) - mean(y)`, the usual definition for log-scale data.
+#' `fc_mean = "arith"` is accepted but averages the back-transformed values,
+#' which the largest observations dominate, and is not the conventional log2
+#' fold change.
+#'
+#' Only the `effect` table is converted. The tests run on the values as
+#' supplied, which is the reason for logging them in the first place, so with
+#' `input_scale = "log2"` the centres in `effect` are on the original scale
+#' while `x_mean` and `y_mean` in `tests$t_test` are on the log2 scale. For raw
+#' input with `fc_mean = "arith"` those columns hold the same numbers; here they
+#' do not.
+#'
 #' @details
 #' Features that cannot be tested do not abort the run. Their row is filled
 #' with `NA` and all such features are reported together in a single warning.
@@ -124,8 +150,8 @@
 #' different subset of the data than the p-value beside it.
 #'
 #' @seealso [estimate_significance()] to reduce the result to one significance
-#'   verdict per feature, and [draw_grouped_boxplot()] to visualise the same
-#'   input.
+#'   verdict per feature, [draw_grouped_boxplot()] to visualise the same input,
+#'   and [simulate_two_groups()] for input whose answer is known in advance.
 #'
 #' @references
 #' Welch, B. L. (1947). The generalization of Student's problem when several
@@ -210,11 +236,13 @@ compare_two_groups <- function(data,
                                conf_level = 0.95,
                                tr = 0.2,
                                fc_mean = c("arith", "geom"),
+                               input_scale = c("raw", "log2"),
                                p_adjust = "BH",
                                diagnose = TRUE) {
 
   alternative <- match.arg(alternative)
-  fc_mean <- match.arg(fc_mean)
+  input_scale <- match.arg(input_scale)
+  fc_mean <- sa_resolve_fc_mean(fc_mean, input_scale, missing(fc_mean))
   sa_check_flag(paired, "paired")
   sa_check_flag(diagnose, "diagnose")
   sa_check_scalar_num(conf_level, "conf_level", 0, 1,
@@ -276,7 +304,7 @@ compare_two_groups <- function(data,
   })
   names(samples) <- feats
 
-  effect <- sa_fold_change(samples, feats, group_lv, fc_mean)
+  effect <- sa_fold_change(samples, feats, group_lv, fc_mean, input_scale)
 
 
   # T-test
@@ -412,6 +440,7 @@ compare_two_groups <- function(data,
       conf_level  = conf_level,
       tr          = if (paired) tr else NA_real_,
       fc_mean     = fc_mean,
+      input_scale = input_scale,
       p_adjust    = p_adjust
     ),
     effect    = effect,
