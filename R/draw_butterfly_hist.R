@@ -19,7 +19,23 @@
 #'   points.
 #' @param scale What the bar length means: `"count"`, `"proportion"` of the
 #'   group, or `"density"`. Proportions and densities are computed within each
-#'   group, so unequal group sizes still give comparable shapes.
+#'   group, so unequal group sizes still give comparable shapes. When `type` is
+#'   not `"freq"` this defaults to `"density"`, and any other value given
+#'   explicitly is an error, since only the density scale puts the curve and the
+#'   bars on one axis.
+#' @param type Which layers to draw: `"freq"` for the histogram bars alone,
+#'   `"dens"` for the kernel density estimate alone, drawn as a filled shape, or
+#'   `"both"` for the two overlaid, the density shape on top of the bars.
+#' @param dens_adjust Bandwidth multiplier passed to [stats::density()] as
+#'   `adjust`. Values above 1 smooth the shape further.
+#' @param dens_lwd Line width of the density outline.
+#' @param dens_col Colour of the density outline, either one colour or one per
+#'   group level. `NULL` outlines each group in its own `col`.
+#' @param dens_alpha Opacity of the density fill, between 0 and 1. The default
+#'   leaves the shape half transparent, so under `type = "both"` the bars stay
+#'   visible through it and the two layers read as one distribution rather than
+#'   two. Needs a device that supports transparency; set it to 1 if yours does
+#'   not, and use `type = "dens"` there.
 #' @param col Length-2 vector of fill colours, for the left and right group.
 #' @param border Colour of the bar borders.
 #' @param xlab,ylab,main Axis labels and title. `xlab` defaults to the meaning
@@ -30,14 +46,15 @@
 #'   `FALSE` to leave the legend out.
 #' @param xlim,ylim Numeric length-2 ranges for the bar axis and the value
 #'   axis, or `NULL` to derive them from the data. `xlim` is not forced to be
-#'   symmetric when it is supplied.
+#'   symmetric when it is supplied. A derived `ylim` covers the breaks, and the
+#'   tails of the density estimate as well when one is drawn.
 #' @param margin Plot margins in lines, passed to [graphics::par()] as `mar`.
 #' @param out_statistics If `TRUE`, invisibly return the numbers behind the
 #'   bars.
 #' @param ... Additional arguments passed to [graphics::plot.default()].
 #'
-#' @return If `out_statistics = FALSE`, `NULL` invisibly. Otherwise a list of
-#'   two elements, invisibly:
+#' @return If `out_statistics = FALSE`, `NULL` invisibly. Otherwise a list,
+#'   invisibly:
 #'
 #'   \describe{
 #'     \item{`bin_summary_stats`}{One row per bin, with `bin_start`, `bin_end`,
@@ -52,12 +69,22 @@
 #'       groups are binned on the shared `breaks`, so these are not what
 #'       calling [graphics::hist()] on one group alone would give: that would
 #'       pick its own breaks from that group only.}
+#'     \item{`group_densities`}{Present only when `type` is not `"freq"`. One
+#'       `"density"` object per group level, named by the level, as
+#'       [stats::density()] returns them. The bins are still reported in
+#'       `bin_summary_stats` even when no bars were drawn.}
 #'   }
 #'
 #' @details
 #' The left group is drawn at negative coordinates so that both distributions
 #' share one axis, but the tick labels are the absolute values, so a bar is
 #' read the same way on either side.
+#'
+#' A density curve and a bar can only be read against the same axis when the bar
+#' is a density too: a count or a proportion per bin scales with the bin width,
+#' which the curve knows nothing about. So `type = "dens"` and `type = "both"`
+#' move `scale` to `"density"`, and reject a `scale` that was asked for
+#' explicitly and says otherwise, rather than drawing two incomparable shapes.
 #'
 #' The plot starts from the device background rather than imposing a theme of
 #' its own, as [draw_volcano_plot()] does. Only two colours are needed here, so
@@ -93,6 +120,22 @@
 #' ## Each group also comes back as a plain histogram object
 #' plot(res$group_hists$virginica)
 #'
+#' ## Bars with a kernel density estimate on top, both on the density scale
+#' res <- draw_butterfly_hist(
+#'   data     = iris2,
+#'   feat     = "Petal.Length",
+#'   group    = iris2$Species,
+#'   group_lv = c("versicolor", "virginica"),
+#'   breaks   = 12,
+#'   type     = "both",
+#'   main     = "Petal length, bars and density"
+#' )
+#' res$group_densities$virginica
+#'
+#' ## The smoothed shapes on their own
+#' draw_butterfly_hist(iris2, "Petal.Length", iris2$Species,
+#'                     c("versicolor", "virginica"), type = "dens")
+#'
 #' @export
 draw_butterfly_hist <- function(data,
                                 feat,
@@ -100,6 +143,11 @@ draw_butterfly_hist <- function(data,
                                 group_lv,
                                 breaks = "Sturges",
                                 scale = c("count", "proportion", "density"),
+                                type = c("freq", "dens", "both"),
+                                dens_adjust = 1,
+                                dens_lwd = 2,
+                                dens_col = NULL,
+                                dens_alpha = 0.45,
                                 col = c("#4575B4", "#D73027"),
                                 border = "white",
                                 xlab = NULL,
@@ -116,8 +164,25 @@ draw_butterfly_hist <- function(data,
                                 out_statistics = TRUE,
                                 ...) {
 
+  type <- match.arg(type)
+  # Read before match.arg() collapses the default vector to its first element,
+  # which would make an explicit scale = "count" indistinguishable from none.
+  scale_supplied <- !missing(scale)
   scale <- match.arg(scale)
 
+  if (type != "freq") {
+    if (!scale_supplied) {
+      scale <- "density"
+    } else if (scale != "density") {
+      stop("`type = \"", type, "\"` draws a kernel density estimate, which ",
+           "shares an axis with the bars only on the density scale; set ",
+           "`scale = \"density\"`.", call. = FALSE)
+    }
+  }
+
+  sa_check_scalar_num(dens_adjust, "dens_adjust", 0, lower_open = TRUE)
+  sa_check_scalar_num(dens_lwd, "dens_lwd", 0, lower_open = TRUE)
+  sa_check_scalar_num(dens_alpha, "dens_alpha", 0, 1)
   sa_check_scalar_num(cex.lab, "cex.lab", 0, lower_open = TRUE)
   sa_check_scalar_num(cex.axis, "cex.axis", 0, lower_open = TRUE)
   sa_check_scalar_num(cex.main, "cex.main", 0, lower_open = TRUE)
@@ -133,6 +198,14 @@ draw_butterfly_hist <- function(data,
   }
   if (length(border) != 1L) {
     stop("`border` must be a single colour.", call. = FALSE)
+  }
+  if (is.null(dens_col)) {
+    dens_col <- col
+  } else if (length(dens_col) == 1L && !is.na(dens_col)) {
+    dens_col <- rep(dens_col, 2L)
+  } else if (length(dens_col) != 2L || anyNA(dens_col)) {
+    stop("`dens_col` must be NULL, one colour, or one colour per group level.",
+         call. = FALSE)
   }
   if (!is.character(feat) || length(feat) != 1L || is.na(feat)) {
     stop("`feat` must be a single column name; this plot shows one feature ",
@@ -196,6 +269,25 @@ draw_butterfly_hist <- function(data,
   })
   names(hists) <- group_lv
 
+  densities <- NULL
+  if (type != "freq") {
+    densities <- lapply(group_lv, function(lv) {
+      v <- values[[lv]]
+      # A single distinct value gives a zero bandwidth, which density() rejects
+      # with a message that says nothing about which group is at fault.
+      if (length(unique(v)) < 2L) {
+        stop("`", feat, "` needs at least two distinct finite values in group ",
+             "level \"", lv, "\" to estimate a density.", call. = FALSE)
+      }
+      d <- stats::density(v, adjust = dens_adjust)
+      # As with h$xname above, data.name is deparsed from the closure's
+      # argument, so plot() on the returned object would be titled after that.
+      d$data.name <- paste0(feat, " (", lv, ")")
+      d
+    })
+    names(densities) <- group_lv
+  }
+
   bar_length <- lapply(hists, function(h) {
     switch(
       scale,
@@ -205,8 +297,18 @@ draw_butterfly_hist <- function(data,
     )
   })
 
-  bar_max <- max(unlist(bar_length, use.names = FALSE), na.rm = TRUE)
+  # Only the layers `type` actually draws set the extent, so a curve peak taller
+  # than the tallest bar is not clipped and hidden bars do not pad the axis.
+  drawn_length <- c(
+    if (type != "dens") unlist(bar_length, use.names = FALSE),
+    if (type != "freq") unlist(lapply(densities, `[[`, "y"), use.names = FALSE)
+  )
+  bar_max <- max(drawn_length, na.rm = TRUE)
   if (!is.finite(bar_max) || bar_max <= 0) {
+    if (type == "dens") {
+      stop("the density estimate is flat everywhere, so there is nothing to ",
+           "draw.", call. = FALSE)
+    }
     stop("every bin is empty, so there is nothing to draw.", call. = FALSE)
   }
 
@@ -217,7 +319,12 @@ draw_butterfly_hist <- function(data,
     x_at <- pretty(xlim)
   }
   if (is.null(ylim)) {
-    ylim <- range(breaks)
+    # density() evaluates past the data range by a few bandwidths, so the breaks
+    # alone would cut the tails off the curve.
+    ylim <- range(c(
+      breaks,
+      if (type != "freq") unlist(lapply(densities, `[[`, "x"), use.names = FALSE)
+    ))
   }
 
   if (is.null(xlab)) {
@@ -255,22 +362,43 @@ draw_butterfly_hist <- function(data,
     ...
   )
 
-  graphics::rect(
-    xleft = -bar_length[[1L]],
-    ybottom = breaks[-length(breaks)],
-    xright = 0,
-    ytop = breaks[-1L],
-    col = col[1L],
-    border = border
-  )
-  graphics::rect(
-    xleft = 0,
-    ybottom = breaks[-length(breaks)],
-    xright = bar_length[[2L]],
-    ytop = breaks[-1L],
-    col = col[2L],
-    border = border
-  )
+  if (type != "dens") {
+    graphics::rect(
+      xleft = -bar_length[[1L]],
+      ybottom = breaks[-length(breaks)],
+      xright = 0,
+      ytop = breaks[-1L],
+      col = col[1L],
+      border = border
+    )
+    graphics::rect(
+      xleft = 0,
+      ybottom = breaks[-length(breaks)],
+      xright = bar_length[[2L]],
+      ytop = breaks[-1L],
+      col = col[2L],
+      border = border
+    )
+  }
+
+  # The value is on the vertical axis here, so the shape goes in transposed: the
+  # density becomes x, signed to put the first level left of the centre line.
+  # The fill is translucent, so over bars this is the same shape laid on top of
+  # them rather than a second thing to read.
+  if (type != "freq") {
+    for (i in seq_along(group_lv)) {
+      d <- densities[[i]]
+      side <- if (i == 1L) -1 else 1
+      graphics::polygon(
+        x = c(0, side * d$y, 0),
+        y = c(d$x[1L], d$x, d$x[length(d$x)]),
+        col = grDevices::adjustcolor(col[i], alpha.f = dens_alpha),
+        border = dens_col[i],
+        lwd = dens_lwd
+      )
+    }
+  }
+
   graphics::abline(v = 0)
 
   x_labels <- abs(x_at)
@@ -282,11 +410,17 @@ draw_butterfly_hist <- function(data,
   graphics::axis(side = 2, las = 1, cex.axis = cex.axis)
 
   if (!is.null(legend.position) && !identical(legend.position, FALSE)) {
+    # The key shows the shape that was actually drawn, so a half transparent
+    # fill is half transparent in the legend too.
     graphics::legend(
       legend.position,
       legend = group_lv,
-      fill = col,
-      border = border,
+      fill = if (type == "dens") {
+        grDevices::adjustcolor(col, alpha.f = dens_alpha)
+      } else {
+        col
+      },
+      border = if (type == "dens") dens_col else border,
       bty = "n",
       cex = cex.legend
     )
@@ -313,9 +447,14 @@ draw_butterfly_hist <- function(data,
     check.names = FALSE
   )
 
-  invisible(list(
+  out <- list(
     bin_summary_stats = bin_stats,
     group_summary_stats = group_stats,
     group_hists = hists
-  ))
+  )
+  if (!is.null(densities)) {
+    out$group_densities <- densities
+  }
+
+  invisible(out)
 }

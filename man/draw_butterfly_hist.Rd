@@ -11,6 +11,11 @@ draw_butterfly_hist(
   group_lv,
   breaks = "Sturges",
   scale = c("count", "proportion", "density"),
+  type = c("freq", "dens", "both"),
+  dens_adjust = 1,
+  dens_lwd = 2,
+  dens_col = NULL,
+  dens_alpha = 0.45,
   col = c("#4575B4", "#D73027"),
   border = "white",
   xlab = NULL,
@@ -48,7 +53,28 @@ points.}
 
 \item{scale}{What the bar length means: \code{"count"}, \code{"proportion"} of the
 group, or \code{"density"}. Proportions and densities are computed within each
-group, so unequal group sizes still give comparable shapes.}
+group, so unequal group sizes still give comparable shapes. When \code{type} is
+not \code{"freq"} this defaults to \code{"density"}, and any other value given
+explicitly is an error, since only the density scale puts the curve and the
+bars on one axis.}
+
+\item{type}{Which layers to draw: \code{"freq"} for the histogram bars alone,
+\code{"dens"} for the kernel density estimate alone, drawn as a filled shape, or
+\code{"both"} for the two overlaid, the density shape on top of the bars.}
+
+\item{dens_adjust}{Bandwidth multiplier passed to \code{\link[stats:density]{stats::density()}} as
+\code{adjust}. Values above 1 smooth the shape further.}
+
+\item{dens_lwd}{Line width of the density outline.}
+
+\item{dens_col}{Colour of the density outline, either one colour or one per
+group level. \code{NULL} outlines each group in its own \code{col}.}
+
+\item{dens_alpha}{Opacity of the density fill, between 0 and 1. The default
+leaves the shape half transparent, so under \code{type = "both"} the bars stay
+visible through it and the two layers read as one distribution rather than
+two. Needs a device that supports transparency; set it to 1 if yours does
+not, and use \code{type = "dens"} there.}
 
 \item{col}{Length-2 vector of fill colours, for the left and right group.}
 
@@ -65,7 +91,8 @@ labels, the axis annotation, the title and the legend.}
 
 \item{xlim, ylim}{Numeric length-2 ranges for the bar axis and the value
 axis, or \code{NULL} to derive them from the data. \code{xlim} is not forced to be
-symmetric when it is supplied.}
+symmetric when it is supplied. A derived \code{ylim} covers the breaks, and the
+tails of the density estimate as well when one is drawn.}
 
 \item{margin}{Plot margins in lines, passed to \code{\link[graphics:par]{graphics::par()}} as \code{mar}.}
 
@@ -75,8 +102,8 @@ bars.}
 \item{...}{Additional arguments passed to \code{\link[graphics:plot.default]{graphics::plot.default()}}.}
 }
 \value{
-If \code{out_statistics = FALSE}, \code{NULL} invisibly. Otherwise a list of
-two elements, invisibly:
+If \code{out_statistics = FALSE}, \code{NULL} invisibly. Otherwise a list,
+invisibly:
 
 \describe{
 \item{\code{bin_summary_stats}}{One row per bin, with \code{bin_start}, \code{bin_end},
@@ -91,6 +118,10 @@ the level, exactly as \code{\link[graphics:hist]{graphics::hist()}} returns them
 groups are binned on the shared \code{breaks}, so these are not what
 calling \code{\link[graphics:hist]{graphics::hist()}} on one group alone would give: that would
 pick its own breaks from that group only.}
+\item{\code{group_densities}}{Present only when \code{type} is not \code{"freq"}. One
+\code{"density"} object per group level, named by the level, as
+\code{\link[stats:density]{stats::density()}} returns them. The bins are still reported in
+\code{bin_summary_stats} even when no bars were drawn.}
 }
 }
 \description{
@@ -103,6 +134,12 @@ instead of read off two separate panels.
 The left group is drawn at negative coordinates so that both distributions
 share one axis, but the tick labels are the absolute values, so a bar is
 read the same way on either side.
+
+A density curve and a bar can only be read against the same axis when the bar
+is a density too: a count or a proportion per bin scales with the bin width,
+which the curve knows nothing about. So \code{type = "dens"} and \code{type = "both"}
+move \code{scale} to \code{"density"}, and reject a \code{scale} that was asked for
+explicitly and says otherwise, rather than drawing two incomparable shapes.
 
 The plot starts from the device background rather than imposing a theme of
 its own, as \code{\link[=draw_volcano_plot]{draw_volcano_plot()}} does. Only two colours are needed here, so
@@ -134,6 +171,22 @@ res$group_summary_stats
 
 ## Each group also comes back as a plain histogram object
 plot(res$group_hists$virginica)
+
+## Bars with a kernel density estimate on top, both on the density scale
+res <- draw_butterfly_hist(
+  data     = iris2,
+  feat     = "Petal.Length",
+  group    = iris2$Species,
+  group_lv = c("versicolor", "virginica"),
+  breaks   = 12,
+  type     = "both",
+  main     = "Petal length, bars and density"
+)
+res$group_densities$virginica
+
+## The smoothed shapes on their own
+draw_butterfly_hist(iris2, "Petal.Length", iris2$Species,
+                    c("versicolor", "virginica"), type = "dens")
 
 }
 \seealso{

@@ -120,3 +120,93 @@ test_that("the device is left as it was found", {
   expect_identical(after$bg, before$bg)
   expect_identical(after$mar, before$mar)
 })
+
+test_that("a volcano plot with nothing above the cutoffs still draws", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  # A fold change no feature can reach leaves every verdict FALSE, which used to
+  # send text() a zero-length `labels` and error out instead of drawing.
+  sig <- estimate_significance(sa_two_group_fixture(), log2fc_cutoff = 100)
+  expect_false(any(sig$is_signif))
+  expect_message(drawn <- draw_volcano_plot(sig), "nothing was labelled")
+  expect_null(drawn)
+})
+
+test_that("labels are still drawn when features do clear the cutoffs", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  sig <- estimate_significance(sa_two_group_fixture(), log2fc_cutoff = 0.1)
+  expect_true(any(sig$is_signif))
+  expect_no_message(draw_volcano_plot(sig))
+})
+
+sa_butterfly_data <- function() iris[iris$Species != "setosa", ]
+
+sa_butterfly_levels <- c("versicolor", "virginica")
+
+test_that("bars alone leave the density estimate out of the result", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  iris2 <- sa_butterfly_data()
+  res <- draw_butterfly_hist(iris2, "Petal.Length", iris2$Species,
+                             sa_butterfly_levels)
+  expect_identical(names(res),
+                   c("bin_summary_stats", "group_summary_stats", "group_hists"))
+})
+
+test_that("drawing a density returns one density object per group level", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  iris2 <- sa_butterfly_data()
+  res <- draw_butterfly_hist(iris2, "Petal.Length", iris2$Species,
+                             sa_butterfly_levels, type = "both")
+  expect_identical(names(res$group_densities), sa_butterfly_levels)
+  expect_true(all(vapply(res$group_densities, inherits, logical(1), "density")))
+  # Titled after the feature and the level, not after the internal argument.
+  expect_identical(res$group_densities$virginica$data.name,
+                   "Petal.Length (virginica)")
+})
+
+test_that("a density curve moves the bars to the density scale", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  iris2 <- sa_butterfly_data()
+  res <- draw_butterfly_hist(iris2, "Petal.Length", iris2$Species,
+                             sa_butterfly_levels, type = "dens")
+  expect_equal(res$bin_summary_stats$virginica,
+               res$group_hists$virginica$density)
+})
+
+test_that("a scale that cannot be read against a curve is refused", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  iris2 <- sa_butterfly_data()
+  expect_error(
+    draw_butterfly_hist(iris2, "Petal.Length", iris2$Species,
+                        sa_butterfly_levels, scale = "count", type = "both"),
+    "density scale"
+  )
+})
+
+test_that("the density fill opacity has to be a fraction", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  iris2 <- sa_butterfly_data()
+  expect_error(
+    draw_butterfly_hist(iris2, "Petal.Length", iris2$Species,
+                        sa_butterfly_levels, type = "dens", dens_alpha = 1.5),
+    "dens_alpha"
+  )
+})
+
+test_that("a group with one distinct value names itself in the error", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  iris2 <- sa_butterfly_data()
+  iris2$Petal.Length[iris2$Species == "virginica"] <- 5
+  expect_error(
+    draw_butterfly_hist(iris2, "Petal.Length", iris2$Species,
+                        sa_butterfly_levels, type = "dens"),
+    "virginica"
+  )
+})
