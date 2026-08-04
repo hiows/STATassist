@@ -1,6 +1,6 @@
 Package: STATassist
 Title: Standardised Statistical Comparison Workflows
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: 
     person("Wonseok", "Oh", , "hiows97@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0009-0002-0687-8466"))
@@ -15,7 +15,9 @@ Description: Runs every test applicable to a comparison through a single
     result and never change which tests run. Significance tables and volcano,
     forest, boxplot and back-to-back histogram visualisations are derived from
     the same result object, which keeps effect sizes and p-values describing the
-    same observations. The implemented methods include those described by Welch
+    same observations. A simulator returns two-group data together with the
+    effects planted in it, so a verdict can be scored against an answer that is
+    known. The implemented methods include those described by Welch
     (1947) <doi:10.1093/biomet/34.1-2.28>, Wilcoxon (1945)
     <doi:10.2307/3001968>, Mann and Whitney (1947)
     <doi:10.1214/aoms/1177730491>, Kruskal and Wallis (1952)
