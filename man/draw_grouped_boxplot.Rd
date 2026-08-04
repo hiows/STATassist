@@ -18,7 +18,7 @@ draw_grouped_boxplot(
   cex.main = 1.3,
   ylim = NULL,
   main = NULL,
-  dark = TRUE,
+  dark = FALSE,
   grid_lty = 1,
   grid_lwd = 0.25,
   cex.legend = 1.1,
