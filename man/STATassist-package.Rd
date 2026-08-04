@@ -83,11 +83,26 @@ elsewhere. Every test kernel is likewise a plain function of numeric vectors.
 Both choices exist to keep a future Python implementation a transcription
 rather than a redesign.
 
-The contract is at version \verb{0.2.0}. Alongside the \code{effect} and \code{tests} tables
+The contract is at version \verb{0.2.1}. Alongside the \code{effect} and \code{tests} tables
 of \verb{0.1.0} it carries \code{posthoc}, one table per test holding one row per
 feature and pair of levels, and \code{diagnostics}. Both are present in every
 result, empty where the scenario has nothing to put in them, so a consumer
 reads all three scenarios the same way.
+}
+
+\section{Practising on a known answer}{
+
+\code{\link[=simulate_two_groups]{simulate_two_groups()}} generates log2-scale expression data with a chosen
+number of features moved up and down on purpose, and hands back the planted
+answer with it. Its \code{args} element is named after the arguments of
+\code{\link[=compare_two_groups]{compare_two_groups()}}, so a comparison is one \code{do.call()} away and its
+verdict can be scored against what was actually there.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{sim <- simulate_two_groups(seed = 1)
+res <- do.call(compare_two_groups, sim$args)
+sig <- estimate_significance(res)
+table(planted = sim$truth$direction != "none", called = sig$is_signif)
+}\if{html}{\out{</div>}}
 }
 
 \seealso{

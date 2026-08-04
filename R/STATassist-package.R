@@ -68,11 +68,25 @@
 #' Both choices exist to keep a future Python implementation a transcription
 #' rather than a redesign.
 #'
-#' The contract is at version `0.2.0`. Alongside the `effect` and `tests` tables
+#' The contract is at version `0.2.1`. Alongside the `effect` and `tests` tables
 #' of `0.1.0` it carries `posthoc`, one table per test holding one row per
 #' feature and pair of levels, and `diagnostics`. Both are present in every
 #' result, empty where the scenario has nothing to put in them, so a consumer
 #' reads all three scenarios the same way.
+#'
+#' @section Practising on a known answer:
+#' [simulate_two_groups()] generates log2-scale expression data with a chosen
+#' number of features moved up and down on purpose, and hands back the planted
+#' answer with it. Its `args` element is named after the arguments of
+#' [compare_two_groups()], so a comparison is one `do.call()` away and its
+#' verdict can be scored against what was actually there.
+#'
+#' ```
+#' sim <- simulate_two_groups(seed = 1)
+#' res <- do.call(compare_two_groups, sim$args)
+#' sig <- estimate_significance(res)
+#' table(planted = sim$truth$direction != "none", called = sig$is_signif)
+#' ```
 #'
 #' @keywords internal
 #' @importFrom grDevices hcl.colors
@@ -81,6 +95,7 @@
 #' @importFrom stats bartlett.test complete.cases cov dnorm friedman.test
 #' @importFrom stats kruskal.test ks.test mad median p.adjust p.adjust.methods
 #' @importFrom stats pchisq pf pnorm prop.test pt ptukey qnorm qt qtukey
-#' @importFrom stats quantile sd setNames shapiro.test t.test var wilcox.test
-#' @importFrom utils combn packageVersion
+#' @importFrom stats quantile rnorm runif sd setNames shapiro.test t.test var
+#' @importFrom stats wilcox.test
+#' @importFrom utils combn head packageVersion tail
 "_PACKAGE"

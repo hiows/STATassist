@@ -164,6 +164,49 @@ sa_check_scalar_num <- function(x,
 }
 
 
+#' Check a length-one whole number argument
+#'
+#' Sample sizes and feature counts read as integers but arrive as doubles from a
+#' literal like `100`, so the whole-number requirement is checked on the value
+#' rather than on the storage mode.
+#'
+#' @keywords internal
+#' @noRd
+sa_check_count <- function(x, arg, lower = 0) {
+  sa_check_scalar_num(x, arg, lower)
+  if (!is.finite(x) || x != trunc(x)) {
+    stop("`", arg, "` must be a finite whole number, but is ", x, ".",
+         call. = FALSE)
+  }
+  invisible(as.integer(x))
+}
+
+
+#' Check a length-two range argument
+#'
+#' The two ends are handed to [stats::runif()], which takes a reversed pair
+#' without complaint and draws from it anyway. Rejecting it here is the only
+#' place the user finds out that the range they wrote is not the range they get.
+#'
+#' @keywords internal
+#' @noRd
+sa_check_range <- function(x, arg, lower = -Inf) {
+  if (!is.numeric(x) || length(x) != 2L || !all(is.finite(x))) {
+    stop("`", arg, "` must be a finite numeric vector of length 2.",
+         call. = FALSE)
+  }
+  if (x[1] > x[2]) {
+    stop("`", arg, "` must be increasing, but is c(", x[1], ", ", x[2], ").",
+         call. = FALSE)
+  }
+  if (x[1] < lower) {
+    stop("`", arg, "` must not go below ", lower, ", but starts at ", x[1],
+         ".", call. = FALSE)
+  }
+  invisible(x)
+}
+
+
 #' Check a multiplicity adjustment method
 #'
 #' Validated against [stats::p.adjust.methods] rather than a hand-written list of
