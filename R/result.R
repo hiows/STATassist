@@ -193,7 +193,7 @@ sa_new_comparison <- function(analysis,
 #'
 #' @keywords internal
 #' @noRd
-sa_pick_test <- function(res, test, arg = "res") {
+sa_pick_test <- function(res, test, arg) {
   if (!inherits(res, "sa_comparison")) {
     stop("`", arg, "` must be a comparison result, as returned by ",
          "compare_two_groups().", call. = FALSE)

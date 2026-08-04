@@ -6,12 +6,13 @@
 #' be read out through the parametric, the rank-based or the robust lens without
 #' recomputing anything.
 #'
-#' @param res A comparison result, as returned by [compare_two_groups()],
-#'   [compare_multiple_groups()] or [compare_one_sample()].
-#' @param test Which test in `res` supplies the p-values. One of
-#'   `names(res$tests)`, so `"t_test"`, `"wilcox_test"` or `"robust_test"` for a
-#'   two-group comparison. Defaults to the first test the scenario ran, which is
-#'   the parametric one in every scenario.
+#' @param comparison_result A comparison result, as returned by
+#'   [compare_two_groups()], [compare_multiple_groups()] or
+#'   [compare_one_sample()].
+#' @param test Which test in `comparison_result` supplies the p-values. One of
+#'   `names(comparison_result$tests)`, so `"t_test"`, `"wilcox_test"` or
+#'   `"robust_test"` for a two-group comparison. Defaults to the first test the
+#'   scenario ran, which is the parametric one in every scenario.
 #' @param log2fc_cutoff Minimum `abs(log2fc)` required to call a feature
 #'   significant. The default of 1 is a two-fold change.
 #' @param pval_cutoff Largest `adj_pvalue` allowed for a feature to be called
@@ -69,8 +70,8 @@
 #' estimate_significance(res, adj_type = "bonferroni", log2fc_cutoff = 0.1)
 #'
 #' @export
-estimate_significance <- function(res,
-                                  test = names(res$tests)[1],
+estimate_significance <- function(comparison_result,
+                                  test = names(comparison_result$tests)[1],
                                   log2fc_cutoff = 1,
                                   pval_cutoff = 0.05,
                                   adj_type = NULL) {
@@ -81,7 +82,7 @@ estimate_significance <- function(res,
     sa_check_p_adjust(adj_type, "adj_type")
   }
 
-  tbl <- sa_pick_test(res, test)
+  tbl <- sa_pick_test(comparison_result, test, arg = "comparison_result")
   pvalue <- tbl$pval
   sa_check_pvalues(pvalue)
 
@@ -90,15 +91,15 @@ estimate_significance <- function(res,
   # compounding it.
   if (is.null(adj_type)) {
     adj_pvalue <- tbl$pval_adj
-    adj_used <- res$parameters$p_adjust
+    adj_used <- comparison_result$parameters$p_adjust
   } else {
     adj_pvalue <- stats::p.adjust(pvalue, method = adj_type)
     adj_used <- adj_type
   }
 
   out <- data.frame(
-    features   = res$features,
-    log2fc     = res$effect$log2fc,
+    features   = comparison_result$features,
+    log2fc     = comparison_result$effect$log2fc,
     pvalue     = pvalue,
     adj_pvalue = adj_pvalue,
     stringsAsFactors = FALSE
@@ -108,10 +109,10 @@ estimate_significance <- function(res,
   rownames(out) <- NULL
 
   structure(out,
-            analysis      = res$analysis,
-            group_lv      = res$design$group_lv,
+            analysis      = comparison_result$analysis,
+            group_lv      = comparison_result$design$group_lv,
             test          = test,
-            test_label    = res$test_info[[test]]$label,
+            test_label    = comparison_result$test_info[[test]]$label,
             adj_type      = adj_used,
             log2fc_cutoff = log2fc_cutoff,
             pval_cutoff   = pval_cutoff)

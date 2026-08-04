@@ -37,7 +37,8 @@ rows keeps the recorded values, but selecting columns drops them, in which
 case both must be given.}
 
 \item{anno_feats}{Logical. If \code{TRUE}, label the strongest significant
-features.}
+features. A run where no feature clears both cutoffs still draws the plot,
+with a \code{message()} in place of the labels.}
 
 \item{anno_top}{How many features to label in each direction, so up to
 \code{2 * anno_top} labels in total.}

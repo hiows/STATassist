@@ -15,7 +15,8 @@
 #'   rows keeps the recorded values, but selecting columns drops them, in which
 #'   case both must be given.
 #' @param anno_feats Logical. If `TRUE`, label the strongest significant
-#'   features.
+#'   features. A run where no feature clears both cutoffs still draws the plot,
+#'   with a `message()` in place of the labels.
 #' @param anno_top How many features to label in each direction, so up to
 #'   `2 * anno_top` labels in total.
 #' @param cex.anno Character expansion for those labels.
@@ -240,14 +241,22 @@ draw_volcano_plot <- function(x,
     }
     up_idx <- pick(is_up, TRUE)
     down_idx <- pick(is_down, FALSE)
+    idx <- c(up_idx, down_idx)
 
-    graphics::text(
-      c(plot_x[up_idx], plot_x[down_idx]),
-      c(plot_y[up_idx], plot_y[down_idx]) + label_offset,
-      labels = c(feats[up_idx], feats[down_idx]),
-      cex = cex.anno,
-      col = c(rep(up_label, length(up_idx)), rep(down_label, length(down_idx)))
-    )
+    # text() treats a zero-length `labels` as an error rather than as nothing to
+    # draw, so a run where no feature clears both cutoffs has to stop here.
+    if (length(idx) == 0L) {
+      message("No feature clears both cutoffs, so nothing was labelled.")
+    } else {
+      graphics::text(
+        plot_x[idx],
+        plot_y[idx] + label_offset,
+        labels = feats[idx],
+        cex = cex.anno,
+        col = c(rep(up_label, length(up_idx)),
+                rep(down_label, length(down_idx)))
+      )
+    }
   }
 
   invisible(NULL)
