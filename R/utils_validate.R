@@ -27,6 +27,50 @@ sa_check_feat_names <- function(feats) {
 }
 
 
+#' Resolve an argument that names something about the rows
+#'
+#' `stratified`, `id` and `outcome` all describe the rows of `data`. A vector is
+#' the form the rest of the package takes, and a column name is the form that
+#' does not repeat the object name. A length-one character matching a column is
+#' read as that column; anything else is read as a vector of its own.
+#'
+#' The label comes back alongside the value because the result object records
+#' what the analysis was made on, and a resolved vector no longer remembers
+#' whether it arrived as `data$Species` or as `"Species"`.
+#'
+#' @param allow_na Whether a missing entry is acceptable. It is not when the
+#'   argument decides where a row goes, and it is when the row will be dropped
+#'   by the listwise deletion the model input goes through anyway.
+#'
+#' @return `NULL` for a `NULL` input, otherwise a list with the resolved
+#'   `value` and a `label` for the result object.
+#'
+#' @keywords internal
+#' @noRd
+sa_resolve_row_vector <- function(x, arg, data, allow_na = FALSE) {
+  if (is.null(x)) {
+    return(list(value = NULL, label = NA_character_))
+  }
+
+  label <- "<vector>"
+  if (is.character(x) && length(x) == 1L && !is.na(x) && x %in% names(data)) {
+    label <- x
+    x <- data[[x]]
+  }
+  if (length(x) != nrow(data)) {
+    stop("`", arg, "` must name a column of `data` or hold one entry per row ",
+         "of it: got ", length(x), " for ", nrow(data), " row(s).",
+         call. = FALSE)
+  }
+  if (!allow_na && anyNA(x)) {
+    stop("`", arg, "` must not contain NA: a row it does not describe cannot ",
+         "be assigned to a side of the split.", call. = FALSE)
+  }
+
+  list(value = x, label = label)
+}
+
+
 #' Validate wide-format grouped input
 #'
 #' @param data Wide data.frame, one row per observation.
@@ -70,6 +114,24 @@ sa_validate_wide_input <- function(data,
   if (length(non_numeric) > 0L) {
     stop("`feats` must refer to numeric columns. Not numeric: ",
          paste(non_numeric, collapse = ", "), call. = FALSE)
+  }
+
+  if (is.null(group) && is.null(group_lv)) {
+    if (!is.null(id) && length(id) != nrow(data)) {
+      stop("`id` must have one entry per row of `data`: got ",
+           length(id), " for ", nrow(data), " rows.", call. = FALSE)
+    }
+    return(list(
+      data      = data,
+      feats     = feats,
+      group     = NULL,
+      id        = if (is.null(id)) NULL else as.character(id),
+      n_dropped = 0L
+    ))
+  }
+  if (is.null(group) || is.null(group_lv)) {
+    stop("`group` and `group_lv` must both be supplied or both be `NULL`.",
+         call. = FALSE)
   }
 
   if (length(group) != nrow(data)) {
@@ -182,6 +244,35 @@ sa_check_count <- function(x, arg, lower = 0) {
 }
 
 
+#' Check a numeric vector argument against a range
+#'
+#' A hyperparameter grid is a vector rather than a scalar, and the engine reads it
+#' without checking it: a negative `lambda` or an `alpha` above 1 is accepted by
+#' [caret::train()] and comes back as a fold that failed rather than as an
+#' argument that was wrong. The whole vector is checked at once and the offending
+#' values are named, since a grid of fifty values is not something to bisect by
+#' hand.
+#'
+#' @param x Numeric vector, of any positive length.
+#' @param arg Argument name for the message.
+#' @param lower,upper Inclusive bounds every element must lie within.
+#'
+#' @keywords internal
+#' @noRd
+sa_check_num_vector <- function(x, arg, lower = -Inf, upper = Inf) {
+  if (!is.numeric(x) || length(x) == 0L || !all(is.finite(x))) {
+    stop("`", arg, "` must be a non-empty numeric vector of finite values.",
+         call. = FALSE)
+  }
+  bad <- unique(x[x < lower | x > upper])
+  if (length(bad) > 0L) {
+    stop("`", arg, "` must be in [", lower, ", ", upper, "], but holds ",
+         paste(bad, collapse = ", "), ".", call. = FALSE)
+  }
+  invisible(x)
+}
+
+
 #' Check a length-two range argument
 #'
 #' The two ends are handed to [stats::runif()], which takes a reversed pair
@@ -204,6 +295,46 @@ sa_check_range <- function(x, arg, lower = -Inf) {
          ".", call. = FALSE)
   }
   invisible(x)
+}
+
+
+#' Seed the random stream and hand back the undo
+#'
+#' A simulation is only reproducible if it seeds the stream, and only polite if
+#' it puts the stream back. Without the restore, calling a simulator in the
+#' middle of a script would silently reset everything drawn after it.
+#'
+#' The restore comes back as a function rather than being registered here, since
+#' an `on.exit()` call inside this function would fire the moment it returns.
+#' The caller pairs the two lines:
+#'
+#' ```
+#' restore_seed <- sa_preserve_seed(seed)
+#' on.exit(restore_seed(), add = TRUE)
+#' ```
+#'
+#' @param seed Seed to set, or `NULL` to leave the stream as it stands, in which
+#'   case the returned function does nothing.
+#'
+#' @return A function of no arguments that puts the stream back as it was.
+#'
+#' @keywords internal
+#' @noRd
+sa_preserve_seed <- function(seed) {
+  if (is.null(seed)) {
+    return(function() invisible(NULL))
+  }
+  sa_check_scalar_num(seed, "seed")
+
+  restore <- if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+    previous <- get(".Random.seed", envir = globalenv(), inherits = FALSE)
+    function() assign(".Random.seed", previous, envir = globalenv())
+  } else {
+    # Nothing to put back, so the stream is left as unseeded as it was found.
+    function() suppressWarnings(rm(".Random.seed", envir = globalenv()))
+  }
+  set.seed(seed)
+  restore
 }
 
 
@@ -259,6 +390,10 @@ sa_check_lim <- function(x, arg) {
 #' Used when no `id` is supplied. Order is all the information available, so
 #' unequal group sizes mean the pairs cannot be formed at all.
 #'
+#' `group_lv` arrives in `x`, `y` order rather than in the display order the
+#' user supplied, since the caller has already resolved which level is the
+#' reference. Which side a level lands on does not change the pairs.
+#'
 #' @keywords internal
 #' @noRd
 sa_pair_by_order <- function(group, group_lv) {
@@ -279,7 +414,8 @@ sa_pair_by_order <- function(group, group_lv) {
 #'
 #' Row order carries no meaning here, so a reordered or partially incomplete
 #' data set still yields the correct pairs. Pairs come out in the row order of
-#' `group_lv[1]` so the result is deterministic.
+#' `group_lv[1]` so the result is deterministic. As in `sa_pair_by_order()`,
+#' `group_lv` arrives in `x`, `y` order.
 #'
 #' @return `idx_x` / `idx_y` are equal-length row indices forming the pairs, and
 #'   `unmatched` lists ids that appear in only one group.
@@ -510,21 +646,28 @@ sa_add_padj <- function(df, method) {
 
 #' Every unordered pair of group levels, in display order
 #'
-#' Pairs are generated so that the first member is always the earlier level of
+#' Pairs are generated so that the first member is always the later level of
 #' `group_lv`. Every post-hoc estimate therefore reads as
-#' `group_lv[i] - group_lv[j]` with `i < j`, which is the same direction rule
-#' `group_lv` already fixes for the two-group case.
+#' `group_lv[j] - group_lv[i]` with `i < j`, which puts the reference, being the
+#' first level, on the right of every contrast it takes part in. A treatment
+#' level then reads against the control the way `effect$log2fc` already divides
+#' it, so a feature the treatment raised is positive in both. It is also the
+#' direction [stats::TukeyHSD()] labels its own rows in.
+#'
+#' The enumeration order is left as [utils::combn()] produces it, so only the
+#' side each level lands on changes, never which pairs there are or the order
+#' they come in.
 #'
 #' @keywords internal
 #' @noRd
 sa_level_pairs <- function(group_lv) {
   idx <- utils::combn(seq_along(group_lv), 2L)
   data.frame(
-    i        = idx[1, ],
-    j        = idx[2, ],
-    group1   = group_lv[idx[1, ]],
-    group2   = group_lv[idx[2, ]],
-    contrast = paste(group_lv[idx[1, ]], group_lv[idx[2, ]], sep = " - "),
+    i        = idx[2, ],
+    j        = idx[1, ],
+    group1   = group_lv[idx[2, ]],
+    group2   = group_lv[idx[1, ]],
+    contrast = paste(group_lv[idx[2, ]], group_lv[idx[1, ]], sep = " - "),
     stringsAsFactors = FALSE
   )
 }
