@@ -5,7 +5,7 @@
 \title{Draw a volcano plot}
 \usage{
 draw_volcano_plot(
-  x,
+  significance_result,
   use_adjusted = TRUE,
   log2fc_cutoff = NULL,
   pval_cutoff = NULL,
@@ -14,6 +14,7 @@ draw_volcano_plot(
   cex.anno = 1,
   xlim = NULL,
   ylim = NULL,
+  xlab = NULL,
   main = NULL,
   cex.lab = 1.3,
   cex.axis = 1.2,
@@ -23,7 +24,11 @@ draw_volcano_plot(
 )
 }
 \arguments{
-\item{x}{The data.frame returned by \code{\link[=estimate_significance]{estimate_significance()}}.}
+\item{significance_result}{The object returned by
+\code{\link[=estimate_significance]{estimate_significance()}}, whose \code{significance} element is what is plotted.
+With \code{by = "contrast"} that element holds one table per contrast, so name
+the one to draw: \code{sig$significance[["virginica - setosa"]]}. A bare verdict
+data.frame is accepted too.}
 
 \item{use_adjusted}{Logical. If \code{TRUE}, plot and threshold the \code{adj_pvalue}
 column; if \code{FALSE}, use the unadjusted \code{pvalue} column. The axis label
@@ -31,10 +36,10 @@ follows, so the y axis always describes what was actually plotted.}
 
 \item{log2fc_cutoff, pval_cutoff}{Cutoffs for calling a feature changed and
 significant, drawn as guides. \code{NULL}, the default, takes the values
-\code{\link[=estimate_significance]{estimate_significance()}} recorded on \code{x}, so the guides agree with its
-\code{is_signif} column. Supply a number to override them. Selecting a subset of
-rows keeps the recorded values, but selecting columns drops them, in which
-case both must be given.}
+\code{\link[=estimate_significance]{estimate_significance()}} recorded on \code{significance_result}, so the guides
+agree with its \code{is_signif} column. Supply a number to override them.
+Selecting a subset of rows keeps the recorded values, but selecting
+columns drops them, in which case both must be given.}
 
 \item{anno_feats}{Logical. If \code{TRUE}, label the strongest significant
 features. A run where no feature clears both cutoffs still draws the plot,
@@ -47,6 +52,9 @@ with a \code{message()} in place of the labels.}
 
 \item{xlim, ylim}{Numeric length-2 axis ranges, or \code{NULL} to derive them from
 the data. A supplied range is used as given.}
+
+\item{xlab}{X axis label, or \code{NULL} to derive it from what \code{log2fc} compares
+in the comparison behind the verdict.}
 
 \item{main}{Plot title.}
 
@@ -78,11 +86,18 @@ group centre is zero, is capped at the edge of the x axis the same way. Either
 kind of capping is reported in a \code{message()}, since a capped point no longer
 sits at its true coordinate.
 
+What \code{log2fc} compares is not the same question in every scenario, so the x
+axis label follows the comparison the verdict came from. A multi-group omnibus
+verdict carries the single fold change its \code{effect} table holds, the level
+furthest from the reference rather than any named pair, and the label says so.
+Every other reading compares two fixed centres and is labelled \verb{log2 FC}.
+Pass \code{xlab} to override this.
+
 Points are coloured by the same masks that select the labels, so which
 features are highlighted and which are labelled can never disagree. With the
-default arguments those masks reproduce the \code{is_signif} column of \code{x}. The
-labels are drawn in a brighter shade than the points on purpose, so that a
-label stays legible where it overlaps them.
+default arguments those masks reproduce the \code{is_signif} column of the input.
+The labels are drawn in a brighter shade than the points on purpose, so that
+a label stays legible where it overlaps them.
 }
 \examples{
 iris2 <- iris[iris$Species != "setosa", ]
@@ -101,6 +116,11 @@ draw_volcano_plot(sig, use_adjusted = FALSE, anno_feats = FALSE)
 
 ## A cutoff other than the one the verdict used
 draw_volcano_plot(sig, log2fc_cutoff = 0.3)
+
+## A multi-group verdict says on the x axis which levels its log2fc compares
+multi <- compare_multiple_groups(iris, c("Sepal.Length", "Petal.Length"),
+                                 iris$Species, levels(iris$Species))
+draw_volcano_plot(estimate_significance(multi, log2fc_cutoff = 0.1))
 
 }
 \seealso{

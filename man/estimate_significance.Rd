@@ -9,7 +9,8 @@ estimate_significance(
   test = names(comparison_result$tests)[1],
   log2fc_cutoff = 1,
   pval_cutoff = 0.05,
-  adj_type = NULL
+  adj_type = NULL,
+  by = c("omnibus", "contrast")
 )
 }
 \arguments{
@@ -34,13 +35,31 @@ method from \link[stats:p.adjust.methods]{stats::p.adjust.methods} re-adjusts th
 which is the only way to get a different adjustment without rerunning the
 comparison. Passing a method here does not adjust twice: the input is always
 the unadjusted \code{pval} column.}
+
+\item{by}{Which p-value the verdict is read from. \code{"omnibus"}, the default,
+uses the named test's own table, which is the only thing a two-group or a
+one-sample comparison has. \code{"contrast"} uses the pairwise stage of a
+multi-group comparison instead and returns one verdict table per contrast.}
 }
 \value{
-A data.frame with one row per feature and the columns \code{features},
-\code{log2fc}, \code{pvalue}, \code{adj_pvalue} and \code{is_signif}. The cutoffs, the test name
-and the adjustment actually used are attached as attributes, which is where
-\code{\link[=draw_volcano_plot]{draw_volcano_plot()}} picks them up so that the plotted guides cannot
-disagree with the verdict.
+An \code{sa_significance} object, a list of two elements:
+\describe{
+\item{\code{analysis_type}}{The \code{analysis} of the comparison this verdict was
+read from, so a table that has been passed around still says which
+scenario produced it.}
+\item{\code{significance}}{With \code{by = "omnibus"}, a data.frame with one row per
+feature and the columns \code{features}, \code{log2fc}, \code{pvalue}, \code{adj_pvalue} and
+\code{is_signif}. With \code{by = "contrast"}, a list of those same data.frames,
+one per pairwise contrast and named after it, in the order
+\code{comparison_result$pairwise[[test]]} fixes.}
+}
+
+The cutoffs, the test name and the adjustment actually used are attached to
+each data.frame as attributes, which is where \code{\link[=draw_volcano_plot]{draw_volcano_plot()}} picks
+them up so that the plotted guides cannot disagree with the verdict. A
+contrast table carries \code{contrast}, \code{group1} and \code{group2} on top of those, so
+a single element of \code{significance} can be handed straight to
+\code{\link[=draw_volcano_plot]{draw_volcano_plot()}}.
 }
 \description{
 Puts the two axes of a volcano plot side by side and flags the features that
@@ -54,6 +73,29 @@ recomputing anything.
 \code{adj_pvalue <= pval_cutoff}, and is therefore judged on the adjusted
 p-values. Pass \code{adj_type = "none"} to test the raw ones.
 
+The two ways of reading a multi-group comparison answer different questions
+and use different numbers. \code{by = "omnibus"} asks whether a feature differs
+across the levels at all, and pairs that with the one \code{log2fc} the \code{effect}
+table carries, the most extreme level against the reference.
+\code{by = "contrast"} asks the same question of one pair of levels at a time, and
+each table carries the \code{log2fc} of that pair, in the direction its \code{contrast}
+label reads. Both divide by the reference, so the two readings agree on which
+way a feature moved.
+
+The adjustment axis differs too. Under \code{by = "contrast"} with
+\code{adj_type = NULL} the \code{pval_adj} of the pairwise stage is reused, which was
+adjusted across the contrasts within each feature by \code{posthoc_p_adjust}, or
+not at all for Tukey's HSD and Games-Howell, whose p-values are already
+family-wise. Naming a method instead adjusts across the features within each
+contrast, which is the axis \code{by = "omnibus"} always works on.
+
+A feature whose omnibus test did not clear \code{posthoc_alpha} was never compared
+pairwise, so its \code{pvalue} is \code{NA} in every contrast table. Its \code{log2fc} is
+still reported, since a ratio of group centres does not depend on a test
+having been run, and \code{is_signif} follows the same three-valued rule it does
+everywhere else: \code{NA}, undecided, unless the magnitude cutoff already rules
+the feature out, which makes it \code{FALSE} whatever the p-value would have been.
+
 The two ways a fold change can fall outside the domain of \code{log2()} are not
 equivalent. A fold change of exactly zero gives \code{log2fc = -Inf}, an
 infinitely large decrease, which clears any magnitude cutoff. A fold change
@@ -61,7 +103,7 @@ whose two group centres have opposite signs gives \code{log2fc = NaN}, which mak
 \code{is_signif} \code{NA}: such a feature is undecided rather than decided against.
 \code{\link[=compare_two_groups]{compare_two_groups()}} reports both kinds when it builds the \code{effect} table.
 Note that \code{subset()} and \code{[} drop \code{NA} rows silently, so filter with
-\code{which(x$is_signif)} if the count matters.
+\code{which(x$significance$is_signif)} if the count matters.
 }
 \examples{
 iris2 <- iris[iris$Species != "setosa", ]
@@ -84,6 +126,14 @@ estimate_significance(res, log2fc_cutoff = 1.5)
 
 ## Bonferroni instead of the Benjamini-Hochberg the comparison used
 estimate_significance(res, adj_type = "bonferroni", log2fc_cutoff = 0.1)
+
+## One verdict table per pairwise contrast of a multi-group comparison
+multi <- compare_multiple_groups(iris, c("Sepal.Length", "Petal.Length"),
+                                 iris$Species, levels(iris$Species))
+by_pair <- estimate_significance(multi, by = "contrast",
+                                 log2fc_cutoff = 0.1)
+names(by_pair$significance)
+by_pair$significance[["virginica - setosa"]]
 
 }
 \seealso{

@@ -29,9 +29,9 @@
 #'   One output row per entry.
 #' @param group Grouping vector with one entry per row of `data`.
 #' @param group_lv Character vector of at least three group levels. The first is
-#'   the reference the `effect` table is expressed against, and the order fixes
-#'   the direction of every post-hoc contrast. Rows belonging to any other level
-#'   are dropped.
+#'   the reference the `effect` table is expressed against and the level every
+#'   post-hoc contrast subtracts, so a contrast reads `treat_1 - control` rather
+#'   than the other way round. Rows belonging to any other level are dropped.
 #' @param id Subject identifier with one entry per row of `data`. Required when
 #'   `paired = TRUE` and ignored otherwise.
 #' @param paired Logical. If `TRUE`, the levels of `group` are treated as
@@ -39,8 +39,8 @@
 #' @param conf_level Confidence level for the post-hoc intervals.
 #' @param tr Trimming proportion for the trimmed mean ANOVA, in `[0, 0.5)`.
 #'   Ignored when `paired = TRUE`.
-#' @param posthoc Logical. If `FALSE`, no pairwise stage runs and `$posthoc` is
-#'   an empty list.
+#' @param posthoc Logical. If `FALSE`, no pairwise stage runs and the result
+#'   carries no `$posthoc` or `$pairwise` slot.
 #' @param posthoc_alpha A feature enters the post-hoc stage when its omnibus
 #'   `pval_adj` is at or below this value. Set it to 1 to compare every feature
 #'   regardless of its omnibus result.
@@ -61,11 +61,10 @@
 #'   and outlier checks the tests rest on are attached as `$diagnostics`.
 #'
 #' @return A `sa_comparison` object with the same layout
-#'   [compare_two_groups()] returns, plus a populated `posthoc` slot. Its
-#'   elements are
+#'   [compare_two_groups()] returns, plus the `posthoc` and `pairwise` slots
+#'   that only a comparison of three or more levels has. Its elements are
 #'
 #'   \describe{
-#'     \item{`schema_version`}{Version of this layout, `"0.2.1"`.}
 #'     \item{`analysis`}{`"multi_group_comparison"`.}
 #'     \item{`features`}{The feature names, in the row order every table uses.}
 #'     \item{`design`}{`group_lv`, `paired`, `pairing`, `n_dropped` and
@@ -77,7 +76,9 @@
 #'     \item{`posthoc`}{One table per omnibus test, one row per feature and pair
 #'       of levels, carrying `features`, `contrast`, `group1`, `group2`, `n1`,
 #'       `n2`, `estimate`, `stderr`, `statistic`, `df`, `pval`, `pval_adj`,
-#'       `lower_conf` and `upper_conf`.}
+#'       `lower_conf` and `upper_conf`. Absent when `posthoc = FALSE`.}
+#'     \item{`pairwise`}{The same numbers one contrast at a time, described
+#'       below. Absent when `posthoc = FALSE`.}
 #'     \item{`test_info`}{Per test, the method `id`, a readable `label` and the
 #'       post-hoc procedure that followed it.}
 #'     \item{`diagnostics`}{Assumption checks, or `NULL`.}
@@ -89,12 +90,13 @@
 #'   `group_lv[1]`), `extreme_level`, `extreme_center`, `fold_change` and
 #'   `log2fc`. `extreme_level` is whichever level sits furthest from the
 #'   reference on the log2 scale, and the ratio puts it over the reference, so a
-#'   positive `log2fc` means that level is the higher one. Note that this is the
-#'   opposite arrangement to [compare_two_groups()], where `group_lv[1]` is the
-#'   numerator: with three or more levels the first one reads as a reference
-#'   rather than as one side of a contrast. Keeping the column named `log2fc`
-#'   means [estimate_significance()] and [draw_volcano_plot()] work on a
-#'   multi-group result unchanged.
+#'   positive `log2fc` means that level is the higher one. `group_lv[1]` is the
+#'   denominator here exactly as it is in [compare_two_groups()]: the first
+#'   level is the reference in both. The post-hoc contrasts subtract the
+#'   reference for the same reason, so a feature the treatment raised is
+#'   positive in `effect$log2fc` and in its post-hoc `estimate` alike.
+#'   Keeping the column named `log2fc` means [estimate_significance()] and
+#'   [draw_volcano_plot()] work on a multi-group result unchanged.
 #'
 #' @section Omnibus intervals:
 #' The omnibus tables carry `lower_conf` and `upper_conf` as required by the
@@ -118,6 +120,33 @@
 #' Yuen and pairwise paired t-tests are adjusted across the contrasts within
 #' each feature.
 #'
+#' @section Reading one contrast at a time:
+#' `$posthoc` stacks every contrast of every feature into one long table, which
+#' is the honest record of what was asked but an awkward shape for a reader who
+#' came for a single comparison. `$pairwise` holds the same numbers keyed first
+#' by test and then by contrast, so
+#' `res$pairwise$anova_test[["virginica - setosa"]]` is that one comparison
+#' across all features.
+#'
+#' Those tables are rectangular where `$posthoc` is ragged: each holds every
+#' feature, in the order `features` fixes, so contrasts can be lined up against
+#' each other and against the omnibus tables by position. A feature that did not
+#' qualify is present with its inference columns `NA`.
+#'
+#' They add `fold_change` and `log2fc`, which no post-hoc procedure reports,
+#' being the ratio of the two group centres rather than anything a test
+#' produced. The ratio puts `group1` over `group2`, matching the direction
+#' `estimate` reads in, so the two always agree in sign. Note that this is a
+#' different quantity from `effect$log2fc`, which compares the most extreme
+#' level rather than a named pair, though the two now point the same way: both
+#' divide by the reference. A feature that never entered the pairwise stage
+#' still has its ratio: dividing two centres does not require a test to have
+#' been run.
+#'
+#' [estimate_significance()] reads these tables with `by = "contrast"`, whose
+#' `significance` element is then one verdict table per contrast rather than one
+#' table.
+#'
 #' @section Repeated conditions:
 #' A within-subject omnibus test needs a complete rectangle, so `id` is required
 #' and subjects missing any condition are dropped whole rather than partially
@@ -136,7 +165,7 @@
 #'
 #' @seealso [compare_two_groups()] for exactly two levels,
 #'   [diagnose_distribution()] for the assumption checks on their own, and
-#'   [plot.sa_comparison()] to draw the result.
+#'   [draw_forest_plot()] to draw the result.
 #'
 #' @references
 #' Welch, B. L. (1951). On the comparison of several mean values: an alternative
@@ -173,6 +202,11 @@
 #'
 #' ## The pairwise stage, one row per feature and pair
 #' head(res$posthoc$anova_test)
+#'
+#' ## The same numbers one contrast at a time, every feature present. Setosa is
+#' ## the reference, so it is the level every contrast subtracts.
+#' names(res$pairwise$anova_test)
+#' res$pairwise$anova_test[["virginica - setosa"]]
 #'
 #' ## Setosa is the reference, so a positive log2fc means the most extreme
 #' ## other species is the larger one.
@@ -271,8 +305,9 @@ compare_multiple_groups <- function(data,
   }
   names(per_feature) <- feats
 
-  effect <- sa_multi_fold_change(per_feature, feats, group_lv, fc_mean, paired,
-                                 input_scale)
+  centers <- sa_group_centers(per_feature, feats, group_lv, fc_mean, paired,
+                              input_scale)
+  effect <- sa_multi_fold_change(centers, feats, group_lv, fc_mean)
 
   specs <- if (paired) {
     sa_multi_specs_repeated(per_feature, conf_level)
@@ -286,6 +321,7 @@ compare_multiple_groups <- function(data,
   })
 
   posthoc_tables <- list()
+  pairwise_tables <- list()
   n_posthoc <- stats::setNames(rep(0L, length(specs)), names(specs))
   if (posthoc) {
     for (nm in names(specs)) {
@@ -300,6 +336,9 @@ compare_multiple_groups <- function(data,
         # of contrasts an adjustment would be applied to, so adjusting it again
         # would correct twice for one comparison.
         p_adjust = if (spec$posthoc_familywise) "none" else posthoc_p_adjust
+      )
+      pairwise_tables[[nm]] <- sa_pairwise_tables(
+        posthoc_tables[[nm]], centers$centers, feats, group_lv
       )
     }
   }
@@ -335,6 +374,7 @@ compare_multiple_groups <- function(data,
     effect    = effect,
     tests     = tests,
     posthoc   = posthoc_tables,
+    pairwise  = pairwise_tables,
     test_info = lapply(specs, function(spec) {
       list(id            = spec$id,
            label         = spec$label,
@@ -449,6 +489,74 @@ sa_require_groups <- function(samples, n_min) {
 }
 
 
+#' The samples of one feature as a list named by level
+#'
+#' A repeated design stores a feature as a subjects-by-conditions matrix and an
+#' independent one as a list of samples. Everything downstream wants the list, so
+#' the one place that knows about the matrix is here.
+#'
+#' @keywords internal
+#' @noRd
+sa_feature_samples <- function(x, group_lv, paired) {
+  if (!paired) {
+    return(x)
+  }
+  stats::setNames(lapply(seq_len(ncol(x)), function(j) x[, j]), group_lv)
+}
+
+
+#' The centre of every level of every feature
+#'
+#' One pass over the data producing the quantity both the `effect` table and the
+#' pairwise tables are ratios of. Computing it once is what keeps
+#' `effect$log2fc` and `pairwise$...$log2fc` from being able to disagree.
+#'
+#' A centre that cannot be taken, which happens when a level is empty or when a
+#' geometric mean meets a value at or below zero, fails the whole feature rather
+#' than that one level: a ratio needs both sides. The row is left `NA` and the
+#' message is kept so that the caller can raise it inside `sa_feature_table()`,
+#' where it is turned into an `NA` row and a warning.
+#'
+#' @param per_feature Per feature, either a named list of samples (independent)
+#'   or a subjects-by-conditions matrix (repeated).
+#' @param feats Feature names, one output row per entry.
+#' @param group_lv Group levels, fixing the column order.
+#' @param mean_type `"arith"` or `"geom"`.
+#' @param paired Whether `per_feature` holds matrices rather than sample lists.
+#' @param input_scale `"raw"` or `"log2"`.
+#'
+#' @return List of `centers` (a features-by-levels matrix), `errors` (one
+#'   message per feature, `NA` where the centres were taken) and `n_used`.
+#'
+#' @keywords internal
+#' @noRd
+sa_group_centers <- function(per_feature, feats, group_lv, mean_type, paired,
+                             input_scale = "raw") {
+  n_lv <- length(group_lv)
+  centers <- matrix(NA_real_, nrow = length(feats), ncol = n_lv,
+                    dimnames = list(feats, group_lv))
+  errors <- rep(NA_character_, length(feats))
+  n_used <- rep(NA_real_, length(feats))
+
+  for (i in seq_along(feats)) {
+    samples <- sa_feature_samples(per_feature[[i]], group_lv, paired)
+    row <- tryCatch(
+      vapply(seq_len(n_lv), function(j) {
+        sa_fc_center(samples[[j]], group_lv[j], mean_type, input_scale)
+      }, numeric(1)),
+      error = function(e) {
+        errors[i] <<- conditionMessage(e)
+        rep(NA_real_, n_lv)
+      }
+    )
+    centers[i, ] <- row
+    n_used[i] <- if (paired) nrow(per_feature[[i]]) else sum(lengths(samples))
+  }
+
+  list(centers = centers, errors = errors, n_used = n_used)
+}
+
+
 #' Fold change of the most extreme level against the reference
 #'
 #' The multi-group counterpart of `sa_fold_change()`. Both reduce a comparison
@@ -457,21 +565,17 @@ sa_require_groups <- function(samples, n_min) {
 #' the ratio of. The level furthest from the reference on the log2 scale is used,
 #' which is the largest change the comparison found.
 #'
-#' @param per_feature Per feature, either a named list of samples (independent)
-#'   or a subjects-by-conditions matrix (repeated).
+#' @param centers The list `sa_group_centers()` returns.
 #' @param feats Feature names, one output row per entry.
 #' @param group_lv Group levels, the first being the reference denominator.
-#' @param mean_type `"arith"` or `"geom"`.
-#' @param paired Whether `per_feature` holds matrices rather than sample lists.
-#' @param input_scale `"raw"` or `"log2"`.
+#' @param mean_type `"arith"` or `"geom"`, used for the label only.
 #'
 #' @return data.frame with `features`, `n_used`, `n_groups`, `ref_center`,
 #'   `extreme_level`, `extreme_center`, `fold_change` and `log2fc`.
 #'
 #' @keywords internal
 #' @noRd
-sa_multi_fold_change <- function(per_feature, feats, group_lv, mean_type,
-                                 paired, input_scale = "raw") {
+sa_multi_fold_change <- function(centers, feats, group_lv, mean_type) {
   label <- paste0(if (mean_type == "arith") "Arithmetic" else "Geometric",
                   " mean fold change")
 
@@ -482,18 +586,17 @@ sa_multi_fold_change <- function(per_feature, feats, group_lv, mean_type,
     label,
     p_adjust = NULL,
     fun = function(i) {
-      samples <- if (paired) {
-        mat <- per_feature[[i]]
-        stats::setNames(lapply(seq_len(ncol(mat)), function(j) mat[, j]),
-                        group_lv)
-      } else {
-        per_feature[[i]]
+      # Raised here rather than where it happened, so that the failure still
+      # arrives inside sa_feature_table() and is reported in its warning
+      # alongside every other feature that could not be computed.
+      if (!is.na(centers$errors[i])) {
+        stop(centers$errors[i], call. = FALSE)
       }
-      centers <- vapply(seq_along(samples), function(j) {
-        sa_fc_center(samples[[j]], group_lv[j], mean_type, input_scale)
-      }, numeric(1))
+      # The names would be carried into the returned vector, turning
+      # `ref_center` into `ref_center.setosa` and losing the contract column.
+      row <- unname(centers$centers[i, ])
 
-      ratios <- centers / centers[1]
+      ratios <- row / row[1]
       log_ratios <- suppressWarnings(log2(ratios))
       # A level whose ratio left the domain of log2() cannot be ranked by
       # distance, so it is skipped rather than allowed to win by being NaN.
@@ -505,12 +608,11 @@ sa_multi_fold_change <- function(per_feature, feats, group_lv, mean_type,
         2L
       }
 
-      c(n_used         = if (paired) nrow(per_feature[[i]]) else
-                           sum(lengths(samples)),
-        n_groups       = length(samples),
-        ref_center     = centers[1],
+      c(n_used         = centers$n_used[i],
+        n_groups       = length(row),
+        ref_center     = row[1],
         extreme_index  = extreme,
-        extreme_center = centers[extreme],
+        extreme_center = row[extreme],
         fold_change    = ratios[extreme],
         log2fc         = log_ratios[extreme])
     }
@@ -519,4 +621,61 @@ sa_multi_fold_change <- function(per_feature, feats, group_lv, mean_type,
   out$extreme_level <- group_lv[out$extreme_index]
   out[c("features", "n_used", "n_groups", "ref_center", "extreme_level",
         "extreme_center", "fold_change", "log2fc")]
+}
+
+
+#' Split one post-hoc table into a rectangular table per contrast
+#'
+#' The post-hoc table is the honest record of the pairwise stage: it holds a row
+#' only for the features that were actually asked. That shape is awkward to read
+#' one contrast at a time, which is what a reader who came for "treatment 1
+#' against control" wants, so this builds the other view of the same numbers.
+#'
+#' Two things differ from `posthoc`. Every table holds every feature in the
+#' order `features` fixes, so the contrasts can be lined up against each other
+#' and against the omnibus tables without matching by name. And `fold_change`
+#' and `log2fc` are added, which the post-hoc procedures do not report: they are
+#' ratios of the group centres and so do not depend on which test was run.
+#'
+#' The two kinds of column therefore say different things where a feature did
+#' not qualify. `log2fc` is still there, because the data can always be divided;
+#' the inference columns are `NA`, because nothing was asked of them.
+#'
+#' @param posthoc_tbl One test's post-hoc table.
+#' @param centers The features-by-levels centre matrix.
+#' @param feats Feature names, fixing the row order of every table.
+#' @param group_lv Group levels, fixing the contrast order and direction.
+#'
+#' @return List of data.frames named by contrast, in the order
+#'   `sa_level_pairs()` fixes.
+#'
+#' @keywords internal
+#' @noRd
+sa_pairwise_tables <- function(posthoc_tbl, centers, feats, group_lv) {
+  pairs <- sa_level_pairs(group_lv)
+  stat_cols <- sa_posthoc_stat_columns()
+
+  out <- lapply(seq_len(nrow(pairs)), function(p) {
+    # group1 over group2, so that log2fc and estimate, which the contract fixes
+    # as group1 - group2, always point the same way within a row.
+    ratios <- unname(centers[, pairs$i[p]] / centers[, pairs$j[p]])
+    tbl <- data.frame(
+      features    = feats,
+      contrast    = pairs$contrast[p],
+      group1      = pairs$group1[p],
+      group2      = pairs$group2[p],
+      fold_change = ratios,
+      log2fc      = suppressWarnings(log2(ratios)),
+      stringsAsFactors = FALSE
+    )
+    rows <- posthoc_tbl[posthoc_tbl$contrast == pairs$contrast[p], ,
+                        drop = FALSE]
+    at <- match(feats, rows$features)
+    for (nm in stat_cols) {
+      tbl[[nm]] <- rows[[nm]][at]
+    }
+    tbl
+  })
+
+  stats::setNames(out, pairs$contrast)
 }

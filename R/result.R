@@ -7,20 +7,6 @@
 # data.frame. No engine object is stored anywhere, which is what lets the object
 # be written straight out as JSON and rebuilt in another language.
 
-#' Version of the comparison result contract
-#'
-#' Independent of the package version. It moves only when the shape of the
-#' object changes: a new field is a minor bump, a removed or reinterpreted field
-#' is a major one. Consumers in other languages read this to decide whether they
-#' understand the object they were handed.
-#'
-#' @keywords internal
-#' @noRd
-sa_schema_version <- function() {
-  "0.2.1"
-}
-
-
 #' Reproducibility metadata attached to every result
 #'
 #' @keywords internal
@@ -66,6 +52,37 @@ sa_posthoc_table_columns <- function() {
 }
 
 
+#' The post-hoc columns that carry a number rather than a label
+#'
+#' @keywords internal
+#' @noRd
+sa_posthoc_stat_columns <- function() {
+  setdiff(sa_posthoc_table_columns(),
+          c("features", "contrast", "group1", "group2"))
+}
+
+
+#' Column names every pairwise table must carry
+#'
+#' The same numbers as a post-hoc table, rearranged into one rectangular table
+#' per contrast so that a single contrast can be read on its own. Two columns
+#' are added: `fold_change` and `log2fc`, the ratio of the two group centres,
+#' which no post-hoc procedure reports because it does not depend on which test
+#' was run.
+#'
+#' Unlike a post-hoc table, a pairwise table holds every feature of the
+#' comparison, in the order `features` fixes. A feature whose omnibus test did
+#' not clear `posthoc_alpha` is therefore present, with its ratio columns filled
+#' and every inference column `NA`.
+#'
+#' @keywords internal
+#' @noRd
+sa_pairwise_table_columns <- function() {
+  c("features", "contrast", "group1", "group2", "fold_change", "log2fc",
+    sa_posthoc_stat_columns())
+}
+
+
 #' Assemble a comparison result object
 #'
 #' The checks here guard the contract rather than the user's input, so they fire
@@ -82,8 +99,13 @@ sa_posthoc_table_columns <- function() {
 #' @param test_info Named list with one entry per element of `tests`, describing
 #'   which test was actually run.
 #' @param posthoc Named list of post-hoc tables, named after the test each one
-#'   follows, or `list()` when the scenario has no post-hoc stage. Rows are
-#'   feature by pair rather than one per feature.
+#'   follows, or `list()` when the scenario has no post-hoc stage, in which case
+#'   the slot is left out of the result. Rows are feature by pair rather than one
+#'   per feature.
+#' @param pairwise Named list holding, per test, a list of one table per
+#'   contrast, or `list()` when the scenario has no post-hoc stage. The same
+#'   numbers as `posthoc` seen one contrast at a time, with every feature
+#'   present.
 #' @param diagnostics Assumption checks attached to this analysis, or `NULL`
 #'   when they were not requested.
 #' @param subclass Extra class prepended ahead of `sa_comparison`.
@@ -98,6 +120,7 @@ sa_new_comparison <- function(analysis,
                               tests,
                               test_info,
                               posthoc = list(),
+                              pairwise = list(),
                               diagnostics = NULL,
                               subclass = character(0)) {
 
@@ -118,12 +141,13 @@ sa_new_comparison <- function(analysis,
          paste(setdiff(names(posthoc), names(tests)), collapse = ", "), ".",
          call. = FALSE)
   }
-  # A list with no names serialises to a JSON array, and the contract says
-  # `posthoc` is a map from test name to table in every result. Naming the empty
-  # case keeps it an object there, so a consumer that iterates over the map does
-  # not have to special-case the scenarios that have no pairwise stage.
-  if (length(posthoc) == 0L) {
-    posthoc <- structure(list(), names = character(0))
+  if (!is.list(pairwise)) {
+    stop("internal error: `pairwise` must be a list.", call. = FALSE)
+  }
+  if (length(pairwise) > 0L && !all(names(pairwise) %in% names(tests))) {
+    stop("internal error: `pairwise` names a test that was not run: ",
+         paste(setdiff(names(pairwise), names(tests)), collapse = ", "), ".",
+         call. = FALSE)
   }
 
   check_table <- function(df, what) {
@@ -167,22 +191,50 @@ sa_new_comparison <- function(analysis,
     }
   }
 
-  structure(
-    list(
-      schema_version = sa_schema_version(),
-      analysis       = analysis,
-      features       = features,
-      design         = design,
-      parameters     = parameters,
-      effect         = effect,
-      tests          = tests,
-      posthoc        = posthoc,
-      test_info      = test_info,
-      diagnostics    = diagnostics,
-      metadata       = sa_metadata()
-    ),
-    class = c(subclass, "sa_comparison", "sa_result")
+  # A pairwise table, unlike a post-hoc one, is rectangular, so it is held to
+  # the same alignment every other table in the object is held to.
+  for (nm in names(pairwise)) {
+    if (!is.list(pairwise[[nm]]) ||
+          !is.character(names(pairwise[[nm]])) ||
+          anyNA(names(pairwise[[nm]]))) {
+      stop("internal error: `pairwise$", nm, "` must be a list named by ",
+           "contrast.", call. = FALSE)
+    }
+    for (ct in names(pairwise[[nm]])) {
+      what <- paste0("`pairwise$", nm, "[[\"", ct, "\"]]`")
+      check_table(pairwise[[nm]][[ct]], what)
+      absent <- setdiff(sa_pairwise_table_columns(),
+                        names(pairwise[[nm]][[ct]]))
+      if (length(absent) > 0L) {
+        stop("internal error: ", what, " is missing contract column(s): ",
+             paste(absent, collapse = ", "), ".", call. = FALSE)
+      }
+    }
+  }
+
+  slots <- list(
+    analysis    = analysis,
+    features    = features,
+    design      = design,
+    parameters  = parameters,
+    effect      = effect,
+    tests       = tests,
+    posthoc     = posthoc,
+    pairwise    = pairwise,
+    test_info   = test_info,
+    diagnostics = diagnostics,
+    metadata    = sa_metadata()
   )
+
+  # A scenario with no pairwise stage has nothing to say in these two slots, and
+  # an empty map reads as a result that is missing something rather than as one
+  # for which the question does not arise. They are absent instead, so a reader
+  # asks `is.null(res$posthoc)`, which is also what `res$posthoc[[test]]`
+  # already answers for a test that has no post-hoc stage.
+  if (length(posthoc) == 0L) slots$posthoc <- NULL
+  if (length(pairwise) == 0L) slots$pairwise <- NULL
+
+  structure(slots, class = c(subclass, "sa_comparison", "sa_result"))
 }
 
 

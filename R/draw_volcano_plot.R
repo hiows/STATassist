@@ -4,16 +4,20 @@
 #' [estimate_significance()] returns, colours the features that clear both
 #' cutoffs by direction and labels the strongest of them.
 #'
-#' @param x The data.frame returned by [estimate_significance()].
+#' @param significance_result The object returned by
+#'   [estimate_significance()], whose `significance` element is what is plotted.
+#'   With `by = "contrast"` that element holds one table per contrast, so name
+#'   the one to draw: `sig$significance[["virginica - setosa"]]`. A bare verdict
+#'   data.frame is accepted too.
 #' @param use_adjusted Logical. If `TRUE`, plot and threshold the `adj_pvalue`
 #'   column; if `FALSE`, use the unadjusted `pvalue` column. The axis label
 #'   follows, so the y axis always describes what was actually plotted.
 #' @param log2fc_cutoff,pval_cutoff Cutoffs for calling a feature changed and
 #'   significant, drawn as guides. `NULL`, the default, takes the values
-#'   [estimate_significance()] recorded on `x`, so the guides agree with its
-#'   `is_signif` column. Supply a number to override them. Selecting a subset of
-#'   rows keeps the recorded values, but selecting columns drops them, in which
-#'   case both must be given.
+#'   [estimate_significance()] recorded on `significance_result`, so the guides
+#'   agree with its `is_signif` column. Supply a number to override them.
+#'   Selecting a subset of rows keeps the recorded values, but selecting
+#'   columns drops them, in which case both must be given.
 #' @param anno_feats Logical. If `TRUE`, label the strongest significant
 #'   features. A run where no feature clears both cutoffs still draws the plot,
 #'   with a `message()` in place of the labels.
@@ -22,6 +26,8 @@
 #' @param cex.anno Character expansion for those labels.
 #' @param xlim,ylim Numeric length-2 axis ranges, or `NULL` to derive them from
 #'   the data. A supplied range is used as given.
+#' @param xlab X axis label, or `NULL` to derive it from what `log2fc` compares
+#'   in the comparison behind the verdict.
 #' @param main Plot title.
 #' @param cex.lab,cex.axis,cex.main Character expansion for the axis labels,
 #'   the axis annotation and the title.
@@ -43,11 +49,18 @@
 #' kind of capping is reported in a `message()`, since a capped point no longer
 #' sits at its true coordinate.
 #'
+#' What `log2fc` compares is not the same question in every scenario, so the x
+#' axis label follows the comparison the verdict came from. A multi-group omnibus
+#' verdict carries the single fold change its `effect` table holds, the level
+#' furthest from the reference rather than any named pair, and the label says so.
+#' Every other reading compares two fixed centres and is labelled `log2 FC`.
+#' Pass `xlab` to override this.
+#'
 #' Points are coloured by the same masks that select the labels, so which
 #' features are highlighted and which are labelled can never disagree. With the
-#' default arguments those masks reproduce the `is_signif` column of `x`. The
-#' labels are drawn in a brighter shade than the points on purpose, so that a
-#' label stays legible where it overlaps them.
+#' default arguments those masks reproduce the `is_signif` column of the input.
+#' The labels are drawn in a brighter shade than the points on purpose, so that
+#' a label stays legible where it overlaps them.
 #'
 #' @seealso [estimate_significance()], whose output is the only argument this
 #'   function needs.
@@ -70,8 +83,13 @@
 #' ## A cutoff other than the one the verdict used
 #' draw_volcano_plot(sig, log2fc_cutoff = 0.3)
 #'
+#' ## A multi-group verdict says on the x axis which levels its log2fc compares
+#' multi <- compare_multiple_groups(iris, c("Sepal.Length", "Petal.Length"),
+#'                                  iris$Species, levels(iris$Species))
+#' draw_volcano_plot(estimate_significance(multi, log2fc_cutoff = 0.1))
+#'
 #' @export
-draw_volcano_plot <- function(x,
+draw_volcano_plot <- function(significance_result,
                               use_adjusted = TRUE,
                               log2fc_cutoff = NULL,
                               pval_cutoff = NULL,
@@ -80,6 +98,7 @@ draw_volcano_plot <- function(x,
                               cex.anno = 1,
                               xlim = NULL,
                               ylim = NULL,
+                              xlab = NULL,
                               main = NULL,
                               cex.lab = 1.3,
                               cex.axis = 1.2,
@@ -98,14 +117,28 @@ draw_volcano_plot <- function(x,
   sa_check_lim(xlim, "xlim")
   sa_check_lim(ylim, "ylim")
 
-  if (!is.data.frame(x)) {
-    stop("`x` must be the data.frame returned by estimate_significance().",
-         call. = FALSE)
+  # The verdict object carries the table beside the scenario name; the table on
+  # its own is still accepted, since selecting rows from it produces one.
+  if (inherits(significance_result, "sa_significance")) {
+    significance_result <- significance_result$significance
+  }
+  if (!is.data.frame(significance_result)) {
+    if (is.list(significance_result) && length(significance_result) > 0L &&
+          all(vapply(significance_result, is.data.frame, logical(1)))) {
+      stop("`significance_result` holds one verdict table per contrast, and a ",
+           "volcano plot draws one of them. Name it: ",
+           "`sig$significance[[\"", names(significance_result)[1], "\"]]`.",
+           call. = FALSE)
+    }
+    stop("`significance_result` must be the object returned by ",
+         "estimate_significance().", call. = FALSE)
   }
   p_col <- if (use_adjusted) "adj_pvalue" else "pvalue"
-  absent <- setdiff(c("features", "log2fc", p_col), names(x))
+  absent <- setdiff(c("features", "log2fc", p_col),
+                    names(significance_result))
   if (length(absent) > 0L) {
-    stop("`x` is missing the column(s) ", paste(absent, collapse = ", "),
+    stop("`significance_result` is missing the column(s) ",
+         paste(absent, collapse = ", "),
          ". Pass the table returned by estimate_significance().",
          call. = FALSE)
   }
@@ -113,23 +146,24 @@ draw_volcano_plot <- function(x,
   # Falling back to the recorded cutoffs is what keeps the guides on the plot and
   # the verdict in the table describing the same rule.
   if (is.null(log2fc_cutoff)) {
-    log2fc_cutoff <- attr(x, "log2fc_cutoff")
+    log2fc_cutoff <- attr(significance_result, "log2fc_cutoff")
   }
   if (is.null(pval_cutoff)) {
-    pval_cutoff <- attr(x, "pval_cutoff")
+    pval_cutoff <- attr(significance_result, "pval_cutoff")
   }
   if (is.null(log2fc_cutoff) || is.null(pval_cutoff)) {
-    stop("`x` does not carry the cutoffs estimate_significance() records, so ",
-         "`log2fc_cutoff` and `pval_cutoff` must be supplied. Selecting ",
-         "columns from the table drops them.", call. = FALSE)
+    stop("`significance_result` does not carry the cutoffs ",
+         "estimate_significance() records, so `log2fc_cutoff` and ",
+         "`pval_cutoff` must be supplied. Selecting columns from the table ",
+         "drops them.", call. = FALSE)
   }
   sa_check_scalar_num(log2fc_cutoff, "log2fc_cutoff", 0)
   sa_check_scalar_num(pval_cutoff, "pval_cutoff", 0, 1, lower_open = TRUE)
 
-  feats <- as.character(x$features)
+  feats <- as.character(significance_result$features)
   sa_check_feat_names(feats)
-  log2fc <- x$log2fc
-  pvalue <- x[[p_col]]
+  log2fc <- significance_result$log2fc
+  pvalue <- significance_result[[p_col]]
   sa_check_pvalues(pvalue, p_col)
 
   up_color   <- "#D73027"  # red
@@ -206,11 +240,14 @@ draw_volcano_plot <- function(x,
   } else {
     expression(-log[10] ~ italic(P))
   }
+  if (is.null(xlab)) {
+    xlab <- sa_volcano_xlab(significance_result)
+  }
 
   graphics::plot(
     plot_x,
     plot_y,
-    xlab = expression(log[2] ~ FC),
+    xlab = xlab,
     ylab = y_lab,
     xlim = xlim,
     ylim = ylim,
@@ -260,4 +297,29 @@ draw_volcano_plot <- function(x,
   }
 
   invisible(NULL)
+}
+
+
+#' The x axis label a verdict table earns
+#'
+#' A multi-group omnibus verdict is the one reading whose `log2fc` does not
+#' compare two levels the caller named: it is the level furthest from the
+#' reference, and which level that is differs per feature. Saying so on the axis
+#' keeps the plot from being read as a two-group one. A contrast table of the
+#' same comparison does compare a named pair, so it is left alone.
+#'
+#' @keywords internal
+#' @noRd
+sa_volcano_xlab <- function(tbl) {
+  if (!identical(attr(tbl, "analysis"), "multi_group_comparison") ||
+        !is.null(attr(tbl, "contrast"))) {
+    return(expression(log[2] ~ FC))
+  }
+  reference <- attr(tbl, "group_lv")[1]
+  named <- if (length(reference) == 1L && !is.na(reference)) {
+    paste0("(most extreme level vs ", reference, ")")
+  } else {
+    "(most extreme level vs reference)"
+  }
+  as.expression(bquote(log[2] ~ FC ~ .(named)))
 }

@@ -67,18 +67,20 @@ test_that("the trimmed mean ANOVA ignores a value already in the tail", {
               clean$tests$anova_test$f_stat, 0.9)
 })
 
-test_that("Tukey contrasts match stats::TukeyHSD up to the pair direction", {
+test_that("Tukey contrasts match stats::TukeyHSD", {
   res <- sa_multi_group_fixture()
   reference <- stats::TukeyHSD(stats::aov(Petal.Width ~ Species,
                                           data = iris))$Species
   tbl <- res$posthoc$anova_test
   tbl <- tbl[tbl$features == "Petal.Width", ]
 
-  # TukeyHSD labels a pair "later-earlier"; the package orders it by group_lv,
-  # so every estimate and both bounds come out negated and swapped.
-  expect_equal(tbl$estimate, unname(-reference[, "diff"]))
-  expect_equal(tbl$lower_conf, unname(-reference[, "upr"]))
-  expect_equal(tbl$upper_conf, unname(-reference[, "lwr"]))
+  # TukeyHSD labels a pair "later-earlier" and so does the package, so the two
+  # are compared as they stand rather than through a sign flip.
+  expect_identical(tbl$contrast, sub("-", " - ", rownames(reference),
+                                     fixed = TRUE))
+  expect_equal(tbl$estimate, unname(reference[, "diff"]))
+  expect_equal(tbl$lower_conf, unname(reference[, "lwr"]))
+  expect_equal(tbl$upper_conf, unname(reference[, "upr"]))
   expect_equal(tbl$pval, unname(reference[, "p adj"]), tolerance = 1e-7)
 })
 
@@ -121,7 +123,7 @@ test_that("only features clearing posthoc_alpha enter the pairwise stage", {
 
 test_that("posthoc = FALSE runs no pairwise stage at all", {
   res <- sa_multi_group_fixture(posthoc = FALSE)
-  expect_identical(res$posthoc, structure(list(), names = character(0)))
+  expect_false("posthoc" %in% names(res))
   expect_true(all(res$parameters$n_posthoc == 0L))
 })
 
@@ -140,6 +142,25 @@ test_that("the effect table points at the level furthest from the reference", {
   narrow <- res$effect[res$effect$features == "Sepal.Width", ]
   expect_identical(narrow$extreme_level, "versicolor")
   expect_lt(narrow$log2fc, 0)
+})
+
+test_that("a contrast against the reference agrees in sign with log2fc", {
+  # The two ways of reading one comparison have to point the same way. A feature
+  # a volcano plot draws as raised, its log2fc dividing the most extreme level by
+  # the reference, must not come back as lowered from the post-hoc contrast
+  # between those same two levels, which is what a forest plot draws.
+  res <- sa_multi_group_fixture()
+  reference <- res$design$group_lv[1]
+  tbl <- res$posthoc$anova_test
+
+  for (i in seq_along(res$features)) {
+    f <- res$features[i]
+    row <- tbl[tbl$features == f &
+                 tbl$group1 == res$effect$extreme_level[i] &
+                 tbl$group2 == reference, ]
+    expect_identical(nrow(row), 1L, info = f)
+    expect_identical(sign(row$estimate), sign(res$effect$log2fc[i]), info = f)
+  }
 })
 
 test_that("repeated measures ANOVA matches aov with an Error stratum", {
@@ -209,8 +230,8 @@ test_that("pairwise paired t contrasts match stats::t.test", {
                          direction = "wide")
   res <- sa_repeated_fixture()
   tbl <- res$posthoc$anova_test
-  row <- tbl[tbl$group1 == "t1" & tbl$group2 == "t3", ]
-  reference <- stats::t.test(wide[["value.t1"]], wide[["value.t3"]],
+  row <- tbl[tbl$group1 == "t3" & tbl$group2 == "t1", ]
+  reference <- stats::t.test(wide[["value.t3"]], wide[["value.t1"]],
                              paired = TRUE)
 
   expect_equal(row$statistic, unname(reference$statistic))

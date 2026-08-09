@@ -4,8 +4,9 @@
 #
 # Every function here returns a matrix with one row per pair, in the row order
 # of `sa_level_pairs()`, and the columns `sa_posthoc_table()` expects. The
-# estimate reads as `group_lv[i] - group_lv[j]` with `i < j`, the same direction
-# rule `group_lv` fixes everywhere else.
+# estimate reads as `group_lv[j] - group_lv[i]` with `i < j`, the same direction
+# rule `group_lv` fixes everywhere else: the reference is the first level, so it
+# is the one being subtracted.
 
 
 #' Column layout of one post-hoc pair

@@ -32,9 +32,9 @@ One output row per entry.}
 \item{group}{Grouping vector with one entry per row of \code{data}.}
 
 \item{group_lv}{Character vector of at least three group levels. The first is
-the reference the \code{effect} table is expressed against, and the order fixes
-the direction of every post-hoc contrast. Rows belonging to any other level
-are dropped.}
+the reference the \code{effect} table is expressed against and the level every
+post-hoc contrast subtracts, so a contrast reads \code{treat_1 - control} rather
+than the other way round. Rows belonging to any other level are dropped.}
 
 \item{id}{Subject identifier with one entry per row of \code{data}. Required when
 \code{paired = TRUE} and ignored otherwise.}
@@ -47,8 +47,8 @@ repeated conditions measured on the subjects named by \code{id}.}
 \item{tr}{Trimming proportion for the trimmed mean ANOVA, in \verb{[0, 0.5)}.
 Ignored when \code{paired = TRUE}.}
 
-\item{posthoc}{Logical. If \code{FALSE}, no pairwise stage runs and \verb{$posthoc} is
-an empty list.}
+\item{posthoc}{Logical. If \code{FALSE}, no pairwise stage runs and the result
+carries no \verb{$posthoc} or \verb{$pairwise} slot.}
 
 \item{posthoc_alpha}{A feature enters the post-hoc stage when its omnibus
 \code{pval_adj} is at or below this value. Set it to 1 to compare every feature
@@ -76,11 +76,10 @@ and outlier checks the tests rest on are attached as \verb{$diagnostics}.}
 }
 \value{
 A \code{sa_comparison} object with the same layout
-\code{\link[=compare_two_groups]{compare_two_groups()}} returns, plus a populated \code{posthoc} slot. Its
-elements are
+\code{\link[=compare_two_groups]{compare_two_groups()}} returns, plus the \code{posthoc} and \code{pairwise} slots
+that only a comparison of three or more levels has. Its elements are
 
 \describe{
-\item{\code{schema_version}}{Version of this layout, \code{"0.2.1"}.}
 \item{\code{analysis}}{\code{"multi_group_comparison"}.}
 \item{\code{features}}{The feature names, in the row order every table uses.}
 \item{\code{design}}{\code{group_lv}, \code{paired}, \code{pairing}, \code{n_dropped} and
@@ -92,7 +91,9 @@ number of features that entered the pairwise stage per test.}
 \item{\code{posthoc}}{One table per omnibus test, one row per feature and pair
 of levels, carrying \code{features}, \code{contrast}, \code{group1}, \code{group2}, \code{n1},
 \code{n2}, \code{estimate}, \code{stderr}, \code{statistic}, \code{df}, \code{pval}, \code{pval_adj},
-\code{lower_conf} and \code{upper_conf}.}
+\code{lower_conf} and \code{upper_conf}. Absent when \code{posthoc = FALSE}.}
+\item{\code{pairwise}}{The same numbers one contrast at a time, described
+below. Absent when \code{posthoc = FALSE}.}
 \item{\code{test_info}}{Per test, the method \code{id}, a readable \code{label} and the
 post-hoc procedure that followed it.}
 \item{\code{diagnostics}}{Assumption checks, or \code{NULL}.}
@@ -104,12 +105,13 @@ The \code{effect} table holds \code{n_used}, \code{n_groups}, \code{ref_center} 
 \code{group_lv[1]}), \code{extreme_level}, \code{extreme_center}, \code{fold_change} and
 \code{log2fc}. \code{extreme_level} is whichever level sits furthest from the
 reference on the log2 scale, and the ratio puts it over the reference, so a
-positive \code{log2fc} means that level is the higher one. Note that this is the
-opposite arrangement to \code{\link[=compare_two_groups]{compare_two_groups()}}, where \code{group_lv[1]} is the
-numerator: with three or more levels the first one reads as a reference
-rather than as one side of a contrast. Keeping the column named \code{log2fc}
-means \code{\link[=estimate_significance]{estimate_significance()}} and \code{\link[=draw_volcano_plot]{draw_volcano_plot()}} work on a
-multi-group result unchanged.
+positive \code{log2fc} means that level is the higher one. \code{group_lv[1]} is the
+denominator here exactly as it is in \code{\link[=compare_two_groups]{compare_two_groups()}}: the first
+level is the reference in both. The post-hoc contrasts subtract the
+reference for the same reason, so a feature the treatment raised is
+positive in \code{effect$log2fc} and in its post-hoc \code{estimate} alike.
+Keeping the column named \code{log2fc} means \code{\link[=estimate_significance]{estimate_significance()}} and
+\code{\link[=draw_volcano_plot]{draw_volcano_plot()}} work on a multi-group result unchanged.
 }
 \description{
 Compares three or more group levels across any number of numeric features and
@@ -165,6 +167,35 @@ Yuen and pairwise paired t-tests are adjusted across the contrasts within
 each feature.
 }
 
+\section{Reading one contrast at a time}{
+
+\verb{$posthoc} stacks every contrast of every feature into one long table, which
+is the honest record of what was asked but an awkward shape for a reader who
+came for a single comparison. \verb{$pairwise} holds the same numbers keyed first
+by test and then by contrast, so
+\code{res$pairwise$anova_test[["virginica - setosa"]]} is that one comparison
+across all features.
+
+Those tables are rectangular where \verb{$posthoc} is ragged: each holds every
+feature, in the order \code{features} fixes, so contrasts can be lined up against
+each other and against the omnibus tables by position. A feature that did not
+qualify is present with its inference columns \code{NA}.
+
+They add \code{fold_change} and \code{log2fc}, which no post-hoc procedure reports,
+being the ratio of the two group centres rather than anything a test
+produced. The ratio puts \code{group1} over \code{group2}, matching the direction
+\code{estimate} reads in, so the two always agree in sign. Note that this is a
+different quantity from \code{effect$log2fc}, which compares the most extreme
+level rather than a named pair, though the two now point the same way: both
+divide by the reference. A feature that never entered the pairwise stage
+still has its ratio: dividing two centres does not require a test to have
+been run.
+
+\code{\link[=estimate_significance]{estimate_significance()}} reads these tables with \code{by = "contrast"}, whose
+\code{significance} element is then one verdict table per contrast rather than one
+table.
+}
+
 \section{Repeated conditions}{
 
 A within-subject omnibus test needs a complete rectangle, so \code{id} is required
@@ -194,6 +225,11 @@ res$tests$kruskal_test
 
 ## The pairwise stage, one row per feature and pair
 head(res$posthoc$anova_test)
+
+## The same numbers one contrast at a time, every feature present. Setosa is
+## the reference, so it is the level every contrast subtracts.
+names(res$pairwise$anova_test)
+res$pairwise$anova_test[["virginica - setosa"]]
 
 ## Setosa is the reference, so a positive log2fc means the most extreme
 ## other species is the larger one.
@@ -236,5 +272,5 @@ Conover, W. J. (1999). \emph{Practical Nonparametric Statistics}, 3rd edition.
 \seealso{
 \code{\link[=compare_two_groups]{compare_two_groups()}} for exactly two levels,
 \code{\link[=diagnose_distribution]{diagnose_distribution()}} for the assumption checks on their own, and
-\code{\link[=plot.sa_comparison]{plot.sa_comparison()}} to draw the result.
+\code{\link[=draw_forest_plot]{draw_forest_plot()}} to draw the result.
 }
