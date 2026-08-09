@@ -16,7 +16,7 @@ test_that("the two-group tests still match their base R equivalents", {
   expect_equal(res$tests$wilcox_test$pval[row], ranked$p.value)
 })
 
-test_that("the fold change still puts group_lv[1] over group_lv[2]", {
+test_that("the fold change puts group_lv[2] over the reference group_lv[1]", {
   res <- sa_two_group_fixture()
   d <- iris[iris$Species != "setosa", ]
   row <- res$effect[res$effect$features == "Petal.Length", ]
@@ -29,7 +29,7 @@ test_that("the fold change still puts group_lv[1] over group_lv[2]", {
 test_that("the paired two-group path is unchanged", {
   res <- compare_two_groups(
     data.frame(v = sleep$extra), "v", paste0("g", sleep$group),
-    c("g2", "g1"), id = sleep$ID, paired = TRUE, diagnose = FALSE
+    c("g1", "g2"), id = sleep$ID, paired = TRUE, diagnose = FALSE
   )
   wide <- stats::reshape(sleep, idvar = "ID", timevar = "group",
                          direction = "wide")
@@ -42,9 +42,9 @@ test_that("the paired two-group path is unchanged", {
 test_that("adding the diagnose argument changed no other output", {
   d <- iris[iris$Species != "setosa", ]
   without <- compare_two_groups(d, sa_feats(), d$Species,
-                                c("virginica", "versicolor"), diagnose = FALSE)
+                                c("versicolor", "virginica"), diagnose = FALSE)
   with <- compare_two_groups(d, sa_feats(), d$Species,
-                             c("virginica", "versicolor"), diagnose = TRUE)
+                             c("versicolor", "virginica"), diagnose = TRUE)
 
   expect_equal(without$effect, with$effect)
   expect_equal(without$tests, with$tests)
@@ -67,7 +67,7 @@ test_that("the descriptive summary is unchanged", {
 test_that("the significance table and the volcano input are unchanged", {
   res <- sa_two_group_fixture()
   sig <- estimate_significance(res, test = "t_test", log2fc_cutoff = 0.5,
-                               pval_cutoff = 0.01)
+                               pval_cutoff = 0.01)$significance
   expect_identical(names(sig),
                    c("features", "log2fc", "pvalue", "adj_pvalue", "is_signif"))
   expect_identical(sig$log2fc, res$effect$log2fc)

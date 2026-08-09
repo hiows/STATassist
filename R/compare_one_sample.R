@@ -51,7 +51,8 @@
 #'   Every column of `effect` is on the original measurement scale, so with
 #'   `input_scale = "log2"` its `center`, `mu` and `diff` are back-transformed
 #'   and differ from the same-named columns of `tests$t_test`, which stay on the
-#'   scale the tests ran on. `posthoc` is empty.
+#'   scale the tests ran on. There is no `posthoc` or `pairwise` slot: a single
+#'   sample has no pair of levels to contrast.
 #'
 #'   Every test table starts with `n_used` and carries `pval`, `pval_adj`,
 #'   `lower_conf` and `upper_conf`. The remaining columns are:

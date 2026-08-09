@@ -40,8 +40,8 @@ and \code{variance_ok} flags of the summary table.}
 proportion, passed through to the Brown-Forsythe variant.}
 }
 \value{
-A \code{sa_diagnosis} object: a plain list carrying \code{schema_version},
-\code{analysis}, \code{features}, \code{design}, \code{parameters}, \code{metadata} and four tables.
+A \code{sa_diagnosis} object: a plain list carrying \code{analysis},
+\code{features}, \code{design}, \code{parameters}, \code{metadata} and four tables.
 
 \describe{
 \item{\code{normality}}{One row per feature and group level: \code{features},

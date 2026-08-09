@@ -30,8 +30,9 @@ One output row per entry.}
 \item{group}{Grouping vector with one entry per row of \code{data}.}
 
 \item{group_lv}{Character vector of exactly two group levels. The first is
-treated as \code{x}, the second as \code{y}, so all differences read as
-\code{group_lv[1] - group_lv[2]} and all ratios as \code{group_lv[1] / group_lv[2]}.
+the reference, treated as \code{y}, and the second is the level compared against
+it, treated as \code{x}, so all differences read as
+\code{group_lv[2] - group_lv[1]} and all ratios as \code{group_lv[2] / group_lv[1]}.
 Rows belonging to any other level are dropped.}
 
 \item{id}{Optional pairing key with one entry per row of \code{data}, used only
@@ -74,7 +75,6 @@ out as JSON and read back in another language, with an S3 class on top that
 only supplies \code{\link[=print]{print()}}. Its elements are
 
 \describe{
-\item{\code{schema_version}}{Version of this layout, \code{"0.2.1"}.}
 \item{\code{analysis}}{\code{"two_group_comparison"}.}
 \item{\code{features}}{The feature names, in the row order every table uses.}
 \item{\code{design}}{\code{group_lv}, \code{paired}, \code{pairing} (\code{"order"}, \code{"id"} or
@@ -82,13 +82,11 @@ only supplies \code{\link[=print]{print()}}. Its elements are
 level outside \code{group_lv}) and \code{unmatched_ids}.}
 \item{\code{parameters}}{\code{alternative}, \code{conf_level}, \code{tr}, \code{fc_mean},
 \code{input_scale} and \code{p_adjust}, as used.}
-\item{\code{effect}}{One row per feature: \code{x_center}, \code{y_center} (the two
-centres \code{fc_mean} selected), \code{fold_change} and \code{log2fc}.}
+\item{\code{effect}}{One row per feature: \code{x_center}, \code{y_center} (the centres
+\code{fc_mean} selected for \code{group_lv[2]} and for the reference
+\code{group_lv[1]}), \code{fold_change} and \code{log2fc}.}
 \item{\code{tests}}{\code{t_test}, \code{wilcox_test} and \code{robust_test}, described
 below.}
-\item{\code{posthoc}}{Empty: with two groups the omnibus comparison is
-already the only contrast there is. The slot exists so that a consumer
-reads every comparison result the same way.}
 \item{\code{test_info}}{Per test, the method \code{id}, a readable \code{label} and
 whether it was the paired variant.}
 \item{\code{diagnostics}}{Assumption checks, or \code{NULL} when \code{diagnose} is
@@ -97,11 +95,17 @@ whether it was the paired variant.}
 ISO-8601 \code{timestamp}.}
 }
 
+There is no \code{posthoc} or \code{pairwise} slot. With two groups the omnibus
+comparison is already the only contrast there is, so the question a
+post-hoc stage answers never arises. \code{\link[=compare_multiple_groups]{compare_multiple_groups()}} is where
+those two slots appear.
+
 Every table in \code{tests} has one row per feature and starts with \code{features},
 the per-group sample sizes \code{n_x} / \code{n_y} and \code{n_used} (total observations
 for independent samples, complete pairs for paired samples), and carries
-\code{pval}, \code{pval_adj}, \code{lower_conf} and \code{upper_conf}. The remaining columns
-are:
+\code{pval}, \code{pval_adj}, \code{lower_conf} and \code{upper_conf}. Every column named for
+\code{x} or \code{y} reads the same way throughout: \code{x} is \code{group_lv[2]} and \code{y} is
+the reference \code{group_lv[1]}. The remaining columns are:
 
 \describe{
 \item{\code{t_test}}{\code{x_mean}, \code{y_mean}, \code{mean_diff}, \code{stderr}, \code{t_stat},
@@ -110,7 +114,7 @@ for paired and independent designs.}
 \item{\code{wilcox_test}}{\code{hl_shift} (Hodges-Lehmann location shift, the
 pseudo-median of differences when paired) and \code{w_stat}.}
 \item{\code{robust_test}, independent}{\code{relative_effect}
-(\code{P(X > Y) + 0.5 * P(X = Y)}, above 0.5 when \code{group_lv[1]} is the
+(\code{P(X > Y) + 0.5 * P(X = Y)}, above 0.5 when \code{group_lv[2]} is the
 larger group), \code{bm_stat} and \code{df}. The interval is on the probability
 scale, so a one-sided alternative leaves it open at 0 or at 1 rather
 than at infinity.}
@@ -136,10 +140,11 @@ Which member of each family is used depends on \code{paired}:\tabular{lll}{
 
 
 Direction is set once, by the order of \code{group_lv}, and every quantity in the
-result follows it. \code{alternative = "greater"} tests whether \code{group_lv[1]}
-exceeds \code{group_lv[2]} in all three families, and \code{mean_diff}, \code{hl_shift},
-\code{trim_diff}, \code{fold_change} and \code{relative_effect} are all above their null
-value when \code{group_lv[1]} is the larger group.
+result follows it. The first level is the reference, as it is in
+\code{\link[=compare_multiple_groups]{compare_multiple_groups()}}, so \code{alternative = "greater"} tests whether
+\code{group_lv[2]} exceeds \code{group_lv[1]} in all three families, and \code{mean_diff},
+\code{hl_shift}, \code{trim_diff}, \code{fold_change} and \code{relative_effect} are all above
+their null value when \code{group_lv[2]} is the larger group.
 
 Features that cannot be tested do not abort the run. Their row is filled
 with \code{NA} and all such features are reported together in a single warning.

@@ -36,9 +36,11 @@
 #'   the log2 scale. The default of `c(1, 2.5)` is a two-fold to roughly
 #'   six-fold change, which straddles the `log2fc_cutoff = 1` that
 #'   [estimate_significance()] applies by default.
-#' @param group_lv The two group labels, the first being the one the effect is
-#'   applied to. Passed straight through to the returned arguments, so it also
-#'   fixes the direction [compare_two_groups()] reads.
+#' @param group_lv The two group labels, the first being the control and the
+#'   second the one the effect is applied to. Passed straight through to the
+#'   returned arguments, so it also fixes the direction
+#'   [compare_two_groups()] reads: a planted increase comes back as a positive
+#'   `log2fc` because the control is the reference.
 #' @param seed Seed for the draw, or `NULL` to use the stream as it stands.
 #'   Supplying one does not disturb the caller: the previous random number state
 #'   is put back when the function returns.
@@ -88,7 +90,7 @@
 #' ## The names in `args` are compare_two_groups()'s own, so the comparison is
 #' ## one call away.
 #' res <- do.call(compare_two_groups, sim$args)
-#' sig <- estimate_significance(res, test = "t_test")
+#' sig <- estimate_significance(res, test = "t_test")$significance
 #'
 #' ## Scored against what was planted. The off-diagonal cells are the two kinds
 #' ## of mistake: features that were planted and missed, and null features that
@@ -103,14 +105,16 @@
 #' ## Recall differs between the three families on the same data and the same
 #' ## truth, which is the reason all three are reported.
 #' vapply(names(res$tests), function(nm) {
-#'   hit <- estimate_significance(res, test = nm)$is_signif
+#'   hit <- estimate_significance(res, test = nm)$significance$is_signif
 #'   mean(hit[planted] %in% TRUE)
 #' }, numeric(1))
 #'
 #' ## Turning the noise up costs recall without changing what was planted.
 #' noisy <- simulate_two_groups(seed = 1, case_sd = c(4, 6),
 #'                              control_sd = c(4, 6))
-#' noisy_sig <- estimate_significance(do.call(compare_two_groups, noisy$args))
+#' noisy_sig <- estimate_significance(
+#'   do.call(compare_two_groups, noisy$args)
+#' )$significance
 #' mean(noisy_sig$is_signif[noisy$truth$direction != "none"] %in% TRUE)
 #'
 #' @export
@@ -123,7 +127,7 @@ simulate_two_groups <- function(n_feats = 100,
                                 case_sd = c(1.8, 3.2),
                                 control_sd = c(1.2, 2.4),
                                 deg_log2fc = c(1, 2.5),
-                                group_lv = c("case", "control"),
+                                group_lv = c("control", "case"),
                                 seed = NULL) {
 
   n_feats <- sa_check_count(n_feats, "n_feats", 1)
@@ -145,20 +149,8 @@ simulate_two_groups <- function(n_feats = 100,
          call. = FALSE)
   }
 
-  if (!is.null(seed)) {
-    sa_check_scalar_num(seed, "seed")
-    # A simulation is only reproducible if it seeds the stream, and only polite
-    # if it puts the stream back. Without the restore, calling this in the
-    # middle of a script would silently reset everything drawn after it.
-    if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
-      previous <- get(".Random.seed", envir = globalenv(), inherits = FALSE)
-      on.exit(assign(".Random.seed", previous, envir = globalenv()), add = TRUE)
-    } else {
-      on.exit(suppressWarnings(rm(".Random.seed", envir = globalenv())),
-              add = TRUE)
-    }
-    set.seed(seed)
-  }
+  restore_seed <- sa_preserve_seed(seed)
+  on.exit(restore_seed(), add = TRUE)
 
   feats <- paste0("gene_", seq_len(n_feats))
   baseline <- stats::runif(n_feats, expr_range[1], expr_range[2])
@@ -185,8 +177,13 @@ simulate_two_groups <- function(n_feats = 100,
       stats::rnorm(n, mean = center[i], sd = spread[i])
     }, numeric(n))
   }
-  values <- rbind(draw(n_case, baseline + delta, sd_case),
-                  draw(n_control, baseline, sd_control))
+  # Drawn case first and stacked control first. `group_lv` names the control
+  # ahead of the case group, so the rows have to follow, while the order the
+  # draws consume the random stream is left alone: reversing that instead would
+  # hand a seed that used to give one data set a different one.
+  case_values <- draw(n_case, baseline + delta, sd_case)
+  control_values <- draw(n_control, baseline, sd_control)
+  values <- rbind(control_values, case_values)
 
   data <- as.data.frame(values)
   names(data) <- feats
@@ -196,7 +193,7 @@ simulate_two_groups <- function(n_feats = 100,
     args = list(
       data        = data,
       feats       = feats,
-      group       = rep(group_lv, times = c(n_case, n_control)),
+      group       = rep(group_lv, times = c(n_control, n_case)),
       group_lv    = group_lv,
       input_scale = "log2"
     ),

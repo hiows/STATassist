@@ -14,7 +14,7 @@ simulate_two_groups(
   case_sd = c(1.8, 3.2),
   control_sd = c(1.2, 2.4),
   deg_log2fc = c(1, 2.5),
-  group_lv = c("case", "control"),
+  group_lv = c("control", "case"),
   seed = NULL
 )
 }
@@ -46,9 +46,11 @@ the log2 scale. The default of \code{c(1, 2.5)} is a two-fold to roughly
 six-fold change, which straddles the \code{log2fc_cutoff = 1} that
 \code{\link[=estimate_significance]{estimate_significance()}} applies by default.}
 
-\item{group_lv}{The two group labels, the first being the one the effect is
-applied to. Passed straight through to the returned arguments, so it also
-fixes the direction \code{\link[=compare_two_groups]{compare_two_groups()}} reads.}
+\item{group_lv}{The two group labels, the first being the control and the
+second the one the effect is applied to. Passed straight through to the
+returned arguments, so it also fixes the direction
+\code{\link[=compare_two_groups]{compare_two_groups()}} reads: a planted increase comes back as a positive
+\code{log2fc} because the control is the reference.}
 
 \item{seed}{Seed for the draw, or \code{NULL} to use the stream as it stands.
 Supplying one does not disturb the caller: the previous random number state
@@ -116,7 +118,7 @@ table(sim$truth$direction)
 ## The names in `args` are compare_two_groups()'s own, so the comparison is
 ## one call away.
 res <- do.call(compare_two_groups, sim$args)
-sig <- estimate_significance(res, test = "t_test")
+sig <- estimate_significance(res, test = "t_test")$significance
 
 ## Scored against what was planted. The off-diagonal cells are the two kinds
 ## of mistake: features that were planted and missed, and null features that
@@ -131,14 +133,16 @@ table(truth = sim$truth$direction[called], sign = sign(sig$log2fc[called]))
 ## Recall differs between the three families on the same data and the same
 ## truth, which is the reason all three are reported.
 vapply(names(res$tests), function(nm) {
-  hit <- estimate_significance(res, test = nm)$is_signif
+  hit <- estimate_significance(res, test = nm)$significance$is_signif
   mean(hit[planted] \%in\% TRUE)
 }, numeric(1))
 
 ## Turning the noise up costs recall without changing what was planted.
 noisy <- simulate_two_groups(seed = 1, case_sd = c(4, 6),
                              control_sd = c(4, 6))
-noisy_sig <- estimate_significance(do.call(compare_two_groups, noisy$args))
+noisy_sig <- estimate_significance(
+  do.call(compare_two_groups, noisy$args)
+)$significance
 mean(noisy_sig$is_signif[noisy$truth$direction != "none"] \%in\% TRUE)
 
 }

@@ -6,9 +6,9 @@
 # observations: under `paired = TRUE` the tests keep complete pairs only, and a
 # separately computed fold change would quietly average a different set of rows.
 #
-# The direction is not an argument either. It follows `group_lv`, the same order
-# the tests read as `group_lv[1] - group_lv[2]`, so the x and y axes of a volcano
-# plot cannot end up pointing opposite ways.
+# The direction is not an argument either. The caller hands over the two levels
+# already in `x`, `y` order, the same order the tests read as `x - y`, so the x
+# and y axes of a volcano plot cannot end up pointing opposite ways.
 #
 # `input_scale` is the one thing here the tests do not share. They run on the
 # values as supplied, which is the point of logging them, while these centres
@@ -81,7 +81,9 @@ sa_fc_center <- function(v, side, mean_type, input_scale = "raw") {
 #' @param samples List of `list(x = , y = )` per feature, already reduced to the
 #'   observations the tests used.
 #' @param feats Feature names, one output row per entry.
-#' @param group_lv The two group levels, `group_lv[1]` going in the numerator.
+#' @param group_lv The two group levels in `x`, `y` order, the first going in
+#'   the numerator. Note that this is the reverse of the display order the user
+#'   supplies, where the reference comes first.
 #' @param mean_type `"arith"` or `"geom"`.
 #' @param input_scale `"raw"` or `"log2"`.
 #'

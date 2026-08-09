@@ -12,11 +12,11 @@ sa_logged_iris <- function() {
 test_that("log2 input reproduces the geometric mean fold change of raw input", {
   d <- iris[iris$Species != "setosa", ]
   raw_geom <- compare_two_groups(d, sa_feats(), d$Species,
-                                 c("virginica", "versicolor"),
+                                 c("versicolor", "virginica"),
                                  fc_mean = "geom", diagnose = FALSE)
   logged <- sa_logged_iris()
   on_log2 <- compare_two_groups(logged, sa_feats(), logged$Species,
-                                c("virginica", "versicolor"),
+                                c("versicolor", "virginica"),
                                 input_scale = "log2", diagnose = FALSE)
 
   # exp(mean(log(2^v))) is 2^mean(v), so the two paths are the same quantity
@@ -27,7 +27,7 @@ test_that("log2 input reproduces the geometric mean fold change of raw input", {
 test_that("log2 input reduces the fold change to a difference of means", {
   logged <- sa_logged_iris()
   res <- compare_two_groups(logged, sa_feats(), logged$Species,
-                            c("virginica", "versicolor"),
+                            c("versicolor", "virginica"),
                             input_scale = "log2", diagnose = FALSE)
   row <- res$effect$features == "Petal.Length"
   x <- logged$Petal.Length[logged$Species == "virginica"]
@@ -45,7 +45,8 @@ test_that("two negative log2 centres are an increase, not a decrease", {
   # answer and the only thing under examination is the effect table.
   d <- data.frame(v = c(-2, -1, 0, -3, -2, -1),
                   g = rep(c("a", "b"), each = 3))
-  args <- list(data = d, feats = "v", group = d$g, group_lv = c("a", "b"),
+  # b is the reference, so the ratio reads a over b.
+  args <- list(data = d, feats = "v", group = d$g, group_lv = c("b", "a"),
                diagnose = FALSE)
 
   on_log2 <- do.call(compare_two_groups, c(args, input_scale = "log2"))
@@ -61,7 +62,7 @@ test_that("two negative log2 centres are an increase, not a decrease", {
 test_that("input_scale changes the effect table and nothing else", {
   logged <- sa_logged_iris()
   common <- list(data = logged, feats = sa_feats(), group = logged$Species,
-                 group_lv = c("virginica", "versicolor"), diagnose = FALSE)
+                 group_lv = c("versicolor", "virginica"), diagnose = FALSE)
   untouched <- do.call(compare_two_groups, c(common, fc_mean = "arith"))
   converted <- do.call(compare_two_groups, c(common, input_scale = "log2"))
 
@@ -78,7 +79,7 @@ test_that("fc_mean defaults to geom on the log2 scale and arith otherwise", {
   logged <- sa_logged_iris()
   fc_mean_of <- function(...) {
     compare_two_groups(logged, "Sepal.Length", logged$Species,
-                       c("virginica", "versicolor"), diagnose = FALSE,
+                       c("versicolor", "virginica"), diagnose = FALSE,
                        ...)$parameters$fc_mean
   }
 

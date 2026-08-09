@@ -124,7 +124,15 @@ draw_grouped_boxplot <- function(data,
     start + seq_len(n_lv)
   })
 
-  old_par <- graphics::par(no.readonly = TRUE)
+  # Only the parameters this function sets are put back, not a blanket
+  # par(no.readonly = TRUE) snapshot. That snapshot also carries `fin`, `pin`
+  # and `mai`, which are absolute sizes: restoring them pins the figure to the
+  # size this plot happened to be drawn at, so the next plot on a device that
+  # has since been resized is redrawn small in a corner of it. `mfrow` comes
+  # back with the rest, since `layout()` overwrites whatever grid the caller
+  # had set up.
+  old_par <- graphics::par(c("bg", "fg", "col.axis", "col.lab", "col.main",
+                             "mar", "mfrow"))
   on.exit({
     graphics::layout(1)
     graphics::par(old_par)

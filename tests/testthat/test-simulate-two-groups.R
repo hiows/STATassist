@@ -63,10 +63,23 @@ test_that("the two group sizes are honoured separately", {
 
 test_that("group_lv sets both the labels and the direction", {
   sim <- simulate_two_groups(seed = 1, n_feats = 6, n_up = 2, n_down = 2,
-                             group_lv = c("treated", "untreated"))
+                             group_lv = c("untreated", "treated"))
 
-  expect_identical(sim$args$group_lv, c("treated", "untreated"))
+  expect_identical(sim$args$group_lv, c("untreated", "treated"))
   expect_identical(sort(unique(sim$args$group)), c("treated", "untreated"))
+})
+
+test_that("the control is the first level and the effect goes on the second", {
+  sim <- simulate_two_groups(seed = 1, n_feats = 6, n_up = 2, n_down = 2)
+
+  expect_identical(sim$args$group_lv, c("control", "case"))
+  # The rows follow the levels, so a comparison and a boxplot of the same
+  # arguments both read control first.
+  expect_identical(unique(sim$args$group), c("control", "case"))
+
+  res <- do.call(compare_two_groups, c(sim$args, diagnose = FALSE))
+  up <- sim$truth$direction == "up"
+  expect_true(all(res$effect$log2fc[up] > 0))
 })
 
 test_that("no feature is planted when none is asked for", {
@@ -136,7 +149,7 @@ test_that("the defaults leave a comparison most but not all of the answer", {
   # the recall is any particular number.
   sim <- simulate_two_groups(seed = 1)
   res <- do.call(compare_two_groups, c(sim$args, diagnose = FALSE))
-  sig <- estimate_significance(res)
+  sig <- estimate_significance(res)$significance
 
   planted <- sim$truth$direction != "none"
   recall <- mean(sig$is_signif[planted] %in% TRUE)

@@ -43,8 +43,8 @@
 #' @param center,trim Centre used by the Levene test and its trimming
 #'   proportion, passed through to the Brown-Forsythe variant.
 #'
-#' @return A `sa_diagnosis` object: a plain list carrying `schema_version`,
-#'   `analysis`, `features`, `design`, `parameters`, `metadata` and four tables.
+#' @return A `sa_diagnosis` object: a plain list carrying `analysis`,
+#'   `features`, `design`, `parameters`, `metadata` and four tables.
 #'
 #'   \describe{
 #'     \item{`normality`}{One row per feature and group level: `features`,
@@ -272,7 +272,6 @@ sa_new_diagnosis <- function(features, design, parameters, normality, variance,
 
   structure(
     list(
-      schema_version = sa_schema_version(),
       analysis       = "distribution_diagnosis",
       features       = features,
       design         = design,

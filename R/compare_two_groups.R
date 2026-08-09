@@ -15,10 +15,11 @@
 #' | robust  | Brunner-Munzel            | Yuen's trimmed mean (dependent) |
 #'
 #' Direction is set once, by the order of `group_lv`, and every quantity in the
-#' result follows it. `alternative = "greater"` tests whether `group_lv[1]`
-#' exceeds `group_lv[2]` in all three families, and `mean_diff`, `hl_shift`,
-#' `trim_diff`, `fold_change` and `relative_effect` are all above their null
-#' value when `group_lv[1]` is the larger group.
+#' result follows it. The first level is the reference, as it is in
+#' [compare_multiple_groups()], so `alternative = "greater"` tests whether
+#' `group_lv[2]` exceeds `group_lv[1]` in all three families, and `mean_diff`,
+#' `hl_shift`, `trim_diff`, `fold_change` and `relative_effect` are all above
+#' their null value when `group_lv[2]` is the larger group.
 #'
 #' @param data A data.frame (or matrix) in wide format, one row per
 #'   observation and one column per feature.
@@ -26,8 +27,9 @@
 #'   One output row per entry.
 #' @param group Grouping vector with one entry per row of `data`.
 #' @param group_lv Character vector of exactly two group levels. The first is
-#'   treated as `x`, the second as `y`, so all differences read as
-#'   `group_lv[1] - group_lv[2]` and all ratios as `group_lv[1] / group_lv[2]`.
+#'   the reference, treated as `y`, and the second is the level compared against
+#'   it, treated as `x`, so all differences read as
+#'   `group_lv[2] - group_lv[1]` and all ratios as `group_lv[2] / group_lv[1]`.
 #'   Rows belonging to any other level are dropped.
 #' @param id Optional pairing key with one entry per row of `data`, used only
 #'   when `paired = TRUE`. Supplying it matches observations by key instead of
@@ -60,7 +62,6 @@
 #'   only supplies [print()]. Its elements are
 #'
 #'   \describe{
-#'     \item{`schema_version`}{Version of this layout, `"0.2.1"`.}
 #'     \item{`analysis`}{`"two_group_comparison"`.}
 #'     \item{`features`}{The feature names, in the row order every table uses.}
 #'     \item{`design`}{`group_lv`, `paired`, `pairing` (`"order"`, `"id"` or
@@ -68,13 +69,11 @@
 #'       level outside `group_lv`) and `unmatched_ids`.}
 #'     \item{`parameters`}{`alternative`, `conf_level`, `tr`, `fc_mean`,
 #'       `input_scale` and `p_adjust`, as used.}
-#'     \item{`effect`}{One row per feature: `x_center`, `y_center` (the two
-#'       centres `fc_mean` selected), `fold_change` and `log2fc`.}
+#'     \item{`effect`}{One row per feature: `x_center`, `y_center` (the centres
+#'       `fc_mean` selected for `group_lv[2]` and for the reference
+#'       `group_lv[1]`), `fold_change` and `log2fc`.}
 #'     \item{`tests`}{`t_test`, `wilcox_test` and `robust_test`, described
 #'       below.}
-#'     \item{`posthoc`}{Empty: with two groups the omnibus comparison is
-#'       already the only contrast there is. The slot exists so that a consumer
-#'       reads every comparison result the same way.}
 #'     \item{`test_info`}{Per test, the method `id`, a readable `label` and
 #'       whether it was the paired variant.}
 #'     \item{`diagnostics`}{Assumption checks, or `NULL` when `diagnose` is
@@ -83,11 +82,17 @@
 #'       ISO-8601 `timestamp`.}
 #'   }
 #'
+#'   There is no `posthoc` or `pairwise` slot. With two groups the omnibus
+#'   comparison is already the only contrast there is, so the question a
+#'   post-hoc stage answers never arises. [compare_multiple_groups()] is where
+#'   those two slots appear.
+#'
 #'   Every table in `tests` has one row per feature and starts with `features`,
 #'   the per-group sample sizes `n_x` / `n_y` and `n_used` (total observations
 #'   for independent samples, complete pairs for paired samples), and carries
-#'   `pval`, `pval_adj`, `lower_conf` and `upper_conf`. The remaining columns
-#'   are:
+#'   `pval`, `pval_adj`, `lower_conf` and `upper_conf`. Every column named for
+#'   `x` or `y` reads the same way throughout: `x` is `group_lv[2]` and `y` is
+#'   the reference `group_lv[1]`. The remaining columns are:
 #'
 #'   \describe{
 #'     \item{`t_test`}{`x_mean`, `y_mean`, `mean_diff`, `stderr`, `t_stat`,
@@ -96,7 +101,7 @@
 #'     \item{`wilcox_test`}{`hl_shift` (Hodges-Lehmann location shift, the
 #'       pseudo-median of differences when paired) and `w_stat`.}
 #'     \item{`robust_test`, independent}{`relative_effect`
-#'       (`P(X > Y) + 0.5 * P(X = Y)`, above 0.5 when `group_lv[1]` is the
+#'       (`P(X > Y) + 0.5 * P(X = Y)`, above 0.5 when `group_lv[2]` is the
 #'       larger group), `bm_stat` and `df`. The interval is on the probability
 #'       scale, so a one-sided alternative leaves it open at 0 or at 1 rather
 #'       than at infinity.}
@@ -269,15 +274,20 @@ compare_two_groups <- function(data,
             " row(s) belonging to a level outside `group_lv`.")
   }
 
+  # `group_lv` is given in display order, reference first, while `x` and `y` are
+  # the two sides of every difference the tests report. The reference is the one
+  # subtracted, so the two orders are reverses of each other.
+  lv_xy <- rev(group_lv)
+
   if (!paired) {
-    idx_x <- which(group == group_lv[1])
-    idx_y <- which(group == group_lv[2])
+    idx_x <- which(group == lv_xy[1])
+    idx_y <- which(group == lv_xy[2])
     unmatched <- character(0)
   } else {
     pairing <- if (is.null(id)) {
-      sa_pair_by_order(group, group_lv)
+      sa_pair_by_order(group, lv_xy)
     } else {
-      sa_pair_by_id(id, group, group_lv)
+      sa_pair_by_id(id, group, lv_xy)
     }
     idx_x <- pairing$idx_x
     idx_y <- pairing$idx_y
@@ -304,7 +314,7 @@ compare_two_groups <- function(data,
   })
   names(samples) <- feats
 
-  effect <- sa_fold_change(samples, feats, group_lv, fc_mean, input_scale)
+  effect <- sa_fold_change(samples, feats, lv_xy, fc_mean, input_scale)
 
 
   # T-test
@@ -470,8 +480,10 @@ compare_two_groups <- function(data,
       # Built from `samples`, not from the original columns: a paired design
       # keeps complete pairs only, and a diagnosis run on the full column would
       # describe a different set of observations than the p-value beside it.
+      # The two samples go back into display order here, so the diagnosis reads
+      # reference first the way every other per-level table in the package does.
       sa_diagnose_samples(
-        lapply(samples, function(s) stats::setNames(list(s$x, s$y), group_lv)),
+        lapply(samples, function(s) stats::setNames(list(s$y, s$x), group_lv)),
         feats, group_lv, paired = FALSE
       )
     } else {

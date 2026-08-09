@@ -66,7 +66,8 @@ A \code{sa_comparison} object with the layout described in
 Every column of \code{effect} is on the original measurement scale, so with
 \code{input_scale = "log2"} its \code{center}, \code{mu} and \code{diff} are back-transformed
 and differ from the same-named columns of \code{tests$t_test}, which stay on the
-scale the tests ran on. \code{posthoc} is empty.
+scale the tests ran on. There is no \code{posthoc} or \code{pairwise} slot: a single
+sample has no pair of levels to contrast.
 
 Every test table starts with \code{n_used} and carries \code{pval}, \code{pval_adj},
 \code{lower_conf} and \code{upper_conf}. The remaining columns are:
