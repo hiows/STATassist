@@ -1,6 +1,6 @@
 Package: STATassist
 Title: Standardised Statistical Comparison Workflows
-Version: 0.2.0
+Version: 0.6.0
 Authors@R: 
     person("Wonseok", "Oh", , "hiows97@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0009-0002-0687-8466"))
@@ -12,12 +12,18 @@ Description: Runs every test applicable to a comparison through a single
     adjusted p-values, so that a conclusion is never based on a single test.
     Multi-group comparison pairs each omnibus test with the post-hoc procedure
     that shares its assumptions. Assumption diagnostics are attached to every
-    result and never change which tests run. Significance tables and volcano,
-    forest, boxplot and back-to-back histogram visualisations are derived from
-    the same result object, which keeps effect sizes and p-values describing the
-    same observations. A simulator returns two-group data together with the
-    effects planted in it, so a verdict can be scored against an answer that is
-    known. The implemented methods include those described by Welch
+    result and never change which tests run. Significance tables and volcano and
+    forest visualisations are derived from the same result object, which keeps
+    effect sizes and p-values describing the same observations, while boxplot,
+    clustered heatmap and back-to-back histogram visualisations read the wide
+    input the comparisons take. Supervised models for a continuous or a two-class
+    outcome, and principal component, t-SNE and UMAP embeddings, return two further
+    contracts built the same way, with one train/test partition function ahead of
+    them that keeps a sampling unit on one side of the split. Simulators return
+    two-group, multi-group and supervised learning data together with the effects
+    and coefficients planted in them, so a verdict can be scored against an answer
+    that is known. The implemented methods include those described by
+    Welch
     (1947) <doi:10.1093/biomet/34.1-2.28>, Wilcoxon (1945)
     <doi:10.2307/3001968>, Mann and Whitney (1947)
     <doi:10.1214/aoms/1177730491>, Kruskal and Wallis (1952)
@@ -34,9 +40,15 @@ Encoding: UTF-8
 Depends: 
     R (>= 4.1.0)
 Imports: 
+    caret,
+    glmnet,
     grDevices,
     graphics,
+    kernlab,
+    randomForest,
+    Rtsne,
     stats,
+    umap,
     utils
 Suggests: 
     jsonlite,
