@@ -9,6 +9,7 @@ fit_svm(
   outcome,
   predictors = NULL,
   outcome_lv = NULL,
+  control_label = outcome_lv[1],
   C = 2^seq(-5, 10, by = 2),
   sigma = NULL,
   n_permute = 10,
@@ -38,6 +39,10 @@ it also states that the outcome is to be classified, which is the one thing a
 numeric column holding two values cannot say on its own. \code{NULL} sorts the
 classes of an outcome that is not numeric, and leaves a numeric one to the
 regression.}
+
+\item{control_label}{The reference class on its own, for when the other one
+needs no saying. Defaults to \code{outcome_lv[1]}, so a call that names one of the
+two names the reference either way; naming both and disagreeing is an error.}
 
 \item{C}{Cost of violating the margin, one value to score or several to choose
 between. Larger fits the training rows harder and generalises less.}
@@ -183,7 +188,10 @@ decision values by an internal cross-validation of \code{kernlab}'s own, which i
 second thing \code{seed} fixes and a reason two machines fitted without one predict
 slightly different probabilities from the same decisions. The importance table
 has no direction to report, which is why there is no \code{odds_ratio} column beside
-it.
+it. \code{control_label} names the reference on its own and is enough by itself to
+make a column of zeroes and ones a classification; naming it alongside an
+\code{outcome_lv} that puts the other class first is an error, as it is in
+\code{\link[=fit_logistic_regression]{fit_logistic_regression()}}.
 }
 \examples{
 ## Fitted on every row, scored on rows each fold had not seen. The table is in

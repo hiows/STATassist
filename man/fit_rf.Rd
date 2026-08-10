@@ -9,6 +9,7 @@ fit_rf(
   outcome,
   predictors = NULL,
   outcome_lv = NULL,
+  control_label = outcome_lv[1],
   mtry = NULL,
   ntree = 500,
   nodesize = NULL,
@@ -38,6 +39,10 @@ it also states that the outcome is to be classified, which is the one thing a
 numeric column holding two values cannot say on its own. \code{NULL} sorts the
 classes of an outcome that is not numeric, and leaves a numeric one to the
 regression.}
+
+\item{control_label}{The reference class on its own, for when the other one
+needs no saying. Defaults to \code{outcome_lv[1]}, so a call that names one of the
+two names the reference either way; naming both and disagreeing is an error.}
 
 \item{mtry}{Predictors offered at each split, one value to score or several to
 choose between. \code{NULL} is the rule of thumb: \code{floor(sqrt(p))} for a
@@ -168,7 +173,12 @@ For a two-class outcome the direction is \code{outcome_lv}, read as
 \code{oob_specificity} the share of \code{outcome_lv[1]} it left alone, and
 \code{predict(model, newdata, type = "response")} is the probability of
 \code{outcome_lv[2]}. The importance table itself has no direction to report, which
-is why there is no \code{odds_ratio} column beside it.
+is why there is no \code{odds_ratio} column beside it. \code{control_label} says the
+same thing with one name instead of two and says it alone, so it too is enough
+to make a column of zeroes and ones a classification. Naming both and pointing
+them at different classes is an error rather than a re-pointing, since an
+\code{outcome_lv} holds the two classes and nothing else; the comparison functions
+read the argument the other way, as \code{\link[=compare_two_groups]{compare_two_groups()}} describes.
 
 A forest is random beyond the folds — the rows of each tree and the predictors
 of each split are both draws — so \code{seed} fixes more here than it does in the

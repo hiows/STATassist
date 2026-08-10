@@ -188,6 +188,49 @@ sa_validate_wide_input <- function(data,
 }
 
 
+#' Move the named level to the front of the display order
+#'
+#' `group_lv` is a required argument of every comparison, so the reference is
+#' already stated by its first element and `control_label` cannot be a way of
+#' stating it for the first time. What it is instead is a way of re-pointing it.
+#' The named level moves to the front and the rest keep the order they were
+#' given, so a `group_lv` that arrived from [levels()] or from a simulator's
+#' `args` can be pointed at the right reference without being rewritten by hand.
+#'
+#' This is where a comparison parts company with `sa_outcome_levels()`, which
+#' refuses a `control_label` that disagrees with an `outcome_lv` the caller
+#' named. Two class labels are all a model's `outcome_lv` holds, so writing both
+#' and then naming the other one as the reference is a contradiction with no
+#' second reading. `group_lv` carries the display order of every level as well,
+#' which `control_label` says nothing about, so re-pointing the reference leaves
+#' most of what it said standing and is a correction rather than a conflict.
+#'
+#' @param group_lv Group levels in display order, already validated.
+#' @param control_label The level to hold as the reference, or `NULL` to leave
+#'   the order as it arrived.
+#'
+#' @return `group_lv` with `control_label` first and the rest in their order.
+#'
+#' @keywords internal
+#' @noRd
+sa_control_first <- function(group_lv, control_label) {
+  if (is.null(control_label)) {
+    return(group_lv)
+  }
+  if (length(control_label) != 1L || is.na(control_label)) {
+    stop("`control_label` must be a single level name, the one to hold as ",
+         "the reference.", call. = FALSE)
+  }
+  control_label <- as.character(control_label)
+  if (!control_label %in% group_lv) {
+    stop("`control_label` names a level `group_lv` does not hold: ",
+         control_label, ". Present: ", paste(group_lv, collapse = ", "), ".",
+         call. = FALSE)
+  }
+  c(control_label, setdiff(group_lv, control_label))
+}
+
+
 #' Check a length-one logical argument
 #'
 #' @keywords internal

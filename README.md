@@ -1,8 +1,8 @@
 # STATassist
 
-**STATassist** runs every method that applies to a question in one call and returns standardised tables. A comparison reports parametric, rank-based and robust tests side by side, with fold changes, intervals and multiplicity-adjusted p-values. A model reports one row per term with its estimate and whatever inference that model honestly supports. A dimension reduction reports one row per point with its coordinates. Three result contracts, and everything downstream reads them rather than the engine underneath.
+**STATassist** runs every method that applies to a question in one call and returns standardised tables. A comparison reports parametric, rank-based and robust tests side by side, with fold changes, intervals and multiplicity-adjusted p-values. A model reports one row per term with its estimate and whatever inference that model honestly supports. A dimension reduction reports one row per point with its coordinates. A feature selection reports one row per candidate with what it was ranked by and whether it survived. Four result contracts, and everything downstream reads them rather than the engine underneath.
 
-Two groups, three or more groups and a single sample all return the same object, so `draw_forest_plot()`, `estimate_significance()` and anything else that reads a result works across them without being told which scenario produced it. Five models — linear, logistic, penalized, forest and kernel — return the same object too, so `coef()` and `predict(model, newdata = )` are one line each whichever of them was fitted.
+Two groups, three or more groups and a single sample all return the same object, so `draw_forest_plot()`, `estimate_significance()` and anything else that reads a result works across them without being told which scenario produced it. Five models — linear, logistic, penalized, forest and kernel — return the same object too, so `coef()` and `predict(model, newdata = )` are one line each whichever of them was fitted, and `perform_rfe()` and `perform_stepwise()` hand the predictors they kept straight to any of the five.
 
 Every example below runs on simulated data whose answer was planted on purpose, so a verdict can be **scored** rather than trusted: `simulate_two_groups()`, `simulate_multiple_groups()`, `simulate_regression()` and `simulate_classification()` hand back the effects and coefficients they put in.
 
@@ -35,10 +35,10 @@ Install from GitHub:
 ```r
 # install.packages("remotes")
 remotes::install_github("hiows/STATassist")          # latest
-remotes::install_github("hiows/STATassist@v0.6.0")   # pinned to a release
+remotes::install_github("hiows/STATassist@v0.7.0")   # pinned to a release
 ```
 
-Each release is tagged, so the pinned form keeps returning the same code no matter what lands on the default branch afterwards. `v0.2.0` is the previous release, and [NEWS.md](NEWS.md) says what changed between them — which is a great deal, including a reversal of which level of `group_lv` a two-group comparison treats as the reference. NEWS.md says what to swap.
+Each release is tagged, so the pinned form keeps returning the same code no matter what lands on the default branch afterwards. `v0.6.0` is the previous release, and [NEWS.md](NEWS.md) says what changed between them: a fourth result contract for a function that searches rather than fits, the two functions that return it, and `control_label` reaching every result that has a direction to report. Nothing an existing call reads has moved.
 
 The package is not on CRAN yet. When it is submitted, this README will note the CRAN line as well.
 
@@ -610,7 +610,7 @@ summarize_descriptive_stats(sim$args$data, "gene_8", sim$args$group,
 
 # Part 2 — Modelling
 
-A model has no feature axis. Every table in Part 1 repeats `features` in the same order; a model has one outcome and a set of **terms**, and the terms are not the columns that were handed in, since one factor predictor becomes several. `terms` takes the place of `features`, `coefficients$terms` repeats that order, and the eleven slots of an `sa_model` are the same eleven whichever of the five models produced it.
+A model has no feature axis. Every table in Part 1 repeats `features` in the same order; a model has one outcome and a set of **terms**, and the terms are not the columns that were handed in, since one factor predictor becomes several. `terms` takes the place of `features`, `coefficients$terms` repeats that order, and the eleven slots of an `sa_model` are the same eleven whichever of the five models produced it. §14 and §15 are the two sections here that are searches rather than fits, and they have an axis of their own again: `candidates`, the columns they were asked to choose between.
 
 ### 11. Data whose coefficients are known, and a split that does not leak
 
@@ -855,7 +855,207 @@ round(as.numeric(pROC::auc(roc_all)), 3)
 
 The five predictors behind the significant terms reach 0.911 against 0.917 for all nine, and the predictors behind the terms that were **not** significant still reach 0.844 — because `x_cat_1` appears in both sets. One of its two levels cleared the threshold and the other did not, so naming the columns behind the terms puts the factor on both sides. A term is not a predictor, and this is where the difference shows.
 
-### 14. Elastic net
+### 14. Recursive feature elimination
+
+The paragraph above selected predictors, and it did it the way most analyses do: fit once, read the p-values, keep what cleared 0.05. Two things are wrong with that even when the answer comes out right. The threshold is arbitrary, and the p-values that chose the predictors came from all 150 training rows, so the resampled score of the model that follows describes a fit whose predictors were already chosen — the choosing sits outside the resampling that reports on it. `perform_rfe()` asks the same question with the elimination **inside** the resampling: rank the candidates, drop the weakest, score what is left, and repeat until one predictor is standing. There is no `cv` argument, because an elimination with nothing held out has no score to choose a size by.
+
+```r
+rfe <- perform_rfe(
+  data          = cls_train,
+  outcome       = sim_cls$args$outcome,
+  predictors    = sim_cls$args$predictors,
+  outcome_lv    = sim_cls$args$outcome_lv,
+  control_label = "control",
+  model         = "logistic",
+  seed          = 2026
+)
+
+rfe
+```
+
+```
+<sa_selection> rfe
+  outcome  : y  (two classes)
+             modelling case against control, 39 of 150 row(s)
+  rows     : 150 used
+  search   : Binomial logistic regression over 9 candidate(s), size(s) 1, 2,
+             3, 4, 5, 6, 7, 8, 9
+  settings : repeated_kfold, 5 fold(s) x 5 repeat(s), Accuracy maximised
+  selected : 5 of 9  (Accuracy = 0.849 (SD 0.059) over 25 resample(s))
+
+  ranking  (absolute Wald z)
+    x_7           4.048  selected
+    x_cat_1       2.759  selected
+    x_1           2.698  selected
+    x_5           2.083  selected
+    x_8           2.051  selected
+    x_6          0.8837  dropped
+    x_3          0.7253  dropped
+    x_2          0.4517  dropped
+    x_4          0.3858  dropped
+```
+
+This is `sa_selection`, the fourth result contract. `candidates` takes the place `features` holds in a comparison, `terms` in a model and `points` in a reduction, and two tables hang off it because "which predictors" and "how many" are two different answers: `ranking` has one row per candidate, `profile` one row per subset size.
+
+Two details of the ranking are worth the space. It is the absolute Wald z rather than the coefficient, so a predictor measured in grams and the same predictor in kilograms are eliminated in the same order — a coefficient is an effect per unit, and ranking by its size ranks by the units. And `x_cat_1` is ranked as one candidate rather than as its two dummy terms, which is exactly the trap §13 ran into: one of its levels cleared 0.05 and the other did not, so naming the columns behind the terms put the factor on both sides of that comparison. Here a factor is kept or dropped as a column, which is the only thing a later `predictors =` could accept.
+
+```r
+rfe$selected
+#> [1] "x_7"     "x_cat_1" "x_1"     "x_5"     "x_8"
+
+subset(sim_cls$truth, role != "null")$predictors
+#> [1] "x_1"     "x_5"     "x_7"     "x_8"     "x_cat_1"
+```
+
+The five it kept are the five that were planted, and no threshold was named anywhere in the call. `x_2` is the interesting one at the other end: it is null but correlates with the planted `x_1` at 0.8, which is what `max_cor_signal` in §11 warned about, and it still lands in the bottom four rather than being carried in by that correlation.
+
+How many to keep is a resampled number like any other, and `profile` is where it is kept honest:
+
+```r
+rfe$profile
+```
+
+```
+  n_vars  Accuracy     Kappa AccuracySD   KappaSD chosen
+1      1 0.8386934 0.5266630 0.05018270 0.1408640  FALSE
+2      2 0.8213482 0.5051976 0.06073051 0.1675061  FALSE
+3      3 0.8481187 0.5814007 0.07990726 0.2200090  FALSE
+4      4 0.8438087 0.5822900 0.06504897 0.1574801  FALSE
+5      5 0.8494090 0.5992209 0.05894860 0.1566444   TRUE
+6      6 0.8345124 0.5608401 0.07265709 0.1886907  FALSE
+7      7 0.8438947 0.5835724 0.06967129 0.1781846  FALSE
+8      8 0.8412310 0.5766993 0.07081240 0.1787119  FALSE
+9      9 0.8426103 0.5809903 0.07156702 0.1811506  FALSE
+```
+
+Five won by 0.0013 accuracy over three and by 0.0068 over keeping everything, against standard deviations of 0.05 to 0.08 on those same rows. That is a table of near-ties, and reading it is the point of it being a table: the same call with `n_fold = 10, n_repeat = 3` keeps three predictors instead of five and reaches 0.861 on the held-out half rather than 0.911. The search is a better-behaved filter than a p-value threshold, not an oracle, and `profile` is what says which of those two it was on this data.
+
+`$selected` is a set of column names and nothing else, so it goes straight back into a fit:
+
+```r
+rfe_fit <- fit_logistic_regression(
+  data       = cls_train,
+  outcome    = sim_cls$args$outcome,
+  predictors = rfe$selected,
+  outcome_lv = sim_cls$args$outcome_lv,
+  cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+
+prob_rfe <- predict(rfe_fit, newdata = cls_test, type = "response")
+roc_rfe <- pROC::roc(cls_test$y, prob_rfe, levels = c("control", "case"))
+round(as.numeric(pROC::auc(roc_rfe)), 3)
+#> [1] 0.911
+```
+
+The same 0.911 the significant terms of §13 reached, against 0.917 for all nine. The gain is not a higher AUC — it is arriving there without a threshold, without the term-versus-predictor confusion, and with the size chosen on rows that did not score it. `control_label = "control"` fixes the direction of the search the way it does everywhere else, so the Wald z the ranking uses is about the odds of `case`, and `$fit` is the `caret::rfe()` object for anything the contract does not carry.
+
+### 15. Stepwise selection by information criteria
+
+§14 bought its answer with resampling, and paid the full price: nine subset sizes, twenty-five resamples each. `perform_stepwise()` asks the same question and settles the bill another way. It walks one term at a time — drop the one whose absence costs least, refit, stop when no move helps — and judges every move by an information criterion, which is the likelihood of the model with a flat charge levied against the number of parameters it spent. Nothing is held out, so there is no `cv` argument and no `seed` either: the path is a deterministic consequence of the data and the charge.
+
+```r
+step_sel <- perform_stepwise(
+  data          = cls_train,
+  outcome       = sim_cls$args$outcome,
+  predictors    = sim_cls$args$predictors,
+  outcome_lv    = sim_cls$args$outcome_lv,
+  control_label = "control",
+  model         = "logistic",
+  criterion     = "AIC"
+)
+
+step_sel
+```
+
+```
+<sa_selection> stepwise
+  outcome  : y  (two classes)
+             modelling case against control, 39 of 150 row(s)
+  rows     : 150 used
+  search   : Binomial logistic regression over 9 candidate(s), 4 step(s)
+  settings : backward search, AIC minimised at 2 per parameter
+  selected : 5 of 9  (AIC = 91.6951)
+
+  ranking  (AIC increase when the predictor is left out)
+    x_7           49.64  selected
+    x_1           27.64  selected
+    x_cat_1       23.25  selected
+    x_5           5.164  selected
+    x_8           3.841  selected
+    x_6         -0.8116  dropped
+    x_3          -1.256  dropped
+    x_4          -1.785  dropped
+    x_2          -1.996  dropped
+```
+
+Same contract, same `candidates` axis, and two slots that mean something different here. `ranking$estimate` is what leaving that one predictor out of the selected model would cost the criterion, so unlike §14's absolute Wald z it has a sign, and the sign is the verdict: positive for the five worth their parameters, negative for the four the model is better off without. `parameters$maximize` is `FALSE` for the same reason, since a criterion is a cost and not a score, and `resampling` is `NULL` because nothing was resampled.
+
+```r
+step_sel$selected
+#> [1] "x_7"     "x_1"     "x_cat_1" "x_5"     "x_8"
+
+subset(sim_cls$truth, role != "null")$predictors
+#> [1] "x_1"     "x_5"     "x_7"     "x_8"     "x_cat_1"
+```
+
+The five that were planted, again, and `x_cat_1` is again one candidate rather than its two dummy terms. `x_2` is where the two searches read differently: the elimination of §14 left it in the bottom four, and here it is the first thing to go.
+
+That first drop is visible because `profile` is a different table on this side. §14's is a ladder, one row per subset size with all nine of them scored; this one is a path, one row per step, and `step` names the move that reached it:
+
+```r
+step_sel$profile
+```
+
+```
+  n_vars      AIC      BIC  step chosen
+1      9 98.05835 131.1753        FALSE
+2      8 96.05837 126.1647 - x_2  FALSE
+3      7 94.09535 121.1911 - x_4  FALSE
+4      6 92.50669 116.5918 - x_3  FALSE
+5      5 91.69511 112.7696 - x_6   TRUE
+```
+
+The first row is the model the search started from, which is why its `step` is empty, and `chosen` is `TRUE` on the last row because a stepwise search stops where it chose. The four sizes below 5 are absent by construction: this is a record of where the walk went, not a survey of every size, and a size the path never reached has no criterion to report.
+
+Both criteria sit on every row, so the same path is readable on either scale, and here they agree:
+
+```r
+perform_stepwise(
+  data          = cls_train,
+  outcome       = sim_cls$args$outcome,
+  predictors    = sim_cls$args$predictors,
+  outcome_lv    = sim_cls$args$outcome_lv,
+  control_label = "control",
+  model         = "logistic",
+  criterion     = "BIC"
+)$selected
+#> [1] "x_7"     "x_1"     "x_cat_1" "x_5"     "x_8"
+```
+
+BIC charges `log(150)` = 5.01 per parameter against AIC's 2, and the `BIC` column above falls at every step of the path, so the heavier charge walks the same way and stops in the same place. It is closer than the identical answer suggests: `x_8` is worth 3.841 on the AIC scale and only 0.8303 on the BIC one, so the last predictor in is the first the charge would take. `direction` does not change the answer on this data either, since `"forward"` and `"both"` both arrive at the same five. That is what a well-separated signal looks like, and not something to count on — the AIC path and the BIC path are the same object only until one predictor sits near the charge.
+
+`$selected` is a set of column names and nothing else, so it goes back into a fit the way §14's did:
+
+```r
+step_fit <- fit_logistic_regression(
+  data       = cls_train,
+  outcome    = sim_cls$args$outcome,
+  predictors = step_sel$selected,
+  outcome_lv = sim_cls$args$outcome_lv,
+  cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+
+prob_step <- predict(step_fit, newdata = cls_test, type = "response")
+roc_step <- pROC::roc(cls_test$y, prob_step, levels = c("control", "case"))
+round(as.numeric(pROC::auc(roc_step)), 3)
+#> [1] 0.911
+```
+
+0.911, which is where §14 landed and where §13's significant terms landed, from a search that never fitted a model to anything but the full 150 rows. That cheapness is also the one thing to hold against the number above it: `AIC = 91.6951` was computed on exactly the rows the model was fitted to, so it ranks the models on this path against each other and claims nothing about a new one. §14's accuracy came from folds the elimination had not seen and is a claim of that kind; this criterion is not, which is why the AUC is measured on `cls_test`. `$fit` is the `stats::step()` result, the selected `glm` with the whole path attached as `$anova`, for anything the contract does not carry.
+
+### 16. Elastic net
 
 One function covers the three corners of one model: `"lasso"` is alpha 1, `"ridge"` is alpha 0, and `"elastic_net"` tunes alpha as well. The outcome type is read from the column, so the same call does regression and classification.
 
@@ -902,7 +1102,7 @@ The classification path is the same call with `outcome_lv`, and it separates the
 
 The terms LASSO kept reach 0.906 on the held-out half, the same as the full fit, and the ones it dropped reach 0.682.
 
-### 15. Random forest
+### 17. Random forest
 
 The first model with no coefficients. A forest holds hundreds of trees and their splits, not one effect per predictor, so `estimate` is **permutation importance** — `%IncMSE` for regression, `MeanDecreaseAccuracy` for classification — and the table is sorted by it, since that is the order worth reading first. `impurity` carries the other measure the same fit reports, because the two disagree in a way worth seeing: permutation is measured on out-of-bag rows, impurity on the splits themselves.
 
@@ -973,7 +1173,7 @@ A forest splits factors by level directly, so there is no dummy coding and `x_ca
 
 The forest is the weakest of the five on this data, at 0.747 held-out correlation and 0.841 AUC, which is what a flexible model costs on 152 rows with a mostly linear truth. Its top five and low five separate cleanly all the same: 0.833 against 0.624.
 
-### 16. Support vector machine
+### 18. Support vector machine
 
 The second model with no coefficients, for the opposite reason. A forest has too many numbers per predictor to report one; a radial kernel machine has **none** — it holds support vectors and their weights, which are points in the data rather than directions in the predictor space. So `estimate` is permutation importance again, measured in the metric the resampling tuned on, so the table and `performance` read in the same unit.
 
@@ -1025,7 +1225,7 @@ Unlike the forest, this importance is measured on the rows the machine was fitte
 | --- | --- |
 | ![Predicted against observed for the machine](man/figures/README-svm-regression.png) | ![ROC curves for the machine](man/figures/README-svm-roc.png)  |
 
-### 17. Predict on held-out data
+### 19. Predict on held-out data
 
 `predict()` goes to the **result**, not to `$fit`. The engine object knows only the column names it was handed: `glmnet` and `kernlab` were given a design matrix and read it by position, so a frame whose numeric columns are in a different order is multiplied by the wrong coefficients without any error, and a factor predictor is dropped from it entirely. The result object is the only thing that knows which columns were predictors and what the levels of a factor were, so one line covers all five models:
 
@@ -1044,7 +1244,7 @@ Extra columns in `newdata` are ignored, a missing one is an error that names it,
 
 Everything above had an answer to score against. These three have none. What can be asked is where each point lands when many features are pressed into two dimensions, and the three answer differently on purpose: PCA is a rotation, so it is reversible and says which feature moved a point, but it only finds straight structure; t-SNE and UMAP find curved structure but cannot say which feature made it.
 
-### 18. `perform_pca()`, `perform_tsne()` and `perform_umap()`
+### 20. `perform_pca()`, `perform_tsne()` and `perform_umap()`
 
 Three functions rather than one call with a `methods` argument, because they answer in coordinates that share no scale — nothing but `points` could be joined between them — and because `perplexity`, `n_neighbors` and `metric` each belong to exactly one of them. What makes them comparable is the input: all three read `data` the same way, so the same rows drop for the same reason.
 
@@ -1185,6 +1385,8 @@ The coordinates are `$scores` in all three and the engine object is `$fit`. `see
 | `fit_elastic_net()` | LASSO, ridge or elastic net for either outcome type, with the selected terms |
 | `fit_rf()` | Random forest with permutation and impurity importance and out-of-bag fit |
 | `fit_svm()` | Radial-kernel support vector machine with permutation importance |
+| `perform_rfe()` | Recursive feature elimination inside the resampling, returning the predictors it kept, their ranking and the score at every subset size |
+| `perform_stepwise()` | Stepwise search by AIC or BIC, returning the predictors it kept, what each one is worth to the criterion, and the path it walked |
 | `perform_pca()` | Principal components of the samples or of the features, with loadings and variance |
 | `perform_tsne()` | t-SNE embedding of either margin |
 | `perform_umap()` | UMAP embedding of either margin |

@@ -84,7 +84,10 @@
 #' above 1 for a predictor that raises the chance of it, and
 #' `predict(model, newdata, type = "response")` is its probability. That is
 #' also what the engine does unaided, `glmnet` modelling the last level of a
-#' factor as `glm()` does.
+#' factor as `glm()` does. `control_label` names the reference on its own and is
+#' enough by itself to make a column of zeroes and ones a classification; naming
+#' it alongside an `outcome_lv` that puts the other class first is an error, as
+#' it is in [fit_logistic_regression()].
 #'
 #' New rows are predicted through the result rather than through `$fit`, and on
 #' this model that is the only route: `glmnet` was handed a design matrix and
@@ -112,6 +115,9 @@
 #'   outcome is to be classified, which is the one thing a numeric column holding
 #'   two values cannot say on its own. `NULL` sorts the classes of an outcome
 #'   that is not numeric, and leaves a numeric one to the regression.
+#' @param control_label The reference class on its own, for when the other one
+#'   needs no saying. Defaults to `outcome_lv[1]`, so a call that names one of the
+#'   two names the reference either way; naming both and disagreeing is an error.
 #' @param penalty Which penalty to apply: `"elastic_net"` for a tuned mixture of
 #'   the L1 and L2 penalties, `"lasso"` for the L1 penalty alone (`alpha = 1`),
 #'   or `"ridge"` for the L2 penalty alone (`alpha = 0`). A lasso and an elastic
@@ -209,6 +215,7 @@ fit_elastic_net <- function(data,
                             outcome,
                             predictors = NULL,
                             outcome_lv = NULL,
+                            control_label = outcome_lv[1],
                             penalty = c("elastic_net", "lasso", "ridge"),
                             alpha = seq(0, 1, by = 0.1),
                             lambda = 10^seq(-4, 1, length.out = 50),
@@ -239,19 +246,22 @@ fit_elastic_net <- function(data,
 
   # One argument, two models, and the outcome decides which. A numeric column is
   # a regression, since that is what a number usually is, and anything else is a
-  # set of class labels. `outcome_lv` overrules the guess, which is the only way
-  # to say that a column of zeroes and ones is two classes rather than two
-  # numbers; the guess is announced when it is the ambiguous one so that nobody
-  # has to infer it from the output.
-  classify <- !is.null(outcome_lv) || !is.numeric(input$y)
+  # set of class labels. `outcome_lv` overrules the guess, and so does
+  # `control_label` on its own, which is the only way to say that a column of
+  # zeroes and ones is two classes rather than two numbers; the guess is
+  # announced when it is the ambiguous one so that nobody has to infer it from
+  # the output.
+  classify <- !is.null(outcome_lv) || !is.null(control_label) ||
+    !is.numeric(input$y)
   if (!classify && length(unique(input$y)) == 2L) {
     message("`outcome` is numeric and takes two values, so it was fitted as a ",
-            "regression. Pass `outcome_lv`, or a factor column, to model it as ",
-            "a classification.")
+            "regression. Pass `outcome_lv` or `control_label`, or a factor ",
+            "column, to model it as a classification.")
   }
 
   if (classify) {
-    y <- sa_outcome_levels(input$y, outcome_lv, model = "an elastic net")
+    y <- sa_outcome_levels(input$y, outcome_lv, control_label,
+                           model = "an elastic net")
     outcome_lv <- levels(y)
     family <- "binomial"
   } else {

@@ -21,6 +21,15 @@
 #' `hl_shift`, `trim_diff`, `fold_change` and `relative_effect` are all above
 #' their null value when `group_lv[2]` is the larger group.
 #'
+#' `control_label` is the second way of stating that order. It names the level
+#' to hold as the reference and moves it to the front, so the direction can be
+#' flipped without the two levels being retyped in the other order. Because
+#' `group_lv` says which levels take part as well as which one is the
+#' reference, naming the second one here is a correction rather than a
+#' contradiction, which is where the comparisons differ from the models: an
+#' `outcome_lv` holds nothing but the two classes, so [fit_logistic_regression()]
+#' rejects a `control_label` that disagrees with it.
+#'
 #' @param data A data.frame (or matrix) in wide format, one row per
 #'   observation and one column per feature.
 #' @param feats Character vector of numeric column names in `data` to test.
@@ -31,6 +40,11 @@
 #'   it, treated as `x`, so all differences read as
 #'   `group_lv[2] - group_lv[1]` and all ratios as `group_lv[2] / group_lv[1]`.
 #'   Rows belonging to any other level are dropped.
+#' @param control_label The level to hold as the reference. Naming it moves that
+#'   level to the front of `group_lv` and leaves the other one where it is, so
+#'   `control_label = group_lv[2]` reverses every difference and ratio without
+#'   the pair having to be rewritten. Defaults to `group_lv[1]`, the reference
+#'   the order already asked for.
 #' @param id Optional pairing key with one entry per row of `data`, used only
 #'   when `paired = TRUE`. Supplying it matches observations by key instead of
 #'   by row order, which is the safer choice whenever the rows may have been
@@ -235,6 +249,7 @@ compare_two_groups <- function(data,
                                feats,
                                group,
                                group_lv,
+                               control_label = group_lv[1],
                                id = NULL,
                                alternative = c("two.sided", "less", "greater"),
                                paired = FALSE,
@@ -267,7 +282,8 @@ compare_two_groups <- function(data,
   feats <- input$feats
   group <- input$group
   id <- input$id
-  group_lv <- levels(group)
+  group_lv <- sa_control_first(levels(group), control_label)
+  group <- factor(as.character(group), levels = group_lv)
 
   if (input$n_dropped > 0L) {
     message("Dropped ", input$n_dropped,

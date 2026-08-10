@@ -1,3 +1,135 @@
+# STATassist 0.7.0
+
+This adds the fourth result contract, the one for a function that searches rather
+than fits. A model is handed its predictors and answers about them; a selection
+is handed candidates and answers which of them to keep, which is a question no
+existing slot had a shape for. Two functions answer it and disagree about the
+price: one holds rows out and keeps the subset that scored best on them, the other
+keeps the model whose likelihood is worth what its parameters cost.
+
+## New features
+
+* New `perform_rfe()` runs a recursive feature elimination: the candidates are
+  ranked, the weakest is dropped, and what is left is scored, until one predictor
+  is standing. The elimination is inside the resampling rather than before it, so
+  the ranking is recomputed in each fold and no subset size is scored on the rows
+  that chose it. There is no `cv` argument for that reason. An elimination with
+  nothing held out has no score to choose a size by, so it would not be a shorter
+  version of this function but a different and wrong one.
+
+* New `perform_stepwise()` runs a stepwise search by AIC or BIC: the model is refitted
+  with each term taken out or put back, the move that lowers the criterion most is
+  taken, and the search stops when no single move lowers it any further.
+  `direction` chooses which moves are allowed, and `"both"` is the one that
+  reconsiders a term it has already dropped. It has no `cv` and no `seed` either,
+  for a different reason than `perform_rfe()` has none: a criterion is a penalised
+  likelihood computed on the rows the model was fitted to, so nothing is held out,
+  nothing is resampled and nothing is random.
+
+* The two criteria are one search at two prices, 2 per parameter against `log(n)`,
+  so past seven observations BIC charges more and keeps fewer predictors.
+  `profile` reports both at every step whichever one is searching, so a path
+  chosen by AIC can be read against what BIC would have said about the same
+  models. They are `AIC()`'s and `BIC()`'s own numbers, the ones a model's
+  `fit_stats` reports, rather than the `extractAIC()` scale `step()` searches on;
+  the two differ by a constant across models fitted to the same rows, so the path
+  is ordered identically and only the printed values differ.
+
+* `ranking$estimate` is one number for both groups of candidates: what the
+  criterion would be with that predictor left out of the selected model, minus
+  what it is with it in. A predictor the search kept is worth the rise that
+  dropping it would cause and so is positive; one the search left out would raise
+  the criterion by being added and so is negative. The sign is the search's own
+  decision about it and the size is by how much, which puts the selection at the
+  top of the table with no second sort.
+
+* A search that walks back to the intercept is an error rather than a result. That
+  no candidate pays for itself at this charge is an answer, but not one the
+  contract can carry, since `selected` would be empty and `ranking` would have
+  nothing to be read against. The message says which charge was levied and, for a
+  BIC search, that AIC levies 2 instead.
+
+* New `sa_selection`, the fourth result contract. `candidates` takes the place
+  `features` holds in a comparison, `terms` in a model and `points` in a
+  reduction, and it is in the order the search ranked rather than the order the
+  columns arrived. Two tables hang off it, `ranking` with one row per candidate
+  and `profile` with one row per model the search compared, because "which
+  predictors" and "how many" are two answers and only the second can be read from
+  a table of models. What `profile` repeats depends on how the search moved: one
+  row per subset size for an elimination, one per step of the path for a stepwise
+  search, with the `n_vars` column and the single `chosen` row in common.
+  `resampling` is what tells the two apart at a glance, since a search that holds
+  nothing out leaves it `NULL`. The eleven slots are `analysis`, `candidates`,
+  `design`, `parameters`, `selected`, `ranking`, `profile`, `resampling`,
+  `engine`, `fit` and `metadata`.
+
+* `$selected` is a set of column names and nothing else, so it goes straight back
+  into `predictors =` of any `fit_*()` call. That is what the ranking is built
+  for, and it is why a linear or logistic search folds its coefficients back onto
+  the columns they came from: `lm()` and `glm()` see a `k`-level factor as
+  `k - 1` dummy columns, and none of the three is something a later fit would
+  accept. A factor is ranked by the largest statistic among its levels, so it is
+  kept as long as one level is worth keeping, and eliminated as a column.
+  `perform_stepwise()` has none of that work to do: `step()` moves whole terms of the
+  formula, and a factor is one term however many dummy columns it becomes.
+
+* The ranking is the absolute t or Wald statistic rather than the coefficient,
+  which is where this departs from `caret::lmFuncs`. A coefficient is an effect
+  per unit of its predictor, so ranking by its size ranks by the units the
+  predictors happened to be measured in: the same model with a predictor in
+  grams rather than in kilograms eliminates in a different order. The statistic
+  has divided the units out, and it is what `caret::lrFuncs` already ranks a
+  logistic regression by, so the two models now rank on one scale. A forest ranks
+  by the permutation importance `fit_rf()` reports as `estimate`, so its ranking
+  here and its importance table there are the same measure.
+
+* `model` names what is fitted inside the search — `"linear"`, `"logistic"` or
+  `"rf"` — and the outcome has to agree with it. A disagreement is an error
+  naming the model that would have fitted rather than a silently different
+  analysis. The forest inside the search grows at `randomForest()`'s own `mtry`
+  for each subset size rather than at one value throughout, since a fixed `mtry`
+  exceeds the predictor count at the small end of the profile, which is where the
+  whole question is.
+
+* `outcome_lv` gains a companion, `control_label`, in `perform_rfe()` and in the
+  helper every model function reads its levels through. It names the reference
+  class on its own, for the usual case where the sort has it backwards and the
+  other level needs no saying, and it defaults to `outcome_lv[1]`, so a call that
+  names one of the two names the reference either way. Naming both and
+  disagreeing is an error rather than a precedence rule: either argument is a
+  complete answer, so a call that contradicts itself has no reading more likely
+  than the other.
+
+* `control_label` now reaches every function whose result has a direction to
+  report: `fit_logistic_regression()`, `fit_elastic_net()`, `fit_rf()` and
+  `fit_svm()` beside `perform_rfe()`, and `compare_two_groups()` and
+  `compare_multiple_groups()` beside them. It defaults to the reference the call
+  already named, so no existing call changes.
+
+* The two families read it differently, and the difference is what the argument
+  is for. A model's `outcome_lv` holds the two classes and nothing else, so
+  `fit_logistic_regression(outcome_lv = c("a", "b"), control_label = "b")` is a
+  call that contradicts itself and is an error. A comparison's `group_lv` also
+  carries the display order of every level, which `control_label` says nothing
+  about, so `compare_two_groups(group_lv = c("a", "b"), control_label = "b")`
+  moves `b` to the front and reverses every difference and ratio. In
+  `compare_multiple_groups()` the same move carries the post-hoc stage with it:
+  the reference is the denominator of the fold change and the subtracted side of
+  every contrast at once, and the remaining levels keep contrasting each other
+  in the order they were given.
+
+* Naming it is also enough to say that a numeric column of zeroes and ones is
+  two classes rather than two numbers, in the four models as in `perform_rfe()`,
+  and the message that announces the guess now says so.
+
+* `$fit` is the `rfe` object and carries no `sa_fit` class, unlike the `$fit` of
+  a model. That class exists to route `coef()` and `summary()` to a
+  `$finalModel`, and a search has none. Everything else in the object is a
+  scalar, a character vector, a named list or a data.frame, so dropping that one
+  slot leaves an object that writes out as JSON, which is the rule all four
+  contracts keep.
+
+
 # STATassist 0.6.0
 
 This release adds the two result contracts that have no feature axis. Everything

@@ -9,6 +9,7 @@ compare_multiple_groups(
   feats,
   group,
   group_lv,
+  control_label = group_lv[1],
   id = NULL,
   paired = FALSE,
   conf_level = 0.95,
@@ -35,6 +36,12 @@ One output row per entry.}
 the reference the \code{effect} table is expressed against and the level every
 post-hoc contrast subtracts, so a contrast reads \code{treat_1 - control} rather
 than the other way round. Rows belonging to any other level are dropped.}
+
+\item{control_label}{The level to hold as the reference. Naming it moves that
+level to the front of \code{group_lv} and leaves the rest in the order given, so
+the fold change and every post-hoc contrast are expressed against it
+without the levels having to be retyped. Defaults to \code{group_lv[1]}, the
+reference the order already asked for.}
 
 \item{id}{Subject identifier with one entry per row of \code{data}. Required when
 \code{paired = TRUE} and ignored otherwise.}
@@ -137,6 +144,16 @@ ANOVA by pairwise Yuen tests, Kruskal-Wallis by Dunn's test, repeated
 measures ANOVA by pairwise paired t-tests and Friedman by Conover's test. A
 rank-based omnibus test is therefore never followed by a parametric
 comparison.
+
+Direction is set once, by the order of \code{group_lv}, and \code{control_label} is the
+second way of stating that order: the level it names moves to the front and
+the rest keep the order they were given. The move carries further here than
+it does in \code{\link[=compare_two_groups]{compare_two_groups()}}, since the reference is the denominator of
+the fold change and the subtracted side of every post-hoc contrast at the
+same time, and the remaining levels keep contrasting each other in display
+order. Naming a level that \code{group_lv} already holds is a correction rather
+than a contradiction, which is why it is accepted here and refused by the
+models, whose \code{outcome_lv} holds the two classes and nothing else.
 
 Features that cannot be tested do not abort the run. Their row is filled with
 \code{NA} and all such features are reported together in a single warning.

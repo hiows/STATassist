@@ -1,22 +1,69 @@
-# Internal helpers shared by the model fitting functions. A model function's own
-# body should be the part that is specific to that model: which engine runs and
-# what its summary means. Everything before that is the same question every time
-# — which columns are the predictors, which rows can be used, and how the
-# resampling scheme was described — so it is answered once here.
+# Internal helpers shared by the model fitting functions, and by the searches that
+# fit a model at every step. A model function's own body should be the part that is
+# specific to that model: which engine runs and what its summary means. Everything
+# before that is the same question every time — which columns are the predictors,
+# which rows can be used, and how the resampling scheme was described — so it is
+# answered once here.
 #
 # The resampling scheme is the reason this file exists rather than each function
 # building its own `trainControl()`. The four schemes were already written out
 # twice in the draft and would have been written out five more times by the
 # elastic net, random forest and gradient boosting functions.
 
+#' Resolve the resampling arguments into the scheme caret names
+#'
+#' The three schemes differ in which arguments they consume, and the ones they do
+#' not consume are silently ignored by the control object they end up in. LOOCV
+#' has no fold count and no repeats and plain k-fold has no repeats, so reporting
+#' `n_fold = 5` for a LOOCV run would be a plausible-looking record of something
+#' that never happened. What the scheme actually used comes back beside caret's
+#' own name for it, and it is those values that a result records.
+#'
+#' This is the part `sa_train_control()` and `sa_rfe_control()` share. The two
+#' build different control objects — one resamples a fixed set of predictors and
+#' the other resamples the elimination itself — but the question of what
+#' `cv_method = "kfold", n_fold = 5` means is the same one, so it is answered
+#' once.
+#'
+#' @param cv_method Scheme name, already resolved by [match.arg()].
+#' @param n_fold,n_repeat Fold count and number of repeats, as requested.
+#' @param n_obs Rows available, used to reject more folds than observations.
+#'
+#' @return List with caret's `method` string and the `cv_method` / `n_fold` /
+#'   `n_repeat` the scheme actually used, `NA` where it uses none of them.
+#'
+#' @keywords internal
+#' @noRd
+sa_resample_scheme <- function(cv_method, n_fold, n_repeat, n_obs) {
+  n_fold <- sa_check_count(n_fold, "n_fold", 2)
+  n_repeat <- sa_check_count(n_repeat, "n_repeat", 1)
+
+  if (cv_method != "loocv" && n_fold > n_obs) {
+    stop("`n_fold` = ", n_fold, " exceeds the ", n_obs,
+         " usable observation(s), so a fold would be empty. Lower `n_fold` or ",
+         "use `cv_method = \"loocv\"`.", call. = FALSE)
+  }
+
+  switch(
+    cv_method,
+    repeated_kfold = list(method = "repeatedcv", cv_method = cv_method,
+                          n_fold = n_fold, n_repeat = n_repeat),
+    kfold = list(method = "cv", cv_method = cv_method,
+                 n_fold = n_fold, n_repeat = NA_integer_),
+    loocv = list(method = "LOOCV", cv_method = cv_method,
+                 n_fold = NA_integer_, n_repeat = NA_integer_),
+    stop("internal error: unhandled `cv_method` ", cv_method, ".",
+         call. = FALSE)
+  )
+}
+
+
 #' Turn the resampling arguments into a caret control object
 #'
-#' The four schemes differ in which arguments they consume, and the ones they do
-#' not consume are silently ignored by [caret::trainControl()]. LOOCV has no fold
-#' count and no repeats, plain k-fold has no repeats, and `cv = FALSE` has
-#' neither. Reporting `n_fold = 5` for a LOOCV run would be a plausible-looking
-#' record of something that never happened, so the resolved values come back
-#' alongside the control object and it is those that the result records.
+#' `cv = FALSE` is the fourth scheme, the one with no folds and no repeats at
+#' all, and it is this function's own rather than `sa_resample_scheme()`'s: a
+#' model can be fitted once and reported without a resampled score, which is not
+#' a thing an elimination can be.
 #'
 #' Every argument is validated whether or not the chosen scheme reads it. A
 #' rejected value would otherwise depend on `cv_method`, which is the kind of
@@ -43,29 +90,96 @@ sa_train_control <- function(cv, cv_method, n_fold, n_repeat, n_obs) {
                 n_repeat = NA_integer_))
   }
 
-  if (cv_method != "loocv" && n_fold > n_obs) {
-    stop("`n_fold` = ", n_fold, " exceeds the ", n_obs,
-         " usable observation(s), so a fold would be empty. Lower `n_fold` or ",
-         "use `cv_method = \"loocv\"`.", call. = FALSE)
-  }
+  scheme <- sa_resample_scheme(cv_method, n_fold, n_repeat, n_obs)
+  control <- switch(
+    scheme$method,
+    repeatedcv = caret::trainControl(method = "repeatedcv",
+                                     number = scheme$n_fold,
+                                     repeats = scheme$n_repeat),
+    cv = caret::trainControl(method = "cv", number = scheme$n_fold),
+    LOOCV = caret::trainControl(method = "LOOCV")
+  )
+  list(control = control, cv_method = scheme$cv_method,
+       n_fold = scheme$n_fold, n_repeat = scheme$n_repeat)
+}
 
+
+#' Turn the resampling arguments into a caret elimination control object
+#'
+#' The same three schemes as `sa_train_control()`, wrapped around
+#' [caret::rfeControl()] instead, which resamples the elimination rather than one
+#' fit: the ranking is recomputed inside every fold, so a predictor that looks
+#' useful only on the rows it was ranked on is scored on rows it was not.
+#'
+#' `rerank` is left at `FALSE`, caret's default. Re-ranking after every drop
+#' refits the model once per remaining predictor per fold, which is a different
+#' and far slower procedure than the one this function is named after.
+#'
+#' @param funcs The `functions` list the elimination fits and ranks with.
+#' @param cv_method Scheme name, already resolved by [match.arg()].
+#' @param n_fold,n_repeat Fold count and number of repeats, as requested.
+#' @param n_obs Rows available, used to reject more folds than observations.
+#'
+#' @return List with `control`, and the `cv_method` / `n_fold` / `n_repeat` the
+#'   scheme actually used, `NA` where it uses none of them.
+#'
+#' @keywords internal
+#' @noRd
+sa_rfe_control <- function(funcs, cv_method, n_fold, n_repeat, n_obs) {
+  scheme <- sa_resample_scheme(cv_method, n_fold, n_repeat, n_obs)
+  control <- switch(
+    scheme$method,
+    repeatedcv = caret::rfeControl(functions = funcs, method = "repeatedcv",
+                                   number = scheme$n_fold,
+                                   repeats = scheme$n_repeat),
+    cv = caret::rfeControl(functions = funcs, method = "cv",
+                           number = scheme$n_fold),
+    LOOCV = caret::rfeControl(functions = funcs, method = "LOOCV")
+  )
+  list(control = control, cv_method = scheme$cv_method,
+       n_fold = scheme$n_fold, n_repeat = scheme$n_repeat)
+}
+
+
+#' The model frame a search fits on
+#'
+#' The outcome column is called `.outcome`, which is `caret`'s own name for it, so
+#' that a predictor called `y` is a predictor rather than a collision with the
+#' formula. Both searches use the name: `perform_rfe()` because that is what its
+#' `functions` list is handed, and `perform_stepwise()` so that the two build the same
+#' frame out of the same predictors.
+#'
+#' @param x Predictor columns, as a data.frame or a matrix.
+#' @param y The outcome of those rows, or `NULL` when the frame is being built to
+#'   predict on.
+#'
+#' @return data.frame of `x`, with `.outcome` appended when `y` was given.
+#'
+#' @keywords internal
+#' @noRd
+sa_search_frame <- function(x, y = NULL) {
+  out <- if (is.data.frame(x)) x else as.data.frame(x, stringsAsFactors = TRUE)
+  if (!is.null(y)) {
+    out[[".outcome"]] <- y
+  }
+  out
+}
+
+
+#' What to call the model inside a search, in a message and in `engine$label`
+#'
+#' @param model Which model the search fits, already resolved.
+#' @param classify Whether the outcome is being classified, which is the only
+#'   thing that distinguishes the two forests.
+#'
+#' @keywords internal
+#' @noRd
+sa_search_label <- function(model, classify) {
   switch(
-    cv_method,
-    repeated_kfold = list(
-      control = caret::trainControl(method = "repeatedcv", number = n_fold,
-                                    repeats = n_repeat),
-      cv_method = cv_method, n_fold = n_fold, n_repeat = n_repeat
-    ),
-    kfold = list(
-      control = caret::trainControl(method = "cv", number = n_fold),
-      cv_method = cv_method, n_fold = n_fold, n_repeat = NA_integer_
-    ),
-    loocv = list(
-      control = caret::trainControl(method = "LOOCV"),
-      cv_method = cv_method, n_fold = NA_integer_, n_repeat = NA_integer_
-    ),
-    stop("internal error: unhandled `cv_method` ", cv_method, ".",
-         call. = FALSE)
+    model,
+    linear = "Linear regression",
+    logistic = "Binomial logistic regression",
+    rf = paste("Random forest", if (classify) "classification" else "regression")
   )
 }
 
@@ -553,8 +667,21 @@ sa_predict_frame <- function(newdata, design) {
 #' what this model is, so silently fitting a different subset of the data than
 #' was passed in would answer a question nobody asked.
 #'
+#' `control_label` names the same level `outcome_lv[1]` names, and exists because
+#' most calls have nothing to say about the other one. Sorting already puts
+#' `"control"` before `"treated"` and `0` before `1`, so what a caller usually
+#' wants is to correct the one case where the sort is wrong, and writing both
+#' levels out to move one of them is more than the correction is worth.
+#'
+#' Naming the reference twice and disagreeing is an error rather than a
+#' precedence rule. Either of the two arguments is a complete answer on its own,
+#' so a call that carries both and contradicts itself has no reading that is more
+#' likely than the other.
+#'
 #' @param y Outcome vector, already reduced to the usable rows.
 #' @param outcome_lv The two levels, reference first, or `NULL` to sort them.
+#' @param control_label The reference level on its own, or `NULL` to leave the
+#'   order as `outcome_lv` or the sort gave it.
 #' @param model What to call the model in the message a third class raises, since
 #'   more than one model reads an outcome this way.
 #'
@@ -564,7 +691,9 @@ sa_predict_frame <- function(newdata, design) {
 #' @noRd
 sa_outcome_levels <- function(y,
                               outcome_lv = NULL,
+                              control_label = NULL,
                               model = "a logistic regression") {
+  named <- !is.null(outcome_lv)
   if (is.factor(y)) {
     y <- as.character(y)
   }
@@ -615,6 +744,26 @@ sa_outcome_levels <- function(y,
          ". Reduce `data` to the two classes first.", call. = FALSE)
   }
 
+  if (!is.null(control_label)) {
+    if (length(control_label) != 1L || is.na(control_label)) {
+      stop("`control_label` must be a single level name, the one to hold as ",
+           "the reference.", call. = FALSE)
+    }
+    control_label <- as.character(control_label)
+    if (!control_label %in% outcome_lv) {
+      stop("`control_label` names a class `outcome` does not hold: ",
+           control_label, ". Present: ",
+           paste(sort(present), collapse = ", "), ".", call. = FALSE)
+    }
+    if (named && !identical(control_label, outcome_lv[1])) {
+      stop("`control_label` names ", control_label, " as the reference and ",
+           "`outcome_lv` puts ", outcome_lv[1], " first, so the two disagree ",
+           "about which class the other one is compared against. Pass one of ",
+           "them.", call. = FALSE)
+    }
+    outcome_lv <- c(control_label, setdiff(outcome_lv, control_label))
+  }
+
   factor(y, levels = outcome_lv)
 }
 
@@ -663,19 +812,14 @@ sa_wald_interval <- function(coef_matrix, conf_level, df = NULL) {
 #' same way `sa_feature_table()` handles a warning raised once per feature. They
 #' are not discarded: a model that did not converge has to say so.
 #'
-#' The `sa_fit` class goes on in front of the engine's own, which is what lets
-#' `coef()` and `summary()` reach the fitted model inside a [caret::train()]
-#' object; see `coef.sa_fit()`. It is prepended rather than substituted, so every
-#' method the engine already carries — `predict()`, `fitted()`, `residuals()`,
-#' `print()` — is still found by inheritance. Note that the class names the fit
-#' this returns, while the function names the act of producing it.
-#'
 #' @param expr The fitting call, evaluated here.
 #' @param label Human readable model name used in the message.
 #'
+#' @return Whatever `expr` evaluated to.
+#'
 #' @keywords internal
 #' @noRd
-sa_fit_engine <- function(expr, label) {
+sa_quiet_engine <- function(expr, label) {
   caught <- character(0)
   fit <- withCallingHandlers(
     expr,
@@ -690,6 +834,31 @@ sa_fit_engine <- function(expr, label) {
             paste0("  [", grouped, " time(s)] ", names(grouped),
                    collapse = "\n"))
   }
+  fit
+}
+
+
+#' Run the engine and class the fit so that the usual questions reach it
+#'
+#' The `sa_fit` class goes on in front of the engine's own, which is what lets
+#' `coef()` and `summary()` reach the fitted model inside a [caret::train()]
+#' object; see `coef.sa_fit()`. It is prepended rather than substituted, so every
+#' method the engine already carries — `predict()`, `fitted()`, `residuals()`,
+#' `print()` — is still found by inheritance. Note that the class names the fit
+#' this returns, while the function names the act of producing it.
+#'
+#' Only a fit gets the class. `perform_rfe()` groups its warnings the same way
+#' but leaves the object it stores alone, since an elimination has no
+#' `$finalModel` for the two methods to reach and `coef()` on it would answer with
+#' a message about a fit that is not there.
+#'
+#' @param expr The fitting call, evaluated here.
+#' @param label Human readable model name used in the message.
+#'
+#' @keywords internal
+#' @noRd
+sa_fit_engine <- function(expr, label) {
+  fit <- sa_quiet_engine(expr, label)
   structure(fit, class = c("sa_fit", class(fit)))
 }
 

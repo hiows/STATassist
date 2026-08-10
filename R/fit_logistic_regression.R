@@ -22,6 +22,14 @@
 #' `group_lv` would put `control` in the denominator of its fold change, so the
 #' two point the same way.
 #'
+#' `control_label` states the same direction with one name instead of two, which
+#' is the shorter thing to say when the other class needs no saying. Naming both
+#' and pointing them at different classes is an error rather than a re-pointing:
+#' `outcome_lv` holds the two classes and nothing else, so there is no reading
+#' under which a different reference leaves any of it standing. The comparison
+#' functions take the argument the other way round, since their `group_lv`
+#' carries the display order too — see [compare_two_groups()].
+#'
 #' This is also what the engine does unaided. [stats::glm()] models the
 #' probability of the last level of a factor, so ordering the levels
 #' reference-first is the whole of the implementation and nothing is reversed
@@ -65,6 +73,9 @@
 #' @param outcome_lv The two classes, reference first, so that the coefficients
 #'   describe the odds of the second one. `NULL` sorts the classes, which puts
 #'   `"control"` before `"treated"` and `0` before `1`.
+#' @param control_label The reference class on its own, for when the other one
+#'   needs no saying. Defaults to `outcome_lv[1]`, so a call that names one of the
+#'   two names the reference either way; naming both and disagreeing is an error.
 #' @param cv Whether to cross-validate. `FALSE` fits the model once and reports no
 #'   resampled performance.
 #' @param cv_method Resampling scheme: `"repeated_kfold"` for `n_repeat` runs of
@@ -135,6 +146,7 @@ fit_logistic_regression <- function(data,
                                     outcome,
                                     predictors = NULL,
                                     outcome_lv = NULL,
+                                    control_label = outcome_lv[1],
                                     cv = TRUE,
                                     cv_method = c("repeated_kfold", "kfold",
                                                   "loocv"),
@@ -148,7 +160,7 @@ fit_logistic_regression <- function(data,
                       lower_open = TRUE, upper_open = TRUE)
 
   input <- sa_resolve_model_input(data, outcome, predictors)
-  y <- sa_outcome_levels(input$y, outcome_lv)
+  y <- sa_outcome_levels(input$y, outcome_lv, control_label)
   outcome_lv <- levels(y)
   ctrl <- sa_train_control(cv, cv_method, n_fold, n_repeat, input$n_used)
 

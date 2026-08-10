@@ -88,7 +88,12 @@
 #' `oob_specificity` the share of `outcome_lv[1]` it left alone, and
 #' `predict(model, newdata, type = "response")` is the probability of
 #' `outcome_lv[2]`. The importance table itself has no direction to report, which
-#' is why there is no `odds_ratio` column beside it.
+#' is why there is no `odds_ratio` column beside it. `control_label` says the
+#' same thing with one name instead of two and says it alone, so it too is enough
+#' to make a column of zeroes and ones a classification. Naming both and pointing
+#' them at different classes is an error rather than a re-pointing, since an
+#' `outcome_lv` holds the two classes and nothing else; the comparison functions
+#' read the argument the other way, as [compare_two_groups()] describes.
 #'
 #' A forest is random beyond the folds — the rows of each tree and the predictors
 #' of each split are both draws — so `seed` fixes more here than it does in the
@@ -110,6 +115,9 @@
 #'   numeric column holding two values cannot say on its own. `NULL` sorts the
 #'   classes of an outcome that is not numeric, and leaves a numeric one to the
 #'   regression.
+#' @param control_label The reference class on its own, for when the other one
+#'   needs no saying. Defaults to `outcome_lv[1]`, so a call that names one of the
+#'   two names the reference either way; naming both and disagreeing is an error.
 #' @param mtry Predictors offered at each split, one value to score or several to
 #'   choose between. `NULL` is the rule of thumb: `floor(sqrt(p))` for a
 #'   classification and `floor(p / 3)` for a regression, at least 1. A value above
@@ -201,6 +209,7 @@ fit_rf <- function(data,
                    outcome,
                    predictors = NULL,
                    outcome_lv = NULL,
+                   control_label = outcome_lv[1],
                    mtry = NULL,
                    ntree = 500,
                    nodesize = NULL,
@@ -218,17 +227,20 @@ fit_rf <- function(data,
   # One argument, two forests, and the outcome decides which, the same way it
   # does in `fit_elastic_net()`. A numeric column is a regression, since that is
   # what a number usually is, and anything else is a set of class labels.
-  # `outcome_lv` overrules the guess, which is the only way to say that a column
-  # of zeroes and ones is two classes rather than two numbers.
-  classify <- !is.null(outcome_lv) || !is.numeric(input$y)
+  # `outcome_lv` overrules the guess, and so does `control_label` on its own,
+  # which is the only way to say that a column of zeroes and ones is two classes
+  # rather than two numbers.
+  classify <- !is.null(outcome_lv) || !is.null(control_label) ||
+    !is.numeric(input$y)
   if (!classify && length(unique(input$y)) == 2L) {
     message("`outcome` is numeric and takes two values, so it was fitted as a ",
-            "regression. Pass `outcome_lv`, or a factor column, to model it as ",
-            "a classification.")
+            "regression. Pass `outcome_lv` or `control_label`, or a factor ",
+            "column, to model it as a classification.")
   }
 
   if (classify) {
-    y <- sa_outcome_levels(input$y, outcome_lv, model = "a random forest")
+    y <- sa_outcome_levels(input$y, outcome_lv, control_label,
+                           model = "a random forest")
     outcome_lv <- levels(y)
   } else {
     if (!all(is.finite(input$y))) {

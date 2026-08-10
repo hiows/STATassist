@@ -1,6 +1,6 @@
 Package: STATassist
 Title: Standardised Statistical Comparison Workflows
-Version: 0.6.0
+Version: 0.7.0
 Authors@R: 
     person("Wonseok", "Oh", , "hiows97@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0009-0002-0687-8466"))

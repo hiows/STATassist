@@ -9,6 +9,7 @@ fit_elastic_net(
   outcome,
   predictors = NULL,
   outcome_lv = NULL,
+  control_label = outcome_lv[1],
   penalty = c("elastic_net", "lasso", "ridge"),
   alpha = seq(0, 1, by = 0.1),
   lambda = 10^seq(-4, 1, length.out = 50),
@@ -37,6 +38,10 @@ describe the odds of the second one. Supplying it also states that the
 outcome is to be classified, which is the one thing a numeric column holding
 two values cannot say on its own. \code{NULL} sorts the classes of an outcome
 that is not numeric, and leaves a numeric one to the regression.}
+
+\item{control_label}{The reference class on its own, for when the other one
+needs no saying. Defaults to \code{outcome_lv[1]}, so a call that names one of the
+two names the reference either way; naming both and disagreeing is an error.}
 
 \item{penalty}{Which penalty to apply: \code{"elastic_net"} for a tuned mixture of
 the L1 and L2 penalties, \code{"lasso"} for the L1 penalty alone (\code{alpha = 1}),
@@ -166,7 +171,10 @@ coefficient is the change in the log odds of \code{outcome_lv[2]}, \code{odds_ra
 above 1 for a predictor that raises the chance of it, and
 \code{predict(model, newdata, type = "response")} is its probability. That is
 also what the engine does unaided, \code{glmnet} modelling the last level of a
-factor as \code{glm()} does.
+factor as \code{glm()} does. \code{control_label} names the reference on its own and is
+enough by itself to make a column of zeroes and ones a classification; naming
+it alongside an \code{outcome_lv} that puts the other class first is an error, as
+it is in \code{\link[=fit_logistic_regression]{fit_logistic_regression()}}.
 
 New rows are predicted through the result rather than through \verb{$fit}, and on
 this model that is the only route: \code{glmnet} was handed a design matrix and

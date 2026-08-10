@@ -9,6 +9,7 @@ fit_logistic_regression(
   outcome,
   predictors = NULL,
   outcome_lv = NULL,
+  control_label = outcome_lv[1],
   cv = TRUE,
   cv_method = c("repeated_kfold", "kfold", "loocv"),
   n_fold = 5,
@@ -33,6 +34,10 @@ since it cannot contribute.}
 \item{outcome_lv}{The two classes, reference first, so that the coefficients
 describe the odds of the second one. \code{NULL} sorts the classes, which puts
 \code{"control"} before \code{"treated"} and \code{0} before \code{1}.}
+
+\item{control_label}{The reference class on its own, for when the other one
+needs no saying. Defaults to \code{outcome_lv[1]}, so a call that names one of the
+two names the reference either way; naming both and disagreeing is an error.}
 
 \item{cv}{Whether to cross-validate. \code{FALSE} fits the model once and reports no
 resampled performance.}
@@ -85,6 +90,14 @@ change in the log odds of \code{outcome_lv[2]} per unit of its predictor, and
 about \code{case}, and the same vector handed to \code{\link[=compare_two_groups]{compare_two_groups()}} as
 \code{group_lv} would put \code{control} in the denominator of its fold change, so the
 two point the same way.
+
+\code{control_label} states the same direction with one name instead of two, which
+is the shorter thing to say when the other class needs no saying. Naming both
+and pointing them at different classes is an error rather than a re-pointing:
+\code{outcome_lv} holds the two classes and nothing else, so there is no reading
+under which a different reference leaves any of it standing. The comparison
+functions take the argument the other way round, since their \code{group_lv}
+carries the display order too — see \code{\link[=compare_two_groups]{compare_two_groups()}}.
 
 This is also what the engine does unaided. \code{\link[stats:glm]{stats::glm()}} models the
 probability of the last level of a factor, so ordering the levels

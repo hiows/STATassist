@@ -23,6 +23,16 @@
 #' rank-based omnibus test is therefore never followed by a parametric
 #' comparison.
 #'
+#' Direction is set once, by the order of `group_lv`, and `control_label` is the
+#' second way of stating that order: the level it names moves to the front and
+#' the rest keep the order they were given. The move carries further here than
+#' it does in [compare_two_groups()], since the reference is the denominator of
+#' the fold change and the subtracted side of every post-hoc contrast at the
+#' same time, and the remaining levels keep contrasting each other in display
+#' order. Naming a level that `group_lv` already holds is a correction rather
+#' than a contradiction, which is why it is accepted here and refused by the
+#' models, whose `outcome_lv` holds the two classes and nothing else.
+#'
 #' @param data A data.frame (or matrix) in wide format, one row per
 #'   observation and one column per feature.
 #' @param feats Character vector of numeric column names in `data` to test.
@@ -32,6 +42,11 @@
 #'   the reference the `effect` table is expressed against and the level every
 #'   post-hoc contrast subtracts, so a contrast reads `treat_1 - control` rather
 #'   than the other way round. Rows belonging to any other level are dropped.
+#' @param control_label The level to hold as the reference. Naming it moves that
+#'   level to the front of `group_lv` and leaves the rest in the order given, so
+#'   the fold change and every post-hoc contrast are expressed against it
+#'   without the levels having to be retyped. Defaults to `group_lv[1]`, the
+#'   reference the order already asked for.
 #' @param id Subject identifier with one entry per row of `data`. Required when
 #'   `paired = TRUE` and ignored otherwise.
 #' @param paired Logical. If `TRUE`, the levels of `group` are treated as
@@ -230,6 +245,7 @@ compare_multiple_groups <- function(data,
                                     feats,
                                     group,
                                     group_lv,
+                                    control_label = group_lv[1],
                                     id = NULL,
                                     paired = FALSE,
                                     conf_level = 0.95,
@@ -270,7 +286,8 @@ compare_multiple_groups <- function(data,
   feats <- input$feats
   group <- input$group
   id <- input$id
-  group_lv <- levels(group)
+  group_lv <- sa_control_first(levels(group), control_label)
+  group <- factor(as.character(group), levels = group_lv)
   n_lv <- length(group_lv)
 
   if (input$n_dropped > 0L) {

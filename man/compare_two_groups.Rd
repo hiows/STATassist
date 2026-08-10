@@ -9,6 +9,7 @@ compare_two_groups(
   feats,
   group,
   group_lv,
+  control_label = group_lv[1],
   id = NULL,
   alternative = c("two.sided", "less", "greater"),
   paired = FALSE,
@@ -34,6 +35,12 @@ the reference, treated as \code{y}, and the second is the level compared against
 it, treated as \code{x}, so all differences read as
 \code{group_lv[2] - group_lv[1]} and all ratios as \code{group_lv[2] / group_lv[1]}.
 Rows belonging to any other level are dropped.}
+
+\item{control_label}{The level to hold as the reference. Naming it moves that
+level to the front of \code{group_lv} and leaves the other one where it is, so
+\code{control_label = group_lv[2]} reverses every difference and ratio without
+the pair having to be rewritten. Defaults to \code{group_lv[1]}, the reference
+the order already asked for.}
 
 \item{id}{Optional pairing key with one entry per row of \code{data}, used only
 when \code{paired = TRUE}. Supplying it matches observations by key instead of
@@ -145,6 +152,15 @@ result follows it. The first level is the reference, as it is in
 \code{group_lv[2]} exceeds \code{group_lv[1]} in all three families, and \code{mean_diff},
 \code{hl_shift}, \code{trim_diff}, \code{fold_change} and \code{relative_effect} are all above
 their null value when \code{group_lv[2]} is the larger group.
+
+\code{control_label} is the second way of stating that order. It names the level
+to hold as the reference and moves it to the front, so the direction can be
+flipped without the two levels being retyped in the other order. Because
+\code{group_lv} says which levels take part as well as which one is the
+reference, naming the second one here is a correction rather than a
+contradiction, which is where the comparisons differ from the models: an
+\code{outcome_lv} holds nothing but the two classes, so \code{\link[=fit_logistic_regression]{fit_logistic_regression()}}
+rejects a \code{control_label} that disagrees with it.
 
 Features that cannot be tested do not abort the run. Their row is filled
 with \code{NA} and all such features are reported together in a single warning.

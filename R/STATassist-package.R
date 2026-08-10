@@ -26,6 +26,11 @@
 #'     post-hoc procedure that shares its assumptions.}
 #' }
 #'
+#' Direction is the order of `group_lv` in both of the grouped ones, and
+#' `control_label` is the second way of stating it: the level it names moves to
+#' the front and the rest keep the order they were given, so a fold change and
+#' every post-hoc contrast can be turned around without the levels being retyped.
+#'
 #' @section Assumption diagnostics:
 #' [diagnose_distribution()] reports the normality tests, the homogeneity of
 #' variance tests and [screen_outliers()] together. The same checks are attached
@@ -131,7 +136,14 @@
 #' whether the model is scored, not how it is fitted, so the coefficients do not
 #' depend on the scheme. `outcome_lv` fixes the direction of a classification the
 #' way `group_lv` fixes it for a comparison: the first level is the reference, so
-#' the coefficients describe the odds of the second.
+#' the coefficients describe the odds of the second. `control_label` names that
+#' reference on its own, here and in [fit_elastic_net()], [fit_rf()],
+#' [fit_svm()] and [perform_rfe()], and naming it is also the one way to say that
+#' a numeric column of zeroes and ones is two classes rather than two numbers.
+#' Where it is read differently from the comparisons is in disagreement: an
+#' `outcome_lv` holds the two classes and nothing else, so naming the other one
+#' as the reference is an error, while the same argument re-points a `group_lv`
+#' that carries the display order of every level besides.
 #'
 #' ```
 #' sp <- split_data(data, stratified = "outcome", seed = 1)
@@ -215,6 +227,61 @@
 #' with a planted one is the case a coefficient table gets wrong however many rows
 #' it is given, and `truth$max_cor_signal` is what accounts for it afterwards.
 #'
+#' @section Feature selection:
+#' Two functions here search rather than fit. A model is handed its predictors and
+#' answers about them; a selection is handed candidates and answers which of them
+#' to keep. Both return `sa_selection`, the fourth row axis in the package.
+#' `candidates` takes the place `features` holds in a comparison, `terms` in a
+#' model and `points` in a reduction, and it is in the order the search ranked
+#' rather than the order the columns arrived. Two tables hang off it: `ranking`,
+#' one row per candidate, and `profile`, one row per model the search compared.
+#' `$selected` is a set of column names and nothing else, which is what lets either
+#' result go straight into `predictors =` of a `fit_*()` call.
+#'
+#' [perform_rfe()] ranks candidates, drops the weakest, and scores what is left,
+#' over and over until one predictor is standing. Every subset size is scored
+#' inside the resampling rather than after it, so the ranking is recomputed in each
+#' fold and no size is scored on the rows that chose it. There is no `cv` argument
+#' for that reason: an elimination with nothing held out has no score to choose a
+#' size by. Its `profile` is one row per subset size.
+#'
+#' ```
+#' sel <- perform_rfe(train_data, outcome = "outcome", model = "rf")
+#' fit_rf(train_data, outcome = "outcome", predictors = sel$selected)
+#' ```
+#'
+#' That takes work inside an elimination that fits a linear or logistic model,
+#' since those see a factor as `k - 1` dummy columns rather than as the column that
+#' was passed in, and it is why the ranking is folded back onto the input columns
+#' before anything is eliminated. It is also why the ranking is the absolute t or
+#' Wald statistic rather than the coefficient: a coefficient is an effect per unit
+#' of its predictor, so ranking by its size ranks by the units the predictors
+#' happened to be measured in.
+#'
+#' [perform_stepwise()] asks the same question and pays for the answer with a
+#' penalised likelihood instead of a resampled score. The model is refitted with one
+#' term taken out or put back at a time, the move that lowers AIC or BIC the most is
+#' taken, and the search stops when no single move lowers it further. AIC levies 2
+#' per parameter and BIC levies `log(n)`, so past seven observations BIC charges
+#' more and keeps fewer predictors. Nothing is held out, so nothing is resampled,
+#' so nothing is random, and there is neither a `cv` argument nor a `seed`.
+#' `profile` holds one row per step of the path, with both criteria at every step,
+#' and `resampling` is `NULL`, which is the slot that tells the two searches apart
+#' at a glance. `step()` moves whole terms, so a factor is one candidate however
+#' many dummy columns it becomes and nothing has to be folded back onto the input.
+#'
+#' ```
+#' sel <- perform_stepwise(train_data, outcome = "outcome", criterion = "BIC")
+#' fit_linear_regression(train_data, outcome = "outcome",
+#'                       predictors = sel$selected)
+#' ```
+#'
+#' What an information criterion is not is a validation. It is computed on the rows
+#' the model was fitted to, and the model was kept because it scored best on them,
+#' so the p-values a later fit reports for the selected predictors on the same
+#' rows read smaller than they are. The honest score is on the test half of
+#' [split_data()], which the search never saw.
+#'
 #' @section Unsupervised learning:
 #' [perform_pca()], [perform_tsne()] and [perform_umap()] are the first functions
 #' here with no outcome at all. Nothing is predicted and nothing is scored, so what
@@ -250,7 +317,7 @@
 #' see.
 #'
 #' @keywords internal
-#' @importFrom caret createDataPartition train trainControl
+#' @importFrom caret createDataPartition rfe rfeControl train trainControl
 # `glmnet` is reached by name rather than by call: `caret::train()` is asked for
 # `method = "glmnet"` and loads it itself, so nothing in this package calls the
 # function that is imported here. The import is what declares the dependency and

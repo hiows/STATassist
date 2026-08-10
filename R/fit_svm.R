@@ -108,7 +108,10 @@
 #' second thing `seed` fixes and a reason two machines fitted without one predict
 #' slightly different probabilities from the same decisions. The importance table
 #' has no direction to report, which is why there is no `odds_ratio` column beside
-#' it.
+#' it. `control_label` names the reference on its own and is enough by itself to
+#' make a column of zeroes and ones a classification; naming it alongside an
+#' `outcome_lv` that puts the other class first is an error, as it is in
+#' [fit_logistic_regression()].
 #'
 #' @param data A data.frame (or matrix) in wide format, one row per observation.
 #'   Typically the training half of a [split_data()] result.
@@ -125,6 +128,9 @@
 #'   numeric column holding two values cannot say on its own. `NULL` sorts the
 #'   classes of an outcome that is not numeric, and leaves a numeric one to the
 #'   regression.
+#' @param control_label The reference class on its own, for when the other one
+#'   needs no saying. Defaults to `outcome_lv[1]`, so a call that names one of the
+#'   two names the reference either way; naming both and disagreeing is an error.
 #' @param C Cost of violating the margin, one value to score or several to choose
 #'   between. Larger fits the training rows harder and generalises less.
 #' @param sigma Width of the radial kernel on the standardised scale, one value or
@@ -217,6 +223,7 @@ fit_svm <- function(data,
                     outcome,
                     predictors = NULL,
                     outcome_lv = NULL,
+                    control_label = outcome_lv[1],
                     C = 2^seq(-5, 10, by = 2),
                     sigma = NULL,
                     n_permute = 10,
@@ -234,17 +241,19 @@ fit_svm <- function(data,
   # One argument, two machines, and the outcome decides which, the same way it
   # does in `fit_elastic_net()` and `fit_rf()`. A numeric column is a regression,
   # since that is what a number usually is, and anything else is a set of class
-  # labels. `outcome_lv` overrules the guess, which is the only way to say that a
-  # column of zeroes and ones is two classes rather than two numbers.
-  classify <- !is.null(outcome_lv) || !is.numeric(input$y)
+  # labels. `outcome_lv` overrules the guess, and so does `control_label` on its
+  # own, which is the only way to say that a column of zeroes and ones is two
+  # classes rather than two numbers.
+  classify <- !is.null(outcome_lv) || !is.null(control_label) ||
+    !is.numeric(input$y)
   if (!classify && length(unique(input$y)) == 2L) {
     message("`outcome` is numeric and takes two values, so it was fitted as a ",
-            "regression. Pass `outcome_lv`, or a factor column, to model it as ",
-            "a classification.")
+            "regression. Pass `outcome_lv` or `control_label`, or a factor ",
+            "column, to model it as a classification.")
   }
 
   if (classify) {
-    y <- sa_outcome_levels(input$y, outcome_lv,
+    y <- sa_outcome_levels(input$y, outcome_lv, control_label,
                            model = "a support vector machine")
     outcome_lv <- levels(y)
   } else {
