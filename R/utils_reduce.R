@@ -6,6 +6,13 @@
 # that only one of them finds is a fact about the method, and it can only be read
 # that way if the three were handed the same numbers.
 #
+# The four `cluster_*()` functions read their input through here as well, via
+# `sa_cluster_input()`, for the reason that extends the same sentence: a clustering
+# drawn on top of a reduction of the same frame has to be about the same rows, and
+# it can only be if one function decided which rows those are. The messages here
+# are worded for both, since by the time one is printed the caller knows perfectly
+# well which function they called.
+#
 # `embedding_scale` lives here for the same reason, and it is not a preprocessing
 # option. It names which margin of the input becomes a point, and each function
 # answers it in the way its engine allows. A principal component analysis is a
@@ -49,7 +56,21 @@ sa_reduce_input <- function(data, feats, scale, fn) {
   if (!is.matrix(data) && !is.data.frame(data)) {
     stop("`data` must be a data.frame or a matrix.", call. = FALSE)
   }
-  sample_labels <- rownames(data)
+  sample_labels <- NULL
+  if (is.data.frame(data) && "points" %in% names(data)) {
+    pt <- as.character(data$points)
+    rn <- rownames(data)
+    default_rn <- as.character(seq_len(NROW(data)))
+    # A data.frame with no row names still answers to "1", "2", … rather than
+    # to NULL, so the reduction scores table is recognised by its default names
+    # and the `points` column it was built with.
+    if (!anyNA(pt) && (is.null(rn) || identical(rn, default_rn))) {
+      sample_labels <- pt
+    }
+  }
+  if (is.null(sample_labels)) {
+    sample_labels <- rownames(data)
+  }
   if (is.null(sample_labels)) {
     sample_labels <- as.character(seq_len(NROW(data)))
   }
@@ -62,7 +83,7 @@ sa_reduce_input <- function(data, feats, scale, fn) {
   if (is.null(feats)) {
     numeric_col <- vapply(as.data.frame(data), is.numeric, logical(1))
     if (!any(numeric_col)) {
-      stop("`data` holds no numeric column, so there is nothing to reduce.",
+      stop("`data` holds no numeric column, so there is nothing to work with.",
            call. = FALSE)
     }
     if (!all(numeric_col)) {
@@ -93,7 +114,7 @@ sa_reduce_input <- function(data, feats, scale, fn) {
   n_dropped <- sum(!usable)
   if (n_dropped > 0L) {
     message("Dropped ", n_dropped, " row(s) that are not complete and finite ",
-            "across the feature(s) being reduced.")
+            "across the feature(s) in use.")
   }
   x <- x[usable, , drop = FALSE]
   samples <- input$id[usable]
@@ -118,9 +139,9 @@ sa_reduce_input <- function(data, feats, scale, fn) {
   }
 
   if (nrow(x) < 2L || ncol(x) < 2L) {
-    stop("`", fn, "()` needs at least 2 samples and 2 features to reduce, but ",
-         "got ", nrow(x), " usable sample(s) and ", ncol(x),
-         " usable feature(s).", call. = FALSE)
+    stop("`", fn, "()` needs at least 2 samples and 2 features, but got ",
+         nrow(x), " usable sample(s) and ", ncol(x), " usable feature(s).",
+         call. = FALSE)
   }
 
   list(x = x,

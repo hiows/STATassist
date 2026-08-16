@@ -10,13 +10,16 @@ estimate_significance(
   log2fc_cutoff = 1,
   pval_cutoff = 0.05,
   adj_type = NULL,
-  by = c("omnibus", "contrast")
+  by = c("omnibus", "contrast", "term")
 )
 }
 \arguments{
 \item{comparison_result}{A comparison result, as returned by
-\code{\link[=compare_two_groups]{compare_two_groups()}}, \code{\link[=compare_multiple_groups]{compare_multiple_groups()}} or
-\code{\link[=compare_one_sample]{compare_one_sample()}}.}
+\code{\link[=compare_two_groups]{compare_two_groups()}}, \code{\link[=compare_multiple_groups]{compare_multiple_groups()}},
+\code{\link[=compare_one_sample]{compare_one_sample()}} or \code{\link[=compare_factorial_groups]{compare_factorial_groups()}}. A categorical
+comparison is refused: it has no feature axis, which is what this function
+reads a verdict along. \code{\link[=estimate_categorical_significance]{estimate_categorical_significance()}} is its
+counterpart and reads the cell axis instead.}
 
 \item{test}{Which test in \code{comparison_result} supplies the p-values. One of
 \code{names(comparison_result$tests)}, so \code{"t_test"}, \code{"wilcox_test"} or
@@ -37,9 +40,11 @@ comparison. Passing a method here does not adjust twice: the input is always
 the unadjusted \code{pval} column.}
 
 \item{by}{Which p-value the verdict is read from. \code{"omnibus"}, the default,
-uses the named test's own table, which is the only thing a two-group or a
-one-sample comparison has. \code{"contrast"} uses the pairwise stage of a
-multi-group comparison instead and returns one verdict table per contrast.}
+uses the named test's own table. \code{"contrast"} uses the pairwise stage of a
+multi-group comparison and returns one verdict table per contrast. \code{"term"}
+uses the \verb{$terms} table of a factorial comparison and returns one verdict
+table per model term, each carrying that term's own effect size in
+\code{log2fc}.}
 }
 \value{
 An \code{sa_significance} object, a list of two elements:
@@ -49,17 +54,22 @@ read from, so a table that has been passed around still says which
 scenario produced it.}
 \item{\code{significance}}{With \code{by = "omnibus"}, a data.frame with one row per
 feature and the columns \code{features}, \code{log2fc}, \code{pvalue}, \code{adj_pvalue} and
-\code{is_signif}. With \code{by = "contrast"}, a list of those same data.frames,
-one per pairwise contrast and named after it, in the order
-\code{comparison_result$pairwise[[test]]} fixes.}
+\code{is_signif}. A multi-group omnibus table also carries \code{extreme_level},
+and a factorial one carries \code{extreme_cell}, naming the level or cell
+whose centre produced \code{log2fc}. With \code{by = "contrast"}, a list of those
+same data.frames, one per pairwise contrast and named after it, in the
+order \code{comparison_result$pairwise[[test]]} fixes. With \code{by = "term"}, the
+same again, one per model term and named after it, in the order
+\code{comparison_result$terms} lists them.}
 }
 
 The cutoffs, the test name and the adjustment actually used are attached to
 each data.frame as attributes, which is where \code{\link[=draw_volcano_plot]{draw_volcano_plot()}} picks
 them up so that the plotted guides cannot disagree with the verdict. A
-contrast table carries \code{contrast}, \code{group1} and \code{group2} on top of those, so
-a single element of \code{significance} can be handed straight to
-\code{\link[=draw_volcano_plot]{draw_volcano_plot()}}.
+contrast table carries \code{contrast}, \code{group1} and \code{group2} on top of those and
+a term table carries \code{term} and \code{term_order}, so a single element of
+\code{significance} can be handed straight to \code{\link[=draw_volcano_plot]{draw_volcano_plot()}} — and a whole
+list of term tables can, which is how the term panels are drawn.
 }
 \description{
 Puts the two axes of a volcano plot side by side and flags the features that
@@ -88,6 +98,25 @@ adjusted across the contrasts within each feature by \code{posthoc_p_adjust}, or
 not at all for Tukey's HSD and Games-Howell, whose p-values are already
 family-wise. Naming a method instead adjusts across the features within each
 contrast, which is the axis \code{by = "omnibus"} always works on.
+
+A factorial comparison has a third reading. The default \code{"omnibus"} pairs the
+whole-model F test with the most extreme \strong{cell} against the reference cell,
+the combination where every factor sits at its first level. The table also
+carries \code{extreme_cell}, naming which cell was furthest on the log2 scale.
+That says a feature responded to the design and how far it moved at its
+furthest point, but not \strong{which part} of the design it responded to.
+\code{by = "term"} answers that, one table per main effect and per interaction,
+and needs no choice of adjustment axis:
+both branches adjust across the features of one term, which is the family
+\verb{$terms$pval_adj} was built over as well.
+
+The \code{log2fc} of a term table is \verb{$terms$log2_effect}, an ANOVA component rather
+than a ratio of two centres. It measures a deviation from what the rest of the
+model predicts, so a two-level factor whose levels differ by one log2 unit
+contributes -0.5 and +0.5 rather than 1. The default \code{log2fc_cutoff = 1} is
+therefore a stricter demand here than the same number is elsewhere; halving it
+asks of a two-level factor what the default asks of a fold change. See "The
+size of a term" in \code{\link[=compare_factorial_groups]{compare_factorial_groups()}}.
 
 A feature whose omnibus test did not clear \code{posthoc_alpha} was never compared
 pairwise, so its \code{pvalue} is \code{NA} in every contrast table. Its \code{log2fc} is
@@ -134,6 +163,18 @@ by_pair <- estimate_significance(multi, by = "contrast",
                                  log2fc_cutoff = 0.1)
 names(by_pair$significance)
 by_pair$significance[["virginica - setosa"]]
+
+## One verdict table per term of a crossed design
+fact <- compare_factorial_groups(
+  data    = warpbreaks,
+  feats   = "breaks",
+  factors = list(wool = "wool", tension = "tension"),
+  posthoc = FALSE
+)
+draw_volcano_plot(estimate_significance(fact, log2fc_cutoff = 0.1))
+by_term <- estimate_significance(fact, by = "term", log2fc_cutoff = 0.1)
+names(by_term$significance)
+by_term$significance[["wool:tension"]]
 
 }
 \seealso{

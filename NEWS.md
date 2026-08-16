@@ -1,3 +1,763 @@
+# STATassist (development version)
+
+# STATassist 1.0.0
+
+Scoring the models. The five fitting functions returned a model and the README
+scored it by hand, with a `pROC` snippet for the curve and a scatter written out
+each time. `predict.sa_model()` already abstracts the five engines, so a layer
+above it can score any of them side by side, and holding several models against
+one baseline is where the metrics that need a pair — DeLong's test, the IDI and
+the NRI — become available.
+
+And the other half of the unsupervised family. The three reductions answered
+where each point sits once the features have been squeezed into two dimensions,
+which left the neighbouring question — which points belong together — with no
+function to ask it. The four `cluster_*()` functions ask it, and they reuse the
+reductions' row axis and input reading rather than starting a fourth of their
+own, so a clustering and an embedding of the same frame are about the same rows.
+`draw_dim_reduction_plot()` is what that shared axis was for: it paints the
+labels one of them found onto the coordinates the other placed, beside the
+grouping that was known before either ran.
+
+And the pair of features, which nothing had asked about. Every function so far
+reduced one feature at a time or every feature at once; the question of how two
+of them move together had no entry point, and a correlation matrix computed by
+hand had no p-value beside it and no way of being drawn.
+
+And the summary that had a table but no picture of its own.
+`summarize_descriptive_stats()` has reduced every feature and group to a row of
+locations and spreads since the first release, and seeing one of those columns
+across a set of groups meant reshaping the table and calling `barplot()` by hand,
+with the interval either side of each mean worked out again on the way.
+
+## New features
+
+* New `summarize_association_stats()` reduces every pair of features to the
+  association between them. Pearson, Spearman and Kendall come back side by side
+  on the same pairs, the way a comparison reports a parametric, a rank-based and
+  a robust test side by side, so that a linear coefficient and a monotonic one
+  disagreeing is a fact about the data rather than about which call was made.
+
+  Each method gets a slot of four features-by-features matrices: `corr` from
+  `stats::cor()`, `pvalue` from `stats::cor.test()`, `adj_pvalue` adjusted across
+  the pairs, and `n`, the observations the pair shared. Beside them `design`
+  records the call.
+
+  The adjustment runs over the pairs that produced a p-value rather than over
+  every cell of the triangle. A pair `stats::cor.test()` refused, having fewer
+  than three shared observations or no variance on one side, is not a test that
+  was performed, and counting it would shrink the other pairs for a comparison
+  that never happened. Such a pair comes back `NA` rather than aborting the
+  screen. The diagonal is a property of the matrix and not an estimate: `corr` is
+  1 there and both p-values are `NA`.
+
+  It is not an `sa_comparison`. This is a screen, the pairwise counterpart of
+  `summarize_descriptive_stats()`, and it returns a plain list for the same
+  reason that one returns a plain data.frame.
+
+* New `draw_corrplot()` draws that matrix, and adds three decisions to
+  `draw_heatmap()` rather than a second drawing engine. Nothing is standardised,
+  a coefficient already being on a common scale. The colours are fixed at -1 to
+  1, so the same colour means the same strength from one plot to the next. And
+  the two axes hold the same features, so they are clustered once and permuted
+  together; a symmetric matrix clustered twice can come back with its rows and
+  columns in different orders, and the diagonal then wanders off the diagonal.
+
+  Given the p-values, the pairs that did not clear `sig_level` are drawn as blank
+  cells. The blanking happens after the clustering: a cell removed first would
+  change the tree, and the picture would no longer be the matrix the reader is
+  being shown. The diagonal is never blanked, a feature not being tested against
+  itself, which is why the diagonal carries no p-value in the first place.
+
+  The distance is `1 - cor()`, the same one `cluster_hclust()` and
+  `draw_heatmap(dist_method = "correlation")` mean, so a corrplot and a heatmap
+  of the same features group them the same way.
+
+* New `draw_grouped_barplot()` draws a column of `summarize_descriptive_stats()`
+  as clusters of bars, one cluster per feature and one bar per group level. It is
+  the summary counterpart of `draw_grouped_boxplot()`: a box shows the
+  distribution a group's observations have, a bar shows one number standing for
+  them, which is what a figure wants when the point is about a location rather
+  than a spread. The heights are that function's own column rather than a second
+  pass over the data, so a bar and a row of the table are the same number.
+
+  `errorbar` is read under `mainbar` rather than independently of it, because
+  only two of the summary columns are locations an interval either side says
+  anything about. A mean takes `"se"`, `"sd"` and Student's `"ci"` at
+  `conf_level`. A median takes `"ci"` alone, the notch interval
+  `median +/- 1.58 * IQR / sqrt(n)`, which is the interval
+  `draw_grouped_boxplot()` already returns as `median_confidence_stats`, so a bar
+  and the notch of the box beside it are the same width on the same data. Every
+  other height — a count, a spread, a shape — has no second quantity to be
+  uncertain by and takes `"none"`. Asking for one of the others is an error
+  rather than a silently dropped interval, the alternative being a figure that
+  answers a question other than the one it was asked.
+
+  A bar is read against the zero it stands on, so a derived `ylim` always holds
+  zero and puts its headroom on the side the bars run to; heights that go both
+  ways, as `"skewness"` does, get the baseline drawn as well. A height the
+  summary could not compute leaves its bar blank rather than shifting the ones
+  beside it, which is what makes a group too small for a shape estimate visible
+  instead of absent.
+
+* New `evaluate_regression_models()` scores one or more fitted regressions on
+  the same held-out rows. `$metrics` reports `cor`, `r_squared`, `rmse`, `mae`,
+  `bias` and the calibration line, and `$comparisons` reports each model less
+  the baseline. `cor` and `r_squared` are both there because they answer
+  different questions: `r_squared` is `1 - SSE/SST` on the scored rows, so it is
+  the variance the predictions actually removed and can be negative, while
+  `cor^2` is what that would be after rescaling by a line fitted to those same
+  rows. The gap between them is what `calib_slope` and `calib_intercept` report.
+
+  There is no p-value beside the differences. A difference of held-out errors
+  has no null this package is in a position to state, and the two numbers it is
+  made of are in `$metrics`.
+
+* New `evaluate_classification_models()` does the same for a two-class outcome.
+  `$metrics` reports `auc` with a DeLong interval, `brier`, and `accuracy`,
+  `sensitivity` and `specificity` at a stated `threshold`; `$curves` holds the
+  ROC operating points as a rectangular table rather than a curve object.
+
+  `$comparisons` asks three questions of each model against the baseline rather
+  than picking one. `delta_auc` asks whether the ranking improved and is tested
+  by DeLong's paired test. `idi` asks how much further apart the two classes'
+  predicted probabilities moved, which an AUC is blind to, since reordering
+  nothing leaves it untouched. `nri` asks how often a probability moved the
+  right way, counting direction only, so a model that helps many rows slightly
+  and hurts a few badly scores well here and badly on the IDI.
+
+  The class order is the fits'. `outcome_lv` and `control_label` are checked
+  against the order the models were fitted with rather than used to change it,
+  since a fitted classification predicts the probability of its own second level
+  and cannot be re-pointed after the fact.
+
+* Both return the new `sa_performance` contract, a plain list of `analysis`,
+  `models`, `design`, `parameters`, `predictions`, `metrics`, `comparisons`,
+  `curves` and `metadata`. No engine object is stored: the calibration line is
+  two numbers rather than the `lm` that produced them, so the whole object
+  writes out as JSON.
+
+  Every model is scored on the rows **all** of them could predict.
+  `predict.sa_model()` answers `NA` for a row incomplete across that model's
+  predictors, so models fitted on different predictor sets otherwise come back
+  with different rows filled in, and DeLong's test, the IDI and the NRI are
+  paired statistics with no meaning across different rows. One message reports
+  how many rows went and why.
+
+* New `draw_prediction_plot()` and `draw_roc_curve()`, with
+  `plot.sa_performance()` dispatching to whichever the result calls for. The
+  scatter draws the identity line and the calibration line from the two numbers
+  `$metrics` holds rather than fitting again, so the picture and the table
+  cannot drift apart. Its `type` is `"panel"` past one model, because two clouds
+  of points on shared axes make a third that belongs to neither;
+  `type = "overlay"` with `points = FALSE` compares the calibration lines alone.
+
+* The AUC, ROC, DeLong, IDI, NRI and Brier kernels are written out in the
+  package rather than taken from `pROC`. `pROC` covers the first three and none
+  of the last three, and DeLong's test has no counterpart in `scikit-learn` or
+  `scipy` for the Python port to call, so depending on it would buy the easy
+  half and leave the hard half to be written twice against two sets of defaults.
+  `pROC` is in `Suggests` as the oracle the tests check these against. Runtime
+  dependencies are unchanged.
+
+* New `cluster_hclust()`, `cluster_kmeans()`, `cluster_dbscan()` and
+  `cluster_snn()`, the second half of the unsupervised family. The reductions ask
+  where each point sits; these ask which points belong together. There are four
+  because they disagree about what a cluster is, and the disagreement is the
+  information: the first two are told how many groups to find and will always
+  find that many, while the other two are told how dense a group has to be and
+  derive the count from that, so they can return two clusters, or nine, or none,
+  and they can refuse to place a point.
+
+  `cluster_hclust()` returns the tree as well as the cut, so
+  `cutree($fit, k = 5)` asks for another cut without rebuilding the distance
+  matrix. It is also the only one of the four with a choice of distance, because
+  it is the only one where the choice is real: k-means minimises squared
+  Euclidean distance by construction and the two density methods measure a radius
+  in it.
+
+  `cluster_kmeans()` runs `nstart = 25` rather than `stats::kmeans()`'s own 1,
+  which makes the answer a search rather than a draw; the override is reported in
+  `engine`. `seed` makes a run repeatable and restores the random stream
+  afterwards.
+
+* All four return the new `sa_cluster` contract, a plain list of `analysis`,
+  `points`, `design`, `parameters`, `assignments`, `clusters`, `engine`, `fit`
+  and `metadata`. The row axis is `points`, the same one `sa_reduction` uses, and
+  the four read their input through the same helper the three reductions do — so
+  the rows are the same rows and an assignment can be painted straight onto a set
+  of scores. `cluster_scale` sits where `embedding_scale` does and chooses the
+  same way between clustering the samples and clustering the features.
+
+  Noise is cluster `0`, which is `dbscan`'s own convention. `clusters` never has
+  a row for it, so `nrow(clusters)` is the number of groups found and
+  `design$n_noise` is what did not join one; a partitioning method reports
+  `n_noise = 0` and both shapes read down the same columns. Every point being
+  noise is a possible answer rather than an error, and it says so.
+
+  `assignments$silhouette` is the one number that compares across all four, since
+  coordinates from two methods share no scale but a ratio of distances does. It
+  is Rousseeuw's definition written out in the package rather than taken from
+  `cluster`: a singleton scores 0, noise scores `NA` and takes no part in anyone
+  else's arithmetic, and a single cluster scores `NA` throughout.
+
+* `cluster_dbscan()` derives both of its arguments when they are not given, and
+  says what it derived. `min_pts` follows the textbook `d + 1`, floored at 4 and
+  capped at half the points, since this package's usual input is wider than it is
+  tall and a threshold above half can only ever return one cluster. `eps` is a
+  radius in the units of the data and so can have no constant default; it is
+  taken as the 95th percentile of the k-distance curve, which reads as "assume
+  about one point in twenty is noise". `parameters$eps_source` records whether
+  the value was supplied or derived.
+
+  `cluster_snn()` is shared nearest neighbour clustering: each point keeps its
+  `k` nearest neighbours and two points are linked when their neighbour lists
+  overlap. Its `eps` counts shared neighbours where `cluster_dbscan()`'s is a
+  distance. Both engines call the argument `eps`, so renaming one here would put
+  this documentation at odds with theirs; the two say so instead.
+
+* `dbscan` is a new dependency, the engine behind those two. `draw_heatmap()` now
+  measures its dendrogram distances through the same function `cluster_hclust()`
+  does, so the tree it draws and the tree that gets cut are one tree.
+
+* New `draw_dim_reduction_plot()`, which `plot()` on an `sa_reduction` now calls.
+  Two coordinates of a reduction as a scatter, with a clustering of the same
+  points taking the colours and a grouping that was known already taking the
+  shapes.
+
+  Two channels rather than one, because the question a clustering usually raises
+  is whether it recovered a grouping nobody told it about, and one channel would
+  answer that by hiding it: either the clustering or the grouping would have to
+  be left out, or the two crossed into a single set of labels whose count is the
+  product of theirs. On two channels it is read directly — one colour per shape
+  is a clustering that found the groups, and a shape split across colours is a
+  group the data does not see as one thing. Give one and it takes the colours on
+  its own; give neither and the points are drawn in the foreground colour.
+
+  The two objects have to be about the same points, which is checked rather than
+  assumed: both contracts carry `points` and both read their input through the
+  same function, so a mismatch means two different frames were reduced and
+  clustered and is refused instead of lined up by position. Points that joined no
+  cluster are grey rather than given a colour beside the others, since a point
+  left out is the absence of a cluster and not one more of them, and a PCA's axes
+  carry the share of the variance they explain while an embedding's do not.
+
+  `group_lv` here orders the levels and selects no rows, which is the opposite of
+  what it does in `draw_grouped_boxplot()`. Dropping a row at this point would
+  erase a point the reduction had already placed, so a level `group` uses and
+  `group_lv` leaves out is an error.
+
+* `draw_dim_reduction_plot()` gains `cluster_lv`, one label per cluster for the
+  legend. `NULL` keeps `#1`, `#2`, and so on; noise is still listed as
+  `noise (n)` when present.
+
+* `draw_dim_reduction_plot()`'s `col` now names group levels when only `group`
+  is given, and its new `pch` argument names group shapes or, with no `group`,
+  the points themselves. Defaults are unchanged: shapes from the built-in
+  sequence and `16` on a plain scatter.
+
+* Clustering on a reduction's `$scores` now reads sample names from its `points`
+  column when the table has no row names, so a clustering of `PC1` and `PC2`
+  lines up with the reduction it is drawn on.
+
+* `make_block_cor()` gains `against`, which splits a block in two: the indices in
+  `features` and the indices in `against` each correlate at `cor` among
+  themselves and at `-cor` with the other side. A block that shares one value has
+  a floor on how negative that value can be — `-1/(k - 1)` for `k` predictors, so
+  three of them could not disagree past -0.5 and four past -0.333 — which left a
+  strong negative correlation unavailable at the sizes worth simulating. A split
+  block is one factor with a sign per predictor rather than a demand that every
+  pair disagree, so it holds for any `cor` below 1 whatever its size.
+
+  That floor, and the ceiling of 1 beside it, are now checked block by block
+  before the assembled matrix is factorised. A `cor` no block of that size could
+  hold is reported with the bound it would have to clear instead of as a matrix
+  that is not positive definite, and the message for the assembled matrix carries
+  its smallest eigenvalue and can now say that every block held on its own, since
+  by then only a `default_cor` the blocks cannot sit inside is left to reach it.
+
+* `draw_corrplot()` now names `cex.anno`, `cex.axis`, `cex.main` and
+  `cex.legend` on its signature. They were already forwarded through `...` to
+  [draw_heatmap()], but were easy to miss in `?draw_corrplot`.
+
+## Breaking changes
+
+* `draw_corrplot()`'s first argument is now `cor_matrix` rather than `x`, since
+  that is what it holds whether the caller hands in a matrix or the result of
+  [summarize_association_stats()].
+
+* `summarize_association_stats()` no longer returns `cor_matrix`. It was the
+  `corr` of the first entry of `methods`, which is already available as
+  `res[[res$design$methods[1]]]$corr`, and keeping both names for one matrix
+  made it look as though `cor_matrix` always meant Pearson when it followed
+  whatever came first in `methods`. [draw_corrplot()] still takes the result and
+  reads the slot named by `method`, defaulting to the first.
+
+## Bug fixes
+
+* `make_block_cor()` no longer drops most of a block specification without a
+  word. `list(features = 1:3, cor = 0.9, features = 4:6, cor = -0.4)` is one
+  block with a repeated name rather than the two blocks it reads as, and `$`
+  returns the first of a repeated name, so the matrix came back holding the first
+  pair of values and nothing else. Repeated names, names a block has no use for,
+  and elements with no name at all are now errors, and the message shows what the
+  several-blocks form looks like.
+
+# STATassist 0.8.0
+
+The interaction plot, and the slot it needed. A factorial result reported that a
+term was significant without keeping anything a reader could see the term in:
+`$effect` reduces the grid to two cells and a term test reduces it to a p-value,
+and neither says which way the lines run. The kernel was already computing the
+cell means and throwing them away after the post-hoc stage, so the picture cost a
+slot rather than a second pass over the data.
+
+## New features
+
+* `compare_factorial_groups()` now returns `$cells`, one row per feature and cell
+  of the crossed grid, holding the cell mean, the within-cell `sd`, the count and
+  a pooled `se`, plus one column per factor named after the factor and holding
+  the level. `mean` is the arithmetic mean the crossed model was fitted on rather
+  than a centre on the `fc_mean` scale, so a plot of this table and the F tests
+  beside it describe one fit.
+
+  `se` is `sqrt(ms_error / n)`, pooled over the whole model rather than taken
+  within the cell. That is what makes the variance of any marginal mean
+  recoverable from this column alone: over a set of cells it is
+  `sum((1 / length(S))^2 * se^2)`, the expression the Tukey stage scales its
+  contrasts by, so an error bar drawn from this and a contrast in `$posthoc`
+  cannot disagree. Because the factor columns are named after the factors, the
+  six fixed names are reserved and a factor may no longer be called `features`,
+  `cell`, `n`, `mean`, `sd` or `se`.
+
+* New `draw_interaction_plot()` joins the cell means of one factor across the
+  levels of another, one line per level of the tracing factor, which is the
+  picture an interaction term is a test of. Factors beyond the two being drawn
+  are averaged away unweighted, the same marginal mean the post-hoc stage
+  contrasts, so the gap between two points of one line is the `estimate` its
+  contrast reports.
+
+  `type` divides the three ways a design of more than two factors can be shown.
+  `"pairwise"` draws one pair and spends its panels on features, so several read
+  side by side. `"matrix"` draws every pair at once in an upper triangle, the row
+  tracing and the column on the x axis. `"facet"` keeps the levels of a third
+  factor in panels of their own instead of averaging them away, which is what
+  shows a two-factor interaction that itself depends on a third; the last two
+  spend their panels on the factors and so draw one feature at a time.
+  `type = "auto"` reads the arguments: naming `facet` asks for the facet view,
+  naming `x` or `trace` for the pairwise one, and naming none of them gives the
+  pairwise view for two factors and the matrix for three or more.
+
+  `errorbar` is off by default. A bar here is the standard error of the mean
+  being drawn rather than of the difference between two of them, and the
+  difference is what an interaction is about, so two overlapping bars do not
+  settle the term test.
+
+## Bug fixes
+
+* `compare_factorial_groups()` no longer shortens its list of fits when a feature
+  could not be fitted. `fits[[i]] <- NULL` deletes the element rather than
+  emptying it, and a following success happened to restore the length, which is
+  why this only surfaced where the last feature failed: `$terms` then lost its
+  statistics columns altogether rather than filling them with `NA`.
+
+The categorical family. Two columns of labels are a contingency table, not a
+feature-wise comparison, so the result is an `sa_categorical` rather than an
+`sa_comparison` and `estimate_significance()` refuses it. The mosaic is what
+reads it, in the place a volcano plot holds for the numeric scenarios, and
+`estimate_categorical_significance()` is the verdict beside it.
+
+What the contract turns on is that "expected" is not a property of a table. It
+is a property of a table and a claim about it, and the three designs here make
+three different claims. So the result names its own claim and everything read
+off it -- the residuals, the diagnostics, the shading of the mosaic -- is read
+under that one.
+
+## New features
+
+* New `compare_categorical_groups()` crosses two categorical variables, or
+  reads the columns as repeated binary conditions on the same row. An
+  independent design returns the chi-square test of independence beside
+  Fisher's exact test; a matched design of two conditions returns McNemar's
+  test and three or more return Cochran's Q. There is no argument naming a
+  test. `$association` carries Cramer's V and the contingency coefficient on
+  every independent table, phi and the odds ratio on a 2 x 2, the three paired
+  measures on a matched 2 x 2, and Kendall's W on Cochran's Q. `control_label`
+  points the reference the way it does for a crossed design, and that is the
+  direction of the odds ratio.
+
+* `design$null` names the hypothesis the result is about, one of
+  `"independence"`, `"symmetry"` and `"marginal_homogeneity"`, and
+  `$cells$expected` is read under it. A cell is expected at the product of its
+  margins under independence, at the average of it and its transpose under
+  symmetry, and at the pooled response rate under marginal homogeneity. The
+  matched case is the one where this is load bearing: McNemar's test asks about
+  symmetry, so the diagonal is expected at exactly what it holds and carries no
+  residual, and the squared Pearson residuals of the two discordant cells sum to
+  `(b - c)^2 / (b + c)`, McNemar's uncorrected statistic exactly. The cell table
+  and the p-value beside it are one piece of arithmetic read two ways.
+
+* Fisher's exact test returns an `NA` p-value, with a message, where its
+  enumeration cannot be walked. The algorithm visits every table with the
+  observed margins and a large r x c table has more of them than its workspace
+  holds; that is a limit of the enumeration rather than a fault in the data, and
+  failing the whole call over it would take the chi-square result down with it.
+  `simulate_p_value = TRUE` is what answers there.
+
+* `$cells$std_residual` is `NA` under symmetry. Its variance correction is
+  derived for a table held against its own margins and has no counterpart there,
+  so the column is empty rather than holding a number that looks referable to a
+  standard normal and is not.
+
+* `as.table()` on a result gives the contingency table the tests were run on,
+  built from `$cells` on request rather than stored beside it. Every slot of the
+  result is therefore a scalar, a character vector, a named list or a data.frame,
+  which is what the `sa_result` contract asks for and what lets the whole object
+  be written out as JSON. `Configuration/schema/sa_categorical.schema.json`
+  records the shape.
+
+* `max_levels`, default 20, refuses a variable taking more distinct values than
+  that, naming the variable and its count. `as.character()` turns a continuous
+  measurement into one label per observation, and a table with a cell per
+  observation is not something a test of association has anything to say about.
+  It is checked against the levels actually used, so naming three levels of a
+  fifty-valued column in `category_lv` is a way through.
+
+* New `simulate_categorical_groups()` plants the association the comparison
+  estimates. `assoc = 0` is the product of the margins exactly, so it is null in
+  the strict sense, and equal transition probabilities are the same for a matched
+  design. A matched design plants the paired odds ratio as a ratio of transition
+  probabilities, and `truth_cell` carries `p_symmetric` and
+  `expected_symmetry_n` beside the independent share, so the planted table can be
+  scored against the null its own tests use. Both designs key `truth_cell` on
+  `c("row_level", "col_level")`, so it merges with `$cells` with neither side
+  renamed.
+
+* New `estimate_categorical_significance()` reduces a contingency table to
+  verdicts, which the whole-table reading of the result cannot be reduced to: an
+  association is not signed, so there is nothing to put on an effect axis beside
+  the p-value. A cell is different. It was expected at some count and observed at
+  another, so `observed / expected` says how far it moved and which way, and it
+  is defined whatever the shape of the table. That ratio is `lift`, the quantity
+  `simulate_categorical_groups()` already plants under the same name, and
+  `log2_lift` is the effect axis. The p-value is the cell's own standardized
+  residual referred to a standard normal, and the cells of one table are one
+  family, so `adj_type` adjusts across them — the first adjustment rather than a
+  replacement for one, there being no `pval_adj` column on a categorical result.
+
+  So the same `log2_lift_cutoff` means the same thing on a 2 x 2, a 2 x 3 and
+  anything larger. It defaults to 1, deliberately the number
+  `estimate_significance()` uses, though a doubling is a stricter demand of a
+  cell than of a fold change.
+
+  `by = "table"` is the second reading: one row, an association measure beside an
+  omnibus p-value and no adjusted column, one table being one question.
+  `measure = "auto"` takes the odds ratio on an independent 2 x 2, Cramer's V on
+  anything larger, the paired odds ratio under symmetry and Kendall's W under
+  marginal homogeneity. `effect_cutoff` is `NULL` by default, so the p-value
+  alone decides: the conventional thresholds for Cramer's V are conventions
+  rather than facts about the measure, and a default is where a convention is
+  hardest to notice.
+
+  A matched pair of conditions has no cell reading and says so. Its standardized
+  residuals are `NA` throughout, for the reason the column is empty there at all,
+  so there is no p-value axis to read; `by = "table"` answers instead. Three or
+  more matched conditions are read off a condition-by-response table whose
+  arithmetic is that of independence, so the cell reading works there.
+
+  The verdict is an `sa_categorical_significance` and deliberately not an
+  `sa_significance`: its rows are cells rather than features, so
+  `draw_volcano_plot()` refusing it is the point of the separate class. It keys
+  on `c("row_level", "col_level")`, which merges with `$cells` and with
+  `simulate_categorical_groups()$truth_cell` with neither side renamed, so the
+  estimated lift can be scored against the planted one.
+
+* New `draw_mosaic_plot()` splits the x axis by the first variable's marginal
+  shares and each strip by the second variable's conditional shares, so the area
+  of a tile is the cell's share of the table. `plot()` on an `sa_categorical`
+  calls it.
+
+  It reads a `compare_categorical_groups()` result and nothing else, the way
+  `draw_interaction_plot()` reads a factorial one. The shading and the expected
+  lines are statements about the null the result was tested against, which a
+  bare table does not carry, so the levels that take part and the reference they
+  are read against are settled by the comparison rather than restated here.
+
+  The shading reads the residual of `design$null`, so a matched design is a
+  picture of departure from symmetry rather than from a hypothesis nothing in the
+  result has a p-value for, and `residual = "standardized"` is refused there. A
+  dashed segment marks each strip where that null would have cut it, which under
+  independence is the same height in every strip and under symmetry is not. The
+  level names on the y axis sit on the reference strip, the first one, since no
+  single set of positions can label strips that are cut at different heights.
+  `anno_cells` writes as much of the count and the conditional percentage as the
+  tile has room for, measured against the label rather than against a fixed
+  fraction of the plot, and the residual key sizes itself from its own text.
+  `gap` is the width of one gap rather than of all of them together, capped so
+  that the gaps never take more than two fifths of an axis however many levels
+  ask for one.
+
+The factorial family, built from the answer key inwards. The simulator came
+first, which is the reverse of how every other simulator in the package was
+written: the others read the names in their `args` off a `compare_*()` or
+`fit_*()` that already existed, and here there was nothing to read them off. That
+order is what makes the comparison checkable on arrival. The data generator was
+shown correct against `aov()` before a line of the analysis depended on it being
+so, and the analysis is now scored against the same answer key term by term.
+
+## New features
+
+* New `compare_factorial_groups()` analyses a crossed design as one model. Two
+  factors are a two-way ANOVA, three a three-way one and more than three a
+  factorial one, and those are three names for the same fully crossed linear
+  model rather than three procedures. Which name applies follows from
+  `length(factor_lv)`, so there is no argument for choosing it; it is reported in
+  `design$anova_type` and in the label of the test. This is the one comparison in
+  the package that fits a single model instead of running competing tests side by
+  side, because what multiplies in a factorial design is not the procedures but
+  the questions.
+
+* The result grows an axis for those questions. `$terms` holds one row per
+  feature and per model term, every main effect and every interaction of every
+  order, with `df`, `ss`, `ms`, `f_stat`, `eta_sq`, `partial_eta_sq`,
+  `log2_effect` and a `pval_adj` adjusted **within each term** across features,
+  since a term is one family and pooling two terms would correct each for the
+  other's multiplicity. Its `terms` and `term_order` columns are the ones
+  `truth_term` carries, so a result and an answer key merge on
+  `c("features", "terms")` with neither side renamed.
+
+* `log2_effect` is the size of a term, with a sign. `eta_sq` and
+  `partial_eta_sq` say how much variance a term accounts for and neither has a
+  direction, so neither can be an effect axis. This one is the largest ANOVA
+  component of the term, taken by decomposing `log2()` of the same cell centres
+  `$effect` is built from, which is the decomposition
+  `simulate_factorial_groups()` records in `truth_term$max_abs_delta`: the
+  measurement and the answer key are one quantity, and over eight seeds the two
+  agree at r = 0.78, per term between 0.71 and 0.90. Read it as a deviation from
+  what the rest of the model predicts rather than as a fold change — a two-level
+  factor whose levels differ by one log2 unit contributes -0.5 and +0.5 — and
+  note that a cutoff meant for a fold change is stricter here than it looks.
+
+* `$tests$anova_test` keeps the whole-model F test at one row per feature, which
+  is the one-way ANOVA that treats the cells as groups: a crossed model is the
+  cell means model in another basis, so the two leave the same residuals and the
+  term sums of squares add up to the cell sum of squares. Keeping that table in
+  its usual shape is what lets `estimate_significance()`, `print()`,
+  `draw_forest_plot()` and `draw_volcano_plot()` read a factorial result without
+  knowing that it is one.
+
+* Reading a factorial result **as** one is the other half of that. The default
+  `estimate_significance()` reading is still `"omnibus"`, the whole-model F
+  paired with the most extreme cell against the reference, as in every other
+  scenario. A third reading, `by = "term"`, returns one verdict table per model
+  term. Each term table is named after the term and ordered as `$terms` lists
+  them, the same shape `by = "contrast"` already returns for pairwise contrasts.
+  The p-value is that term's own and the effect size is its `log2_effect`. There
+  is no choice of adjustment axis to make: both branches adjust across the
+  features of one term, which is the family `$terms$pval_adj` was built over.
+
+* An omnibus verdict of a factorial or multi-group comparison now carries
+  `extreme_cell` or `extreme_level` beside `log2fc`, naming which cell or level
+  was furthest from the reference on the log2 scale. [draw_volcano_plot()] labels
+  the x axis accordingly — most extreme cell vs the reference cell for a crossed
+  design, most extreme level vs the reference level for a multi-group one.
+
+* `control_label` reaches the crossed design, in `compare_factorial_groups()` and
+  in `draw_grouped_boxplot()`. A crossed design has one reference per factor
+  rather than one in total, so it takes one level name per factor it points, as
+  `list(treatment = "control", sex = "male")` or as
+  `c(treatment = "control")` — the two shapes say the same thing. The named level
+  moves to the front of its own factor, the factors it says nothing about are
+  left alone, and the reference cell is where all of them land. It does more here
+  than it does for a single factor, where `group_lv` is required and naming a
+  reference can only re-point one: `factor_lv` is optional, and levels taken from
+  the data arrive sorted, so `control_label` is the way to say which cell the
+  fold changes divide by without listing every level of every factor. Moving the
+  reference leaves the ANOVA where it was — a sum-to-zero coding spans the same
+  space whichever level leads a factor — and moves the cell labels, `$effect`,
+  the volcano's x axis and the direction of every post-hoc contrast. Both
+  functions take it right after `factor_lv`, so a call that passed a later
+  argument by position has to name it now.
+
+* `draw_volcano_plot()` draws a term reading as a figure of panels, one per term,
+  rather than asking which table to name. A crossed design decomposes into a
+  fixed and small set of terms, three for two factors, and seeing which of them a
+  feature responded to is a comparison between panels; the number of pairwise
+  contrasts follows from the level counts and is arbitrary, so a contrast list is
+  still sent back to name one. The panels share one rule and one pair of axes,
+  `terms` chooses them — by default the two main effects of the first two factors
+  and their interaction, with the terms left out named in a `message()` — and
+  `panel_nrow` arranges them. The x axis of a term panel is labelled as an effect
+  rather than as a fold change, because a component is not a ratio of two
+  centres. Its first two arguments are new, so a call that passed `use_adjusted`
+  by position has to name it now.
+
+* On the `crossover` shape, whose main effects are exactly zero while its cells
+  plainly differ, the term panels put the finding where it belongs: at
+  `abs(log2fc) >= 0.5` and `adj_pvalue <= 0.05` the interaction panel calls half
+  of them and the two main effect panels call 0.016 of their rows, against
+  nothing planted there. The whole-model verdict calls the same features changed
+  and cannot say more than that.
+
+* `terms` is a new slot of the `sa_comparison` contract, and the first table in it
+  that is not one row per feature. `sa_new_comparison()` takes `terms = NULL` and
+  drops the slot when it is not given, the way `posthoc` and `pairwise` are
+  dropped, so the three existing comparison functions return exactly what they
+  returned before. `sa_result.schema.json` grows a `termTable` definition to
+  match. There is no `pairwise` on a factorial result: its contrasts are indexed
+  by factor and stratum rather than by a single label, so
+  `estimate_significance(by = "contrast")` reports that the result has no
+  pairwise stage, which is the true statement.
+
+* `print()` on a factorial result leads with the design rather than the cells.
+  Eight cell labels strung together with `vs` is not what a reader of a crossed
+  design wants first; `factors : treatment (4) x sex (2)`, the ANOVA that ran, and
+  then one line per term is.
+
+* `ss_type` chooses what the term tests are built from, `"III"` by default,
+  `"II"` or `"I"`. The three agree on a balanced design and part company when the
+  cells are unequal. Type III makes a main effect a statement about the levels
+  rather than about how many observations landed in each, which is what agrees
+  with the unweighted marginal means the post-hoc stage compares and with the
+  decomposition the simulator plants. Type I is what `stats::aov()` reports, and
+  it is there so that these numbers can be checked against an outside
+  implementation on unbalanced data.
+
+* The pairwise stage answers both questions a factorial design has.
+  A marginal contrast compares two levels with the other factors averaged away, a
+  simple effect compares them inside one combination of the other factors, and
+  `stratum` tells them apart, `NA` for the first. Both are Tukey-Kramer on the
+  mean square error of the whole model rather than a second analysis of the same
+  data, and the marginal means are unweighted, so a level is not pulled towards
+  whichever combination was sampled most heavily. `posthoc_scope` chooses which
+  of the two kinds runs.
+
+* Which contrasts run is decided term by term rather than by the whole-model
+  test: a factor's marginal contrasts need that factor's main effect to clear
+  `posthoc_alpha`, and a simple effect needs the interaction with the factors held
+  fixed to clear it. Gating on the whole model instead would compare the levels
+  of a factor the model says has no effect, on the strength of a different factor
+  that has one. There is no `posthoc_p_adjust`, since Tukey's p-values are
+  already family-wise within a block.
+
+* `within` is accepted and refused. A repeated-measurement factor needs a second
+  error stratum, which is not implemented, so a non-empty value is an error that
+  names what is missing rather than a design analysed as though the repeated
+  measurements were independent. Leaving the argument out altogether would make
+  `do.call()` on a within-subject simulation fail with `unused argument`, which
+  says nothing.
+
+* Scored against the simulator over eight seeds and 480 features, the term tests
+  find a planted main effect about four times in five and a planted interaction
+  about three times in four, calling an unplanted term about once in twenty. On
+  the `crossover` shape, whose main effects are exactly zero while its cells
+  plainly differ, the main effects are called at 0.06 and the interaction at
+  0.94: the case a design read one factor at a time cannot see is the case this
+  function is for.
+
+* New `simulate_factorial_groups()` crosses any number of factors and returns the
+  effects planted in them. `factor_lv` names the factors and their levels, so its
+  length is how many are crossed and there is no separate argument for the count.
+  The first factor is the primary one and the ones after it are the factors the
+  treatment may or may not depend on. Two is the fewest there can be: one factor
+  is `simulate_multiple_groups()`, and the error says so.
+
+* `within` names the factors measured on the same subjects. Naming none gives a
+  factorial ANOVA, naming all of them a fully repeated design and naming some a
+  mixed one, so the three are one function rather than three. A subject sits in
+  one combination of the between factors and is seen under every combination of
+  the within ones, which leaves the within-subject rectangle complete. `args`
+  then carries `id` and `within` the way `simulate_multiple_groups()` carries
+  `id` and `paired`.
+
+* The answer has a layer the one-factor simulators do not: `truth_term`, one row
+  per feature and per model term, every main effect and every interaction of
+  every order, with `is_effect` saying whether it was planted and `is_within`
+  saying which error stratum tests it. Crossing factors turns the answer into a
+  statement per term rather than per level, and this is the table that scores an
+  ANOVA table row by row. Beside it are `truth` per feature, `truth_cell` per
+  feature and cell, and `truth_contrast` per feature and pair of levels.
+
+* The effect is planted in five shapes, chosen so that the terms come apart
+  rather than move together. `main_only` moves the primary factor alone;
+  `additive` moves it and a partner with parallel profiles, which makes an
+  interaction call a false positive by construction; `interaction` makes the
+  treatment effect depend on the partner; `nuisance_only` moves the partner and
+  leaves the treatment at zero; and `crossover` is pure interaction, with **both
+  main effects exactly zero** while the cells plainly differ. That last one is
+  the case a design read one factor at a time cannot see, and it is exact rather
+  than approximate because the effect is built in the space an ANOVA decomposes
+  into and then shifted to put the reference cell at zero, which touches the
+  grand mean and no term.
+
+* `pattern_mix` is the same argument, and the same three profiles, that
+  `simulate_multiple_groups()` has. It is on a different axis from `term_mix`
+  here: one says which terms move, the other what the profile along a factor
+  looks like, and the two are crossed at random while both sets of counts stay
+  exactly what the weights ask for.
+
+* An `aov()` on the defaults finds the treatment main effect about four times in
+  five, which is the rate `simulate_multiple_groups()` was tuned to, and calls a
+  term that was not planted about once in twenty. `interaction_scale` is set so
+  that the `interaction` shape's interaction is found about three times in five,
+  against about nine in ten for `crossover`: between trivially recovered and
+  indistinguishable from noise, which is where a default belongs.
+
+* `truth_contrast` carries both pairwise questions a factorial design has. A
+  `stratum` of `NA` is the marginal contrast, averaged over the other factors,
+  which is what a main effect is a statement about; anything else names the
+  combination the contrast was taken inside, which is the simple effect. Under
+  `crossover` the first is exactly zero everywhere and the second is not, which
+  is the pair of statements the two kinds of row exist to keep apart.
+
+* `args` is named for `compare_factorial_groups()`, so a simulated between-subject
+  design is one `do.call()` away from being analysed and its `$terms` merges with
+  `truth_term` without either side being renamed.
+
+* `draw_grouped_boxplot()` draws a crossed design. `factors` and `factor_lv` are
+  the arguments `compare_factorial_groups()` takes, and they are read by the same
+  `sa_fact_layout()`, so the boxes are the cells the model fits rather than a
+  second reading of the same data. Naming both `group` and `factors` is an error,
+  since they are two ways of saying what the boxes are.
+
+* A crossed design is drawn one panel per feature, with the factors after the
+  first along the x axis and the **primary factor as the coloured boxes** inside
+  each of those clusters, so that the two factors sit side by side in one panel.
+  An interaction is then local: a treatment effect that reverses between the
+  sexes is a pattern of colours that visibly flips a couple of centimetres away.
+  Splitting the two factors between the legend and the panels, which is what the
+  transpose does, means reading a colour profile in one panel against the same
+  profile in another.
+
+* `panel_by = "factor"` asks for that transpose: one panel per combination of
+  the factors after the first, with the features along the x axis, which is what
+  to ask for when the question is about the features rather than the crossing.
+  The boxes and the returned statistics are the same either way; only their
+  grouping into panels and clusters differs.
+
+* `panel_nrow` now defaults to `NULL`, "let the arrangement decide": one row for
+  panels over the factors, and a grid as near square as the panel count allows
+  for panels over the features, where a row of ten of them cannot be read. A
+  number given explicitly still wins.
+
+* The columns of the returned statistics are the cell labels, the same strings
+  `compare_factorial_groups()` puts in `design$group_lv` and
+  `simulate_factorial_groups()` in `truth_cell`, so what the picture shows can be
+  read against what the analysis found and against what was planted. A cell
+  holding no observation keeps its column and its position, filled with `NA` and
+  drawn blank, and is named in a message: an empty cell that shifted its
+  neighbours along would relabel every box after it.
+
+* Whether the panels share a y axis range follows from what a panel holds.
+  Panels over the factors hold the same features and share one range taken from
+  every value drawn, since panels of the same quantity scaled to their own
+  values cannot be read against each other. Panels over the features hold
+  different quantities, each on its own baseline, so a shared range would
+  flatten every one of them: each keeps the range `graphics::boxplot()` gives it
+  and carries its own axis. An explicit `ylim` is shared by every panel in
+  either arrangement, and a single panel is left to `graphics::boxplot()` as
+  before, so a single-factor plot is drawn and returned exactly as it was.
+
 # STATassist 0.7.0
 
 This adds the fourth result contract, the one for a function that searches rather

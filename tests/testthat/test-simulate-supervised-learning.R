@@ -429,6 +429,45 @@ test_that("make_block_cor assembles what the blocks ask for", {
 })
 
 
+test_that("`against` splits a block into two sides that disagree", {
+  split <- make_block_cor(
+    8, list(list(features = 1:3, cor = 0.9, against = 4:6))
+  )
+
+  # Each side agrees with itself at `cor` and disagrees with the other at -`cor`.
+  expect_identical(split[1, 2], 0.9)
+  expect_identical(split[4, 5], 0.9)
+  expect_identical(split[1, 4], -0.9)
+  expect_identical(split[3, 6], -0.9)
+  expect_identical(split[1, 7], 0)
+  expect_identical(diag(split), rep(1, 8L))
+
+  # The point of the argument: a block of six sharing one value could hold no
+  # correlation below -0.2, while the split one holds -0.9 at any size, since its
+  # smallest eigenvalue is 1 - cor whatever the block covers.
+  expect_equal(min(eigen(split, symmetric = TRUE, only.values = TRUE)$values),
+               0.1)
+  wide <- make_block_cor(
+    10, list(list(features = 1:5, cor = 0.95, against = 6:10))
+  )
+  expect_gt(min(eigen(wide, symmetric = TRUE, only.values = TRUE)$values), 0)
+
+  # A side of one predictor is a predictor that moves against a block.
+  lone <- make_block_cor(4, list(list(features = 1, cor = 0.8, against = 2:4)))
+  expect_identical(lone[1, 2], -0.8)
+  expect_identical(lone[2, 3], 0.8)
+
+  # And the predictors come out with it, which is the whole claim.
+  sim <- simulate_regression(n_samples = 4000, n_pred = 6,
+                             beta = c(2, 0, 0, 0, 0, 0),
+                             cor_mat = split[1:6, 1:6], n_factor_pred = 0,
+                             seed = 16)
+  drawn <- stats::cor(sim$args$data[paste0("x_", 1:6)])
+  expect_equal(drawn[1, 4], -0.9, tolerance = 0.02)
+  expect_equal(drawn[4, 5], 0.9, tolerance = 0.02)
+})
+
+
 test_that("make_block_cor refuses what it cannot write down", {
   # A predictor in two blocks would need two correlations with the same partner,
   # and only the later block's would survive.
@@ -448,11 +487,62 @@ test_that("make_block_cor refuses what it cannot write down", {
   expect_error(make_block_cor(3, default_cor = -2), "`default_cor` must be in")
   expect_error(make_block_cor(0), "`n_features` must be in")
 
-  # Checked where the caller wrote the blocks down rather than three arguments
-  # later inside a simulator.
-  expect_error(make_block_cor(4, default_cor = -0.5), "not positive definite")
+  # One `list()` naming `features` twice is one block and not two, and `$` reads
+  # the first of a repeated name, so the rest used to be dropped without a word.
+  expect_error(
+    make_block_cor(10, list(list(features = 1:3, cor = 0.9,
+                                 features = 4:6, cor = -0.4))),
+    "names `features` and `cor` more than once"
+  )
+  expect_error(make_block_cor(3, list(list(features = 1:2, cor = 0.5,
+                                           blocks = 3))),
+               "holds `blocks`, which a block has no use for")
+  expect_error(make_block_cor(3, list(list(1:2, 0.5))),
+               "must name every element it holds")
+
+  # A value no block of that size could hold is named as such, with the bound it
+  # would have to clear, rather than left to the assembled matrix.
+  expect_error(make_block_cor(6, list(list(features = 1:3, cor = -0.6))),
+               "holds only above -0.5")
+  expect_error(make_block_cor(6, list(list(features = 1:4, cor = -0.4))),
+               "holds only above -0.333")
+  expect_error(make_block_cor(4, default_cor = -0.5),
+               "`default_cor` of -0.5 is not possible among 4 predictors")
   expect_error(make_block_cor(2, list(list(features = 1:2, cor = 1))),
-               "not positive definite")
+               "at perfect agreement")
+
+  # `against` is what carries the sign, so it takes a positive `cor` and its two
+  # sides are two sides.
+  expect_error(
+    make_block_cor(6, list(list(features = 1:3, cor = -0.9, against = 4:6))),
+    "must be above 0 when `against` is given"
+  )
+  expect_error(
+    make_block_cor(6, list(list(features = 1:3, cor = 1, against = 4:6))),
+    "puts each side of the block at perfect agreement"
+  )
+  expect_error(
+    make_block_cor(6, list(list(features = 1:3, cor = 0.9, against = 3:5))),
+    "predictor\\(s\\) 3 in both `features` and `against`"
+  )
+  expect_error(
+    make_block_cor(6, list(list(features = 1:3, cor = 0.9, against = 4:7))),
+    "`blocks\\[\\[1\\]\\]\\$against` indexes predictor\\(s\\) outside the 6"
+  )
+  # Both sides are claimed, so a later block may not reuse either of them.
+  expect_error(
+    make_block_cor(8, list(list(features = 1:3, cor = 0.9, against = 4:6),
+                           list(features = 6:7, cor = 0.5))),
+    "overlaps an earlier block at predictor\\(s\\) 6"
+  )
+
+  # What is left for the assembled matrix to catch is how the blocks meet
+  # `default_cor`, every block holding on its own by then.
+  expect_error(
+    make_block_cor(8, list(list(features = 1:3, cor = 0.9, against = 4:6)),
+                   default_cor = 0.2),
+    "smallest eigenvalue is -0\\.235"
+  )
 })
 
 

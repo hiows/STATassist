@@ -1,8 +1,8 @@
 {
-  "registry_version": "0.1.0",
+  "registry_version": "0.2.0",
   "schema_version": "0.1.0",
-  "generated_at": "2026-08-01T12:19:08Z",
-  "source_checksum": "2e35fd0dc90995ba0157b81371ed4e95",
+  "generated_at": "2026-08-15T05:37:24Z",
+  "source_checksum": "470f85f1dfae76ab973414be3253929c",
   "families": [
     {
       "id": "descriptive",
@@ -75,6 +75,16 @@
       "since": "0.0.1"
     },
     {
+      "id": "factorial_between",
+      "label": "Crossed factors, between subjects",
+      "label_ko": "요인설계 (개체 간)",
+      "description": "One fully crossed model over two or more between-subject factors, reported per model term rather than per competing test, with marginal and simple effect comparisons. Designs holding a within-subject factor are deferred.",
+      "section": "group_comparison",
+      "order": 75,
+      "status": "active",
+      "since": "0.2.0"
+    },
+    {
       "id": "categorical",
       "label": "Categorical data analysis",
       "label_ko": "범주형 자료 분석",
@@ -122,7 +132,8 @@
       "label": "Chi-square test of independence",
       "label_ko": "카이제곱 독립성 검정",
       "description": "Tests association between two categorical variables in an r x c contingency table. Reports expected counts and flags cells with an expected count below five.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_categorical_groups",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_chisq",
@@ -257,7 +268,8 @@
       "label": "Fisher's exact test",
       "label_ko": "Fisher 정확검정",
       "description": "Exact conditional test for r x c contingency tables. Preferred over the chi-square test when expected counts are small.",
-      "status": "planned",
+      "status": "implemented",
+      "run_by": "compare_categorical_groups",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_fisher",
@@ -285,13 +297,6 @@
       "assumptions": ["independence", "fixed_margins"],
       "effect_sizes": ["odds_ratio", "cramers_v"],
       "parameters": [
-        {
-          "name": "alternative",
-          "type": "enum",
-          "values": ["two.sided", "less", "greater"],
-          "default": "two.sided",
-          "description": "One-sided options apply to 2 x 2 tables only."
-        },
         {
           "name": "conf_level",
           "type": "numeric",
@@ -330,8 +335,9 @@
       "family": "categorical",
       "label": "McNemar's test",
       "label_ko": "McNemar 검정",
-      "description": "Tests marginal homogeneity in a paired 2 x 2 table. Uses the exact binomial test on discordant pairs when their total is small.",
-      "status": "planned",
+      "description": "Tests symmetry in a paired 2 x 2 table, which on a 2 x 2 table is equivalent to marginal homogeneity. Cells are expected at (n_ij + n_ji) / 2, so the diagonal carries no residual and the discordant pairs are the whole of the evidence. Uses the exact binomial test on those pairs when their total is small.",
+      "status": "implemented",
+      "run_by": "compare_categorical_groups",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_mcnemar",
@@ -350,7 +356,8 @@
         },
         "id": {
           "type": "any",
-          "required": true
+          "required": false,
+          "notes": "Pairing is by row; an id is not read."
         },
         "table": {
           "min_rows": 2,
@@ -395,8 +402,9 @@
       "family": "categorical",
       "label": "Cochran's Q test",
       "label_ko": "Cochran Q 검정",
-      "description": "Extension of McNemar's test to three or more repeated binary measurements on the same subjects.",
-      "status": "planned",
+      "description": "Extension of McNemar's test to three or more repeated binary measurements on the same subjects. The null is marginal homogeneity, that every condition shows the same response rate, read off a condition-by-response table.",
+      "status": "implemented",
+      "run_by": "compare_categorical_groups",
       "since": "0.0.1",
       "role": "primary",
       "r_function": "sa_cochran_q",
@@ -416,32 +424,21 @@
         },
         "id": {
           "type": "any",
-          "required": true
+          "required": false,
+          "notes": "Pairing is by row; an id is not read."
         },
         "n_min": 9
       },
-      "assumptions": ["independence_of_subjects", "balanced_design", "binary_outcome"],
+      "assumptions": ["independence_of_subjects", "balanced_design", "binary_outcome", "sample_size_repeated"],
       "effect_sizes": ["kendalls_w"],
       "parameters": [
         {
           "name": "conf_level",
           "type": "numeric",
           "default": 0.95
-        },
-        {
-          "name": "posthoc",
-          "type": "logical",
-          "default": false,
-          "description": "When TRUE, pairwise McNemar tests are attached to the posthoc field."
-        },
-        {
-          "name": "p_adjust_method",
-          "type": "enum",
-          "values": ["holm", "BH", "bonferroni", "hochberg", "BY", "none"],
-          "default": "holm"
         }
       ],
-      "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions"],
       "alternatives": ["mcnemar_test", "friedman_test"],
       "references": ["Cochran, W. G. (1950). Biometrika 37(3-4), 256-266."],
       "validation": {
@@ -1247,6 +1244,143 @@
         "compare_fields": ["statistics"]
       },
       "example_data": "iris"
+    },
+    {
+      "id": "factorial_anova",
+      "family": "factorial_between",
+      "label": "Factorial ANOVA",
+      "label_ko": "요인 분산분석",
+      "description": "Fully crossed fixed-effects F tests over two or more between-subject factors: every main effect, every interaction of every order, and the whole-model test that treats the cells as groups. Sums of squares are model comparisons on a sum-to-zero coding, so Type III, II and I are the same arithmetic over different pairs of models and agree on a balanced design.",
+      "status": "implemented",
+      "run_by": "compare_factorial_groups",
+      "since": "0.2.0",
+      "role": "primary",
+      "r_function": "sa_factorial_anova",
+      "py_function": "factorial_anova",
+      "engine": "internal",
+      "engine_py": "statsmodels.stats.anova.anova_lm",
+      "data_requirements": {
+        "design": "factorial",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "factors": {
+          "type": "factor",
+          "required": true,
+          "multiple": true,
+          "n_levels_min": 2,
+          "notes": "At least two crossed factors, each with at least two levels. One factor is multi_group_independent."
+        },
+        "within": {
+          "type": "factor",
+          "required": false,
+          "notes": "Accepted and refused: a non-empty value raises an error naming the missing repeated-measures path."
+        },
+        "n_min": 8
+      },
+      "assumptions": ["normality_of_residuals", "homogeneity_levene", "independence", "no_extreme_outliers"],
+      "effect_sizes": ["partial_eta_squared", "eta_squared", "omega_squared"],
+      "parameters": [
+        {
+          "name": "ss_type",
+          "type": "enum",
+          "values": ["III", "II", "I"],
+          "default": "III",
+          "description": "Which model comparison each term's sum of squares is. Identical on a balanced design. Type I is sequential and is what stats::aov() reports, so it is the type to ask for when matching an external implementation on unbalanced cells."
+        },
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "p_adjust_method",
+          "type": "enum",
+          "values": ["BH", "holm", "bonferroni", "hochberg", "BY", "none"],
+          "default": "BH",
+          "description": "Applied along the feature axis within each term, one term being one family."
+        },
+        {
+          "name": "posthoc",
+          "type": "logical",
+          "default": true,
+          "description": "When TRUE, factorial_tukey results are attached."
+        }
+      ],
+      "returns": ["estimates", "statistics", "effect_sizes", "assumptions", "posthoc"],
+      "posthoc_methods": ["factorial_tukey"],
+      "alternatives": ["oneway_anova", "welch_anova"],
+      "references": ["Fisher, R. A. (1935). The Design of Experiments.", "Yates, F. (1934). Journal of the American Statistical Association 29(185), 51-66.", "Speed, F. M., Hocking, R. R. and Hackney, O. P. (1978). Journal of the American Statistical Association 73(363), 105-112."],
+      "validation": {
+        "reference_impl": "summary(stats::aov(y ~ a * b))",
+        "tolerance": 1e-08,
+        "compare_fields": ["statistics", "effect_sizes"],
+        "notes": "aov() reports Type I, so the exact match is against ss_type = 'I' on unbalanced cells and against any type on balanced ones. car::Anova(type = 2 / 3) is used in development only and is not a package dependency."
+      },
+      "example_data": "warpbreaks"
+    },
+    {
+      "id": "factorial_tukey",
+      "family": "factorial_between",
+      "label": "Tukey HSD on marginal means and simple effects",
+      "label_ko": "주변평균 및 단순주효과 Tukey 사후검정",
+      "description": "Tukey-Kramer comparisons of the levels of each factor, both with the other factors averaged away (marginal) and inside one combination of them (simple). The marginal mean is the unweighted mean of the cell means, so it is not pulled by unequal cell sizes, and every contrast is scaled by the mean square error of the whole model. Family-wise within a block on its own.",
+      "status": "implemented",
+      "run_by": "compare_factorial_groups",
+      "since": "0.2.0",
+      "role": "posthoc",
+      "follows": ["factorial_anova"],
+      "r_function": "sa_factorial_tukey",
+      "py_function": "factorial_tukey",
+      "engine": "internal",
+      "engine_py": "statsmodels.stats.multicomp.pairwise_tukeyhsd",
+      "data_requirements": {
+        "design": "factorial",
+        "outcome": {
+          "type": "numeric",
+          "required": true
+        },
+        "factors": {
+          "type": "factor",
+          "required": true,
+          "multiple": true,
+          "n_levels_min": 2
+        },
+        "n_min": 8
+      },
+      "assumptions": ["normality_of_residuals", "homogeneity_levene", "independence"],
+      "effect_sizes": ["mean_difference"],
+      "parameters": [
+        {
+          "name": "conf_level",
+          "type": "numeric",
+          "default": 0.95
+        },
+        {
+          "name": "posthoc_scope",
+          "type": "enum",
+          "values": ["both", "marginal", "simple"],
+          "default": "both",
+          "description": "Which of the two contrast kinds to compute."
+        },
+        {
+          "name": "posthoc_alpha",
+          "type": "numeric",
+          "default": 0.05,
+          "description": "A contrast runs when the term that licenses it clears this threshold: a factor's own main effect for a marginal comparison, its interaction with the factors held fixed for a simple one."
+        }
+      ],
+      "returns": ["statistics", "effect_sizes", "assumptions", "posthoc"],
+      "alternatives": ["tukey_hsd", "games_howell"],
+      "references": ["Tukey, J. W. (1949). Biometrics 5(2), 99-114.", "Kramer, C. Y. (1956). Biometrics 12(3), 307-310.", "Searle, S. R., Speed, F. M. and Milliken, G. A. (1980). The American Statistician 34(4), 216-221."],
+      "validation": {
+        "reference_impl": "stats::TukeyHSD(stats::aov(y ~ a * b), which = 'a')",
+        "tolerance": 1e-08,
+        "compare_fields": ["posthoc"],
+        "notes": "TukeyHSD() on a factorial fit compares unweighted marginal means against the whole-model error term, which is the marginal contrast here exactly. The simple effects have no base R counterpart and are checked against a hand-computed Kramer standard error in Test/."
+      },
+      "example_data": "warpbreaks"
     },
     {
       "id": "oneway_anova",
@@ -3550,6 +3684,20 @@
       }
     },
     {
+      "id": "sample_size_repeated",
+      "label": "Sample size adequate for the chi-square approximation to Q",
+      "label_ko": "Q 통계량의 카이제곱 근사에 충분한 표본수",
+      "target": "sample_size",
+      "evaluation": "rule",
+      "rule": "n_subjects * k >= 24, where k is the number of repeated conditions. There is no exact alternative in the result, so a violation qualifies the p-value rather than redirecting to another test.",
+      "threshold": 24,
+      "on_violation": {
+        "message_code": "SA-W022",
+        "suggest": []
+      },
+      "references": ["Cochran, W. G. (1950). Biometrika 37(3-4), 256-266."]
+    },
+    {
       "id": "sufficient_df",
       "label": "Sufficient residual degrees of freedom",
       "label_ko": "충분한 잔차 자유도",
@@ -3891,6 +4039,13 @@
       "field": "assumptions"
     },
     {
+      "code": "SA-W022",
+      "severity": "warning",
+      "text": "{n_subjects} subjects over {k} conditions is {n} observations, below the {threshold} the chi-square approximation asks for; read the p-value as an indication rather than as a rate.",
+      "text_ko": "{k}개 조건에서 피험자 {n_subjects}명은 관측 {n}개로, 카이제곱 근사가 요구하는 {threshold}에 미치지 않습니다. p-value를 정확한 오류율이 아니라 참고치로 읽으십시오.",
+      "field": "assumptions"
+    },
+    {
       "code": "SA-I001",
       "severity": "info",
       "text": "No seed was supplied, so {seed} was generated and recorded for reproducibility.",
@@ -3973,7 +4128,7 @@
       "id": "multivariate",
       "label": "Multivariate analysis",
       "label_ko": "다변량 분석",
-      "reason": "PCA, factor analysis and clustering need a matrix-oriented result contract.",
+      "reason": "Factor analysis and clustering need a matrix-oriented result contract. Dimensionality reduction now has one in sa_reduction, so it is perform_pca() / perform_tsne() / perform_umap() rather than a family here.",
       "target_version": "0.2.0"
     },
     {
@@ -4057,7 +4212,7 @@
       "id": "visualisation",
       "label": "Plot methods",
       "label_ko": "시각화",
-      "reason": "plot.sa_comparison() generic is reserved but not implemented in v0.0.1.",
+      "reason": "Plots are export functions, not registry methods. draw_forest_plot() and the other draw_*() functions ship without a method entry.",
       "target_version": "0.1.0"
     }
   ]

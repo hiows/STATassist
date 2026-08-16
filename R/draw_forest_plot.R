@@ -196,9 +196,9 @@ draw_forest_plot <- function(comparison_result,
              call. = FALSE)
       }
       stop("`comparison_result$posthoc$", test, "` holds no contrasts to ",
-           "draw. Only compare_multiple_groups() produces a ",
-           "post-hoc stage, and only for features whose omnibus test ",
-           "qualified.", call. = FALSE)
+           "draw. A post-hoc stage belongs to a comparison of three or more ",
+           "levels or to a factorial one, and even there it runs only for the ",
+           "features that qualified.", call. = FALSE)
     }
     if (length(not_qualified) > 0L) {
       message("No contrasts for ", paste(not_qualified, collapse = ", "),

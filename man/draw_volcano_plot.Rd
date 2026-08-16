@@ -6,6 +6,8 @@
 \usage{
 draw_volcano_plot(
   significance_result,
+  terms = NULL,
+  panel_nrow = NULL,
   use_adjusted = TRUE,
   log2fc_cutoff = NULL,
   pval_cutoff = NULL,
@@ -27,8 +29,18 @@ draw_volcano_plot(
 \item{significance_result}{The object returned by
 \code{\link[=estimate_significance]{estimate_significance()}}, whose \code{significance} element is what is plotted.
 With \code{by = "contrast"} that element holds one table per contrast, so name
-the one to draw: \code{sig$significance[["virginica - setosa"]]}. A bare verdict
+the one to draw: \code{sig$significance[["virginica - setosa"]]}. With
+\code{by = "term"} the whole list is drawn, one panel per term. A bare verdict
 data.frame is accepted too.}
+
+\item{terms}{Which terms get a panel, read only under a term reading. \code{NULL},
+the default, draws the two main effects of the first two factors and their
+interaction, which is every term of a two-factor design and three of the
+seven of a three-factor one; the terms left out are named in a \code{message()}.
+Give term labels, as \verb{$terms$terms} spells them, to draw those instead.}
+
+\item{panel_nrow}{How many rows the panels are laid out in, or \code{NULL} for a
+single row, which is what three panels of a two-factor design want.}
 
 \item{use_adjusted}{Logical. If \code{TRUE}, plot and threshold the \code{adj_pvalue}
 column; if \code{FALSE}, use the unadjusted \code{pvalue} column. The axis label
@@ -51,17 +63,20 @@ with a \code{message()} in place of the labels.}
 \item{cex.anno}{Character expansion for those labels.}
 
 \item{xlim, ylim}{Numeric length-2 axis ranges, or \code{NULL} to derive them from
-the data. A supplied range is used as given.}
+the data. A supplied range is used as given. Across panels a derived range
+is derived from all of them at once, so the panels can be compared.}
 
 \item{xlab}{X axis label, or \code{NULL} to derive it from what \code{log2fc} compares
 in the comparison behind the verdict.}
 
-\item{main}{Plot title.}
+\item{main}{Plot title. With panels it is the title of the figure, written
+once above them, and each panel is titled with its term.}
 
 \item{cex.lab, cex.axis, cex.main}{Character expansion for the axis labels,
 the axis annotation and the title.}
 
-\item{margin}{Plot margins in lines, passed to \code{\link[graphics:par]{graphics::par()}} as \code{mar}.}
+\item{margin}{Plot margins in lines, passed to \code{\link[graphics:par]{graphics::par()}} as \code{mar}.
+Applied to every panel.}
 
 \item{...}{Additional arguments passed to \code{\link[graphics:plot]{graphics::plot()}}.}
 }
@@ -71,12 +86,16 @@ the axis annotation and the title.}
 \description{
 Plots \code{log2fc} against \code{-log10(pvalue)} for the table
 \code{\link[=estimate_significance]{estimate_significance()}} returns, colours the features that clear both
-cutoffs by direction and labels the strongest of them.
+cutoffs by direction and labels the strongest of them. A term reading of a
+factorial comparison is drawn as one panel per term in a single figure.
 }
 \details{
 The plot margins are restored on exit, but the coordinate system is
 deliberately left in place, so \code{\link[graphics:points]{graphics::points()}}, \code{\link[graphics:text]{graphics::text()}} and
-friends can still be used to add to the finished plot.
+friends can still be used to add to the finished plot. With panels what is
+left in place is the last panel's coordinate system, and the panel grid itself
+is undone, \code{mfrow} included, since a figure of several plots is finished when
+the last of them is drawn.
 
 A p-value of exactly zero has no finite \code{-log10()}. Rather than dropping the
 most significant points or letting an infinite axis limit blank the plot, the
@@ -90,8 +109,13 @@ What \code{log2fc} compares is not the same question in every scenario, so the x
 axis label follows the comparison the verdict came from. A multi-group omnibus
 verdict carries the single fold change its \code{effect} table holds, the level
 furthest from the reference rather than any named pair, and the label says so.
-Every other reading compares two fixed centres and is labelled \verb{log2 FC}.
-Pass \code{xlab} to override this.
+A factorial omnibus verdict does the same with cells: the reference cell is
+where every factor sits at its first level, and the label names it. A term
+table carries an ANOVA component rather than a ratio of two centres, so
+it is labelled as an effect and not as a fold change; see "The size of a term"
+in \code{\link[=compare_factorial_groups]{compare_factorial_groups()}} for how to read its magnitude. Every other
+reading compares two fixed centres and is labelled \verb{log2 FC}. Pass \code{xlab} to
+override this.
 
 Points are coloured by the same masks that select the labels, so which
 features are highlighted and which are labelled can never disagree. With the
@@ -99,6 +123,20 @@ default arguments those masks reproduce the \code{is_signif} column of the input
 The labels are drawn in a brighter shade than the points on purpose, so that
 a label stays legible where it overlaps them.
 }
+\section{One panel per term}{
+
+A term reading is drawn as a figure rather than asked to name one table,
+unlike a contrast reading. A crossed design decomposes into a fixed and small
+set of terms, three for two factors, and the whole point of the reading is to
+see which of them a feature responded to, which is a comparison between the
+panels. The number of pairwise contrasts, by contrast, follows from the level
+counts and is arbitrary.
+
+Every panel is judged by one rule, the cutoffs of the first table, and shares
+the axes with the others unless \code{xlim} or \code{ylim} says otherwise. Both are what
+makes a point in one panel comparable with a point in another.
+}
+
 \examples{
 iris2 <- iris[iris$Species != "setosa", ]
 res <- compare_two_groups(
@@ -121,6 +159,20 @@ draw_volcano_plot(sig, log2fc_cutoff = 0.3)
 multi <- compare_multiple_groups(iris, c("Sepal.Length", "Petal.Length"),
                                  iris$Species, levels(iris$Species))
 draw_volcano_plot(estimate_significance(multi, log2fc_cutoff = 0.1))
+
+## A factorial omnibus verdict names the reference cell on the x axis
+fact <- compare_factorial_groups(
+  data    = warpbreaks,
+  feats   = "breaks",
+  factors = list(wool = "wool", tension = "tension"),
+  posthoc = FALSE
+)
+draw_volcano_plot(estimate_significance(fact, log2fc_cutoff = 0.1),
+                  main = "warpbreaks")
+
+## One panel per term of a crossed design: wool, tension, wool:tension
+draw_volcano_plot(estimate_significance(fact, by = "term", log2fc_cutoff = 0.1),
+                  main = "warpbreaks, by term")
 
 }
 \seealso{

@@ -492,5 +492,285 @@ figure("umap", 700, 650, label_plot(
 ))
 
 
+cat("=== 9. factorial crossed design ===\n")
+
+sim_fact <- simulate_factorial_groups(seed = 2026)
+fact_args <- sim_fact$args
+fact_comp <- compare_factorial_groups(
+  data          = fact_args$data,
+  feats         = fact_args$feats,
+  factors       = fact_args$factors,
+  factor_lv     = fact_args$factor_lv,
+  control_label = list(treatment = "control", sex = "male"),
+  input_scale   = fact_args$input_scale
+)
+sig_fact <- estimate_significance(fact_comp)
+sig_fact_term <- estimate_significance(fact_comp, by = "term")
+interest_feats <- paste0("prot_", 1:20)
+interest_feat <- "prot_14"
+
+figure("factorial-forest-pvalue", 900, 520, draw_forest_plot(
+  comparison_result = fact_comp,
+  type              = "pvalue",
+  feats             = interest_feats,
+  sort_by           = "pvalue"
+))
+
+figure("factorial-volcano", 900, 650, draw_volcano_plot(sig_fact_term))
+
+figure("factorial-forest-estimate", 900, 520, draw_forest_plot(
+  comparison_result = fact_comp,
+  feats             = interest_feat,
+  sort_by           = "pvalue",
+  xlim              = c(-6, 6)
+))
+
+figure("factorial-interaction", 800, 620, draw_interaction_plot(
+  comparison_result = fact_comp,
+  feats             = interest_feat
+))
+
+figure("factorial-boxplot", 800, 620, draw_grouped_boxplot(
+  data          = fact_args$data,
+  feats         = interest_feat,
+  factors       = fact_args$factors,
+  factor_lv     = fact_args$factor_lv,
+  control_label = list(treatment = "control", sex = "male"),
+  ylim          = c(5, 25)
+))
+
+
+cat("=== 10. categorical contingency table ===\n")
+
+sim_cat <- simulate_categorical_groups(seed = 2026)
+cat_args <- sim_cat$args
+cat_comp <- compare_categorical_groups(
+  data          = cat_args$data,
+  category_lv   = cat_args$category_lv,
+  control_label = list(cat_1 = "n", cat_2 = "mid"),
+  paired        = cat_args$paired
+)
+
+figure("mosaic", 800, 620, draw_mosaic_plot(cat_comp))
+
+
+cat("=== 11. grouped barplot ===\n")
+
+sim_bar <- simulate_two_groups(
+  n_feats = 10, n_up = 3, n_down = 3, seed = 2026
+)
+bar_args <- sim_bar$args
+
+figure("grouped-barplot", 900, 620, draw_grouped_barplot(
+  data          = bar_args$data,
+  feats         = bar_args$feats,
+  group         = bar_args$group,
+  group_lv      = bar_args$group_lv,
+  control_label = "control",
+  errorbar      = "se"
+))
+
+
+cat("=== 12. feature-pair association ===\n")
+
+assoc_cor <- make_block_cor(
+  n_features = 10,
+  blocks = list(
+    list(features = 1:3, cor = 0.9),
+    list(features = 4:5, cor = 0.5, against = 6:7)
+  )
+)
+assoc_sim <- simulate_regression(
+  n_pred = 10, n_factor_pred = 0, cor_mat = assoc_cor, seed = 2026
+)
+assoc_data <- assoc_sim$args$data[, -1, drop = FALSE]
+assoc_feats <- colnames(assoc_data)
+assoc <- summarize_association_stats(data = assoc_data, feats = assoc_feats)
+
+figure("corrplot", 700, 700, draw_corrplot(
+  assoc$pearson$corr, cex.axis = 0.9
+))
+
+figure("corrplot-masked", 700, 700, draw_corrplot(
+  assoc$pearson$corr,
+  pvalue    = assoc$pearson$adj_pvalue,
+  cex.axis  = 0.9
+))
+
+
+cat("=== 13. evaluate regression models ===\n")
+
+eval_reg_sim <- simulate_regression(cor_mat = cor_mat, seed = 2026)
+eval_reg_args <- eval_reg_sim$args
+eval_reg_split <- split_data(
+  data = eval_reg_args$data, p_train = 0.75, times = 1, seed = 2026
+)
+eval_reg_train <- eval_reg_split$datasets[[1]]$train_data
+eval_reg_test <- eval_reg_split$datasets[[1]]$test_data
+
+eval_rfe <- perform_rfe(
+  data       = eval_reg_train,
+  outcome    = eval_reg_args$outcome,
+  predictors = eval_reg_args$predictors,
+  seed       = 2026
+)
+eval_sel <- eval_rfe$selected
+
+eval_lin <- do.call(fit_linear_regression, c(list(
+  data = eval_reg_train, outcome = eval_reg_args$outcome,
+  predictors = eval_sel
+), cv))
+eval_lasso <- do.call(fit_elastic_net, c(list(
+  data = eval_reg_train, outcome = eval_reg_args$outcome,
+  predictors = eval_sel, penalty = "lasso"
+), cv))
+eval_rf <- do.call(fit_rf, c(list(
+  data = eval_reg_train, outcome = eval_reg_args$outcome,
+  predictors = eval_sel
+), cv))
+eval_svm <- do.call(fit_svm, c(list(
+  data = eval_reg_train, outcome = eval_reg_args$outcome,
+  predictors = eval_sel
+), svm_grid, cv))
+
+eval_reg <- evaluate_regression_models(
+  baseline_model = eval_lin,
+  new_models     = list(lasso = eval_lasso, rf = eval_rf, svm = eval_svm),
+  newdata        = eval_reg_test,
+  answer         = eval_reg_test$y,
+  baseline_label = "linear"
+)
+
+figure("eval-regression", 800, 650, draw_prediction_plot(
+  performance_result = eval_reg,
+  type               = "overlay",
+  anno_corr          = TRUE,
+  anno_rsq           = TRUE,
+  anno_lm            = TRUE,
+  cex.anno           = 0.85
+))
+
+
+cat("=== 14. evaluate classification models ===\n")
+
+eval_cls_sim <- simulate_classification(cor_mat = cor_mat, seed = 2026)
+eval_cls_args <- eval_cls_sim$args
+eval_cls_split <- split_data(
+  data = eval_cls_args$data, stratified = eval_cls_args$data$y,
+  p_train = 0.75, times = 1, seed = 2026
+)
+eval_cls_train <- eval_cls_split$datasets[[1]]$train_data
+eval_cls_test <- eval_cls_split$datasets[[1]]$test_data
+
+eval_rfe_cls <- perform_rfe(
+  data          = eval_cls_train,
+  outcome       = eval_cls_args$outcome,
+  predictors    = eval_cls_args$predictors,
+  outcome_lv    = eval_cls_args$outcome_lv,
+  control_label = "control",
+  seed          = 2026,
+  model         = "logistic"
+)
+eval_sel_cls <- eval_rfe_cls$selected
+
+eval_log <- do.call(fit_logistic_regression, c(list(
+  data = eval_cls_train, outcome = eval_cls_args$outcome,
+  predictors = eval_sel_cls, outcome_lv = eval_cls_args$outcome_lv,
+  control_label = "control"
+), cv))
+eval_lasso_cls <- do.call(fit_elastic_net, c(list(
+  data = eval_cls_train, outcome = eval_cls_args$outcome,
+  predictors = eval_sel_cls, outcome_lv = eval_cls_args$outcome_lv,
+  penalty = "lasso"
+), cv))
+eval_rf_cls <- do.call(fit_rf, c(list(
+  data = eval_cls_train, outcome = eval_cls_args$outcome,
+  predictors = eval_sel_cls, outcome_lv = eval_cls_args$outcome_lv
+), cv))
+eval_svm_cls <- do.call(fit_svm, c(list(
+  data = eval_cls_train, outcome = eval_cls_args$outcome,
+  predictors = eval_sel_cls, outcome_lv = eval_cls_args$outcome_lv
+), svm_grid, cv))
+
+eval_cls <- evaluate_classification_models(
+  baseline_model = eval_log,
+  new_models     = list(
+    lasso = eval_lasso_cls, rf = eval_rf_cls, svm = eval_svm_cls
+  ),
+  newdata        = eval_cls_test,
+  answer         = eval_cls_test$y,
+  outcome_lv     = eval_cls_args$outcome_lv,
+  control_label  = "control",
+  baseline_label = "logistic"
+)
+
+figure("eval-classification", 650, 650, draw_roc_curve(
+  performance_result = eval_cls,
+  anno_auc           = TRUE,
+  cex.anno           = 1
+))
+
+
+cat("=== 15. cluster on an embedding ===\n")
+
+clust_sim <- simulate_two_groups(
+  n_feats = 50, deg_log2fc = c(5, 10), seed = 2026
+)
+clust_args <- clust_sim$args
+
+clust_pca <- perform_pca(
+  data = clust_args$data,
+  feats = clust_args$feats,
+  embedding_scale = "samples"
+)
+clust_km_pca <- cluster_kmeans(
+  data = clust_pca$scores,
+  feats = c("PC1", "PC2"),
+  cluster_scale = "samples",
+  n_clust = 2,
+  seed = 2026
+)
+
+figure("cluster-pca-group", 700, 650, draw_dim_reduction_plot(
+  reduction_result = clust_pca,
+  group            = clust_args$group,
+  group_lv         = clust_args$group_lv,
+  col              = c("black", "red3")
+))
+
+figure("cluster-pca-cluster", 700, 650, draw_dim_reduction_plot(
+  reduction_result = clust_pca,
+  cluster_result   = clust_km_pca,
+  cluster_lv       = c("Cluster1", "Cluster2")
+))
+
+clust_umap <- perform_umap(
+  data = clust_args$data,
+  feats = clust_args$feats,
+  embedding_scale = "samples",
+  seed = 2026
+)
+clust_km_umap <- cluster_kmeans(
+  data = clust_umap$scores,
+  feats = c("UMAP1", "UMAP2"),
+  cluster_scale = "samples",
+  n_clust = 2,
+  seed = 2026
+)
+
+figure("cluster-umap-group", 700, 650, draw_dim_reduction_plot(
+  reduction_result = clust_umap,
+  group            = clust_args$group,
+  group_lv         = clust_args$group_lv,
+  col              = c("black", "red3")
+))
+
+figure("cluster-umap-cluster", 700, 650, draw_dim_reduction_plot(
+  reduction_result = clust_umap,
+  cluster_result   = clust_km_umap,
+  cluster_lv       = c("Cluster1", "Cluster2")
+))
+
+
 cat("\nWrote", length(list.files(fig_dir, pattern = "\\.png$")),
     "figures to", fig_dir, "\n")

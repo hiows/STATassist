@@ -623,15 +623,11 @@ sa_annotate_heatmap_cells <- function(x, zlim, cex) {
 #' @keywords internal
 #' @noRd
 sa_heatmap_hclust <- function(x, dist_method, hclust_method, axis) {
-  d <- if (dist_method == "correlation") {
-    # Rows are the objects, and cor() correlates columns, so it reads the
-    # transpose. A row with no variance has no correlation, which the
-    # finiteness check below turns into "not clustered" rather than an error.
-    r <- suppressWarnings(stats::cor(t(x), use = "pairwise.complete.obs"))
-    stats::as.dist(1 - r)
-  } else {
-    stats::dist(x, method = dist_method)
-  }
+  # The same distance `cluster_hclust()` measures, so that the tree drawn here and
+  # the tree cut there are one tree when they are asked for on the same terms. A
+  # row with no variance has no correlation, which the finiteness check below
+  # turns into "not clustered" rather than an error.
+  d <- sa_cluster_dist(x, dist_method)
   if (!all(is.finite(d))) {
     message("Not clustering the ", axis, "s: some distances are undefined, ",
             "which happens when a pair shares no observation or has no ",

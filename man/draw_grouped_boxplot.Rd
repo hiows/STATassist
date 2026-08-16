@@ -7,8 +7,13 @@
 draw_grouped_boxplot(
   data,
   feats,
-  group,
-  group_lv,
+  group = NULL,
+  group_lv = NULL,
+  factors = NULL,
+  factor_lv = NULL,
+  control_label = NULL,
+  panel_by = c("feature", "factor"),
+  panel_nrow = NULL,
   gap = 1,
   lwd = 1.5,
   xlab = NULL,
@@ -32,13 +37,45 @@ observation and one column per feature.}
 \item{feats}{Character vector of numeric column names in \code{data} to plot,
 in display order along the x axis.}
 
-\item{group}{Grouping vector with one entry per row of \code{data}.}
+\item{group}{Grouping vector with one entry per row of \code{data}, for a single
+factor. Leave it \code{NULL} and name \code{factors} to draw a crossed design.}
 
 \item{group_lv}{Character vector of at least two group levels, in the order
 they should appear inside each cluster. Rows belonging to any other level
 are dropped.}
 
-\item{gap}{Blank box widths inserted between neighbouring feature clusters.}
+\item{factors}{Named list of the crossed factors, each entry either the name
+of a column of \code{data} or a vector with one entry per row of it, exactly as
+\code{\link[=compare_factorial_groups]{compare_factorial_groups()}} takes them. There have to be at least two: one
+factor is \code{group}. The \strong{first factor is the primary one}, the factor
+whose levels are the coloured boxes inside a cluster and the entries of the
+legend; the factors after it are crossed into the other axis.}
+
+\item{factor_lv}{Named list giving the levels of each factor, with the
+reference level first, or \code{NULL} to take the levels from the data in sorted
+order. Naming it fixes the order the boxes, the clusters and the panels are
+drawn in and drops the rows belonging to any level it leaves out.}
+
+\item{control_label}{The level to hold as the reference, one name per factor
+it points at, as a named list (\code{list(treatment = "control", sex = "male")})
+or as a named character vector, exactly as \code{\link[=compare_factorial_groups]{compare_factorial_groups()}}
+takes it. The level it names is drawn first in its own factor, so a figure
+and the analysis it illustrates put the reference cell in the same place
+when they are given the same argument. Read only under \code{factors}: a single
+factor draws in \code{group_lv} order, which already says where its reference is.}
+
+\item{panel_by}{Which axis the panels are over, read only under \code{factors}:
+\code{"feature"} for one panel per feature with the remaining factors along the
+x axis, or \code{"factor"} for one panel per combination of the remaining
+factors with the features along the x axis. See "What is drawn where" for
+why the first is the default.}
+
+\item{panel_nrow}{How many rows the panels are laid out in, or \code{NULL} to let
+the arrangement decide: one row under \code{panel_by = "factor"}, and a grid as
+near square as the panel count allows under \code{"feature"}, where there is one
+panel per feature and a row of ten of them cannot be read.}
+
+\item{gap}{Blank box widths inserted between neighbouring clusters.}
 
 \item{lwd}{Line width of the boxes.}
 
@@ -47,8 +84,13 @@ are dropped.}
 \item{cex.lab, cex.axis, cex.main, cex.legend}{Character expansion for axis
 labels, axis annotation, the main title and the legend.}
 
-\item{ylim}{Numeric length-2 y axis range, or \code{NULL} to let
-\code{\link[graphics:boxplot]{graphics::boxplot()}} choose.}
+\item{ylim}{Numeric length-2 y axis range, shared by every panel. \code{NULL}
+derives it, and what it derives depends on what a panel is. Panels over the
+factors hold the same features and share one range taken from every value
+drawn, since panels of the same quantity whose axes differ cannot be read
+against each other. Panels over the features hold different quantities,
+each with its own baseline, so each keeps the range \code{\link[graphics:boxplot]{graphics::boxplot()}}
+gives it and is annotated with its own axis.}
 
 \item{dark}{If \code{TRUE}, use a dark background with light text.}
 
@@ -64,7 +106,8 @@ two elements, invisibly:
 \describe{
 \item{\code{box_summary_stats}}{One data.frame per feature with rows \code{min},
 \code{lower_bound}, \code{Q1}, \code{median}, \code{Q3}, \code{upper_bound}, \code{max} and one
-column per group level. The bounds are the Tukey whisker fences
+column per box: the group levels under \code{group}, and the cell labels of
+the design under \code{factors}. The bounds are the Tukey whisker fences
 \code{Q1 - 1.5 * IQR} and \code{Q3 + 1.5 * IQR}, not the drawn whisker ends.}
 \item{\code{median_confidence_stats}}{One data.frame per feature with rows
 \code{n}, \code{lower_conf}, \code{upper_conf}, the notch interval
@@ -72,14 +115,47 @@ column per group level. The bounds are the Tukey whisker fences
 }
 }
 \description{
-Draws one cluster of boxes per feature, with the group levels side by side
-inside each cluster and a legend in a narrow panel on the right. Optionally
-returns the summary statistics behind the boxes.
+Draws clusters of boxes with the levels of one factor side by side inside
+each cluster and a legend in a narrow panel on the right. A single factor
+gives one cluster per feature. A crossed design gives one panel per feature,
+with the factors after the first along the x axis, so that the crossing sits
+inside a panel where an interaction can be seen. Optionally returns the
+summary statistics behind the boxes.
 }
 \details{
 The function changes graphical parameters and the panel layout, and restores
 both on exit, so the caller's device is left as it was found.
 }
+\section{What is drawn where}{
+
+A crossed design has three categorical axes to place and two dimensions to
+place them in, so one of them has to become the panels. Which one decides
+whether the picture shows an interaction.
+
+\code{panel_by = "feature"}, the default, gives one panel per feature. Inside it
+the remaining factors run along the x axis and the primary factor is the
+coloured boxes within each of those clusters, so \strong{the two factors are side
+by side in one panel}: an effect of the treatment that reverses between the
+levels of the other factor is a pattern of colours that visibly flips a
+couple of centimetres away, which is what an interaction is.
+
+\code{panel_by = "factor"} gives the transpose: one panel per combination of the
+remaining factors, with the features along the x axis. It puts every feature
+of one cell together, which is what to ask for when the question is about the
+features rather than about the crossing. The cost is that the two factors are
+then split between the legend and the panels, and reading an interaction
+means comparing a colour profile in one panel against the same in another.
+
+Either way the boxes are the same boxes and the returned statistics are
+identical; only the grouping of them into panels and clusters differs. The
+cells, their order and their labels come from the same helpers
+\code{\link[=compare_factorial_groups]{compare_factorial_groups()}} uses, so a box of this plot and a row of that
+result are the same observations, and the columns of the returned statistics
+are the cell labels the comparison and \code{\link[=simulate_factorial_groups]{simulate_factorial_groups()}} both key
+on. A cell holding no observation leaves its box blank rather than shifting
+the ones beside it, and is reported in a message.
+}
+
 \examples{
 ## All three iris species across the four measurements
 stats <- draw_grouped_boxplot(
@@ -93,11 +169,46 @@ stats <- draw_grouped_boxplot(
 stats$box_summary_stats$Sepal.Length
 stats$median_confidence_stats$Sepal.Length
 
+## A crossed design: one panel per feature, the sexes along the x axis and
+## the treatment the colours, so an effect that flips with sex is local.
+sim <- simulate_factorial_groups(n_feats = 6, n_per_cell = 8, seed = 1)
+cells <- draw_grouped_boxplot(
+  data      = sim$args$data,
+  feats     = sim$args$feats,
+  factors   = sim$args$factors,
+  factor_lv = sim$args$factor_lv,
+  ylab      = "log2 abundance"
+)
+## One column per cell, labelled the way the answer key labels them.
+cells$box_summary_stats$prot_1
+
+## The transpose: one panel per sex, every feature together inside it.
+draw_grouped_boxplot(
+  data      = sim$args$data,
+  feats     = sim$args$feats,
+  factors   = sim$args$factors,
+  factor_lv = sim$args$factor_lv,
+  panel_by  = "factor",
+  ylab      = "log2 abundance"
+)
+
+## `control_label` draws the named level first in its own factor, and takes
+## the same argument the comparison does, so the two agree on where the
+## reference cell sits.
+draw_grouped_boxplot(
+  data          = sim$args$data,
+  feats         = sim$args$feats[1:2],
+  factors       = sim$args$factors,
+  control_label = list(sex = "female"),
+  ylab          = "log2 abundance"
+)
+
 }
 \references{
 McGill, R., Tukey, J. W. and Larsen, W. A. (1978). Variations of box plots.
 \emph{The American Statistician}, 32(1), 12-16.
 }
 \seealso{
-\code{\link[=compare_two_groups]{compare_two_groups()}} to test the same input.
+\code{\link[=compare_two_groups]{compare_two_groups()}} and \code{\link[=compare_factorial_groups]{compare_factorial_groups()}} to test the
+same input.
 }

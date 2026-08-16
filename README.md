@@ -1,12 +1,12 @@
 # STATassist
 
-**STATassist** runs every method that applies to a question in one call and returns standardised tables. A comparison reports parametric, rank-based and robust tests side by side, with fold changes, intervals and multiplicity-adjusted p-values. A model reports one row per term with its estimate and whatever inference that model honestly supports. A dimension reduction reports one row per point with its coordinates. A feature selection reports one row per candidate with what it was ranked by and whether it survived. Four result contracts, and everything downstream reads them rather than the engine underneath.
+**STATassist** runs every method that applies to a question in one call and returns standardised tables. A comparison reports parametric, rank-based and robust tests side by side, with fold changes, intervals and multiplicity-adjusted p-values. A model reports one row per term with its estimate and whatever inference that model honestly supports. A dimension reduction reports one row per point with its coordinates. A feature selection reports one row per candidate with what it was ranked by and whether it survived. A contingency table reports one row per cell under the null the test was read against. A performance evaluation reports one row per model on the same held-out rows. A clustering reports one row per point with the label it was assigned. Seven result contracts, and everything downstream reads them rather than the engine underneath.
 
 Two groups, three or more groups and a single sample all return the same object, so `draw_forest_plot()`, `estimate_significance()` and anything else that reads a result works across them without being told which scenario produced it. Five models — linear, logistic, penalized, forest and kernel — return the same object too, so `coef()` and `predict(model, newdata = )` are one line each whichever of them was fitted, and `perform_rfe()` and `perform_stepwise()` hand the predictors they kept straight to any of the five.
 
-Every example below runs on simulated data whose answer was planted on purpose, so a verdict can be **scored** rather than trusted: `simulate_two_groups()`, `simulate_multiple_groups()`, `simulate_regression()` and `simulate_classification()` hand back the effects and coefficients they put in.
+Every example below runs on simulated data whose answer was planted on purpose, so a verdict can be **scored** rather than trusted: `simulate_two_groups()`, `simulate_multiple_groups()`, `simulate_factorial_groups()`, `simulate_categorical_groups()`, `simulate_regression()` and `simulate_classification()` hand back the effects and coefficients they put in.
 
-The comparison, diagnostic and visualisation functions use base R only (`stats`, `graphics`, `grDevices`, `utils`). The modelling and dimension-reduction functions are built on `caret` and call `glmnet`, `randomForest`, `kernlab`, `Rtsne` and `umap` through it.
+The comparison, diagnostic and visualisation functions use base R only (`stats`, `graphics`, `grDevices`, `utils`). The modelling and dimension-reduction functions are built on `caret` and call `glmnet`, `randomForest`, `kernlab`, `Rtsne` and `umap` through it. The two density-based clustering functions call `dbscan` directly.
 
 ## Example
 
@@ -35,10 +35,10 @@ Install from GitHub:
 ```r
 # install.packages("remotes")
 remotes::install_github("hiows/STATassist")          # latest
-remotes::install_github("hiows/STATassist@v0.7.0")   # pinned to a release
+remotes::install_github("hiows/STATassist@v1.0.0")   # pinned to a release
 ```
 
-Each release is tagged, so the pinned form keeps returning the same code no matter what lands on the default branch afterwards. `v0.6.0` is the previous release, and [NEWS.md](NEWS.md) says what changed between them: a fourth result contract for a function that searches rather than fits, the two functions that return it, and `control_label` reaching every result that has a direction to report. Nothing an existing call reads has moved.
+Each release is tagged, so the pinned form keeps returning the same code no matter what lands on the default branch afterwards. `v0.6.0` is the previous release, and [NEWS.md](NEWS.md) says what changed between them: a fifth and sixth and seventh result contract for a table, a scored evaluation and a clustering; factorial and categorical comparisons with their own significance and plots; model evaluation on held-out rows; feature-pair association screens; and a grouped barplot beside the boxplot. Nothing an existing call reads has moved.
 
 The package is not on CRAN yet. When it is submitted, this README will note the CRAN line as well.
 
@@ -509,7 +509,220 @@ rm_res$tests$anova_test[1:3, c("features", "f_stat", "pval", "mauchly_pval",
 
 Sphericity is violated for the first two features here, which is exactly why the corrected p-value is reported next to the uncorrected one rather than instead of it. Repeated measures also swap in Friedman as `$tests$kruskal_test`, with Conover's pairwise comparisons behind it.
 
-### 8. Compare one sample against a hypothesised value
+### 8. Factorial crossed design
+
+Crossing two factors asks three questions at once — each main effect and their interaction — and the answer is planted **per model term**, not per cell. `simulate_factorial_groups()` returns `truth_term` beside the wide data so each row of the ANOVA table can be scored.
+
+```r
+sim_fact <- simulate_factorial_groups(seed = 2026)
+
+fact_comp <- compare_factorial_groups(
+  data          = sim_fact$args$data,
+  feats         = sim_fact$args$feats,
+  factors       = sim_fact$args$factors,
+  factor_lv     = sim_fact$args$factor_lv,
+  control_label = list(treatment = "control", sex = "male"),
+  input_scale   = sim_fact$args$input_scale
+)
+
+fact_comp
+head(fact_comp$effect, 3)
+fact_comp$terms[fact_comp$terms$features == "prot_1", ]
+```
+
+```
+<sa_factorial> factorial_comparison
+  factors  : treatment (4) x sex (2)  (8 cells, independent)
+  anova    : two-way, Type III sums of squares
+  features : 100
+  settings : alternative = two.sided, conf_level = 0.95, p_adjust = BH
+
+  tests
+    $anova_test  22 of 100 at pval_adj <= 0.05
+                Two-way ANOVA (Type III sums of squares)
+                post-hoc: 65 of 167 contrast(s) over 22 feature(s), Tukey HSD on marginal means and simple effects
+
+  terms
+    treatment      13 of 100 at pval_adj <= 0.05
+    sex            9 of 100 at pval_adj <= 0.05
+    treatment:sex  5 of 100 at pval_adj <= 0.05
+
+  $diagnostics attached
+```
+
+```
+  features n_used n_cells ref_center   extreme_cell extreme_center fold_change
+1   prot_1    160       8 705.347026 treat_C.female      221.60839   0.3141835
+2   prot_2    160       8 188.637301 treat_A.female       19.96096   0.1058166
+3   prot_3    160       8   8.808372 treat_C.female       18.07013   2.0514720
+     log2fc
+1 -1.670321
+2 -3.240362
+3  1.036659
+```
+
+The whole-model F in `$tests$anova_test` is the same test `estimate_significance()` and `draw_forest_plot()` already know from multi-group comparisons. Term-wise inference lives in `$terms`, one row per feature and model term, with `pval_adj` corrected **across features within each term** rather than across terms.
+
+`control_label` names the reference level of each factor without rewriting every level list. Here `treatment = "control"` and `sex = "male"` move those levels first, which is what `$effect` uses as the reference cell and what the volcano x-axis names as `most extreme cell vs control.male`.
+
+```r
+sig_fact <- estimate_significance(fact_comp)
+sig_fact
+
+sig_fact_term <- estimate_significance(fact_comp, by = "term")
+draw_volcano_plot(sig_fact_term)
+
+draw_forest_plot(
+  fact_comp, type = "pvalue",
+  feats = paste0("prot_", 1:20), sort_by = "pvalue"
+)
+```
+
+```
+<sa_significance> factorial_comparison
+  test     : anova_test  (Two-way ANOVA (Type III sums of squares))
+  cutoffs  : abs(log2fc) >= 1, adj_pvalue <= 0.05  (BH)
+  verdict  : 22 of 100 significant
+```
+
+![Term-wise volcano plot of the factorial design](man/figures/README-factorial-volcano.png)
+
+| Omnibus p-values, twenty features | Tukey contrasts for prot_14 |
+| --- | --- |
+| ![Forest plot of adjusted p-values across twenty proteins](man/figures/README-factorial-forest-pvalue.png) | ![Forest plot of Tukey contrasts for prot_14](man/figures/README-factorial-forest-estimate.png) |
+
+`prot_14` was planted as a **crossover**: its treatment and sex main effects are exactly zero and only the interaction was moved. That is invisible in a one-factor read of treatment alone, and visible the moment the lines cross:
+
+```r
+subset(sim_fact$truth_term, features == "prot_14")
+
+draw_interaction_plot(fact_comp, feats = "prot_14")
+
+draw_grouped_boxplot(
+  data          = sim_fact$args$data,
+  feats         = "prot_14",
+  factors       = sim_fact$args$factors,
+  factor_lv     = sim_fact$args$factor_lv,
+  control_label = list(treatment = "control", sex = "male"),
+  ylim          = c(5, 25)
+)
+```
+
+```
+   features         terms term_order is_within max_abs_delta is_effect
+40  prot_14     treatment          1     FALSE      1.682590      TRUE
+41  prot_14           sex          1     FALSE      0.000000     FALSE
+42  prot_14 treatment:sex          2     FALSE      1.346072      TRUE
+```
+
+| Interaction plot, prot_14 | Boxplot, prot_14 across eight cells |
+| --- | --- |
+| ![Interaction plot of cell means for prot_14](man/figures/README-factorial-interaction.png) | ![Grouped boxplot of prot_14 across the factorial cells](man/figures/README-factorial-boxplot.png) |
+
+The interaction panel is the place to read a crossover: the treatment profile runs one way in `male` and the opposite way in `female`, inside a single feature panel rather than by comparing panels across the page.
+
+### 9. Categorical contingency tables
+
+A contingency table has no feature axis. The question is about the **table as a whole**, or about one cell at a time, and the result is `sa_categorical` rather than `sa_comparison`. `design$null` names the hypothesis the expected counts and residuals were read under — independence here — and every downstream function reads that same null.
+
+```r
+sim_cat <- simulate_categorical_groups(seed = 2026)
+
+cat_comp <- compare_categorical_groups(
+  data          = sim_cat$args$data,
+  category_lv   = sim_cat$args$category_lv,
+  control_label = list(cat_1 = "n", cat_2 = "mid"),
+  paired        = sim_cat$args$paired
+)
+
+cat_comp
+cat_comp$association
+cat_comp$tests
+```
+
+```
+<sa_categorical> categorical_comparison
+  table    : cat_1 (2) x cat_2 (3)  (6 cells, independent)
+  null     : independence -- a cell is expected at the product of its margins
+  observed : 200 row(s)
+  settings : conf_level = 0.95, correct = TRUE
+
+  tests
+    $chisq_test   pval = 5.52e-07  (null rejected at 0.05)
+                 Chi-square test of independence
+    $fisher_test  pval = 3.51e-07  (null rejected at 0.05)
+                 Fisher's exact test
+
+  association
+    cramers_v                0.38
+    contingency_coefficient  0.355
+
+  $diagnostics attached, rule expected_count_min: met
+```
+
+```
+                  measure  estimate lower_conf upper_conf
+1               cramers_v 0.3796113         NA         NA
+2 contingency_coefficient 0.3549002         NA         NA
+```
+
+```
+$chisq_test
+  n_used statistic df         pval lower_conf upper_conf
+1    200  28.82095  2 5.515821e-07         NA         NA
+
+$fisher_test
+  n_used statistic df         pval lower_conf upper_conf odds_ratio_cond
+1    200        NA NA 3.507415e-07         NA         NA              NA
+```
+
+`estimate_significance()` is refused here with a pointer to `estimate_categorical_significance()`, for the same reason `diagnose_distribution()` refuses a comparison it cannot read. The cell reading scores each `(row_level, col_level)` pair by how far `observed / expected` sits from one, with p-values from the Pearson residual:
+
+```r
+sig_cell <- estimate_categorical_significance(cat_comp, by = "cell")
+head(sig_cell$significance, 4)
+
+sig_table <- estimate_categorical_significance(
+  cat_comp, by = "table", test = "chisq_test"
+)
+sig_table
+```
+
+```
+  row_level col_level observed expected      lift  log2_lift std_residual
+1         n       mid       42   28.025 1.4986619  0.5836750     4.339151
+2         y       mid       17   30.975 0.5488297 -0.8655695    -4.339151
+3         n      high       20   37.050 0.5398111 -0.8894735    -4.949778
+4         y      high       58   40.950 1.4163614  0.5021894     4.949778
+        pvalue   adj_pvalue is_signif
+1 1.430340e-05 2.145510e-05     FALSE
+2 1.430340e-05 2.145510e-05     FALSE
+3 7.429824e-07 2.228947e-06     FALSE
+4 7.429824e-07 2.228947e-06     FALSE
+```
+
+```
+<sa_categorical_significance> categorical_comparison
+  reading  : table  (2 x 3 table)
+  null     : independence -- a cell is expected at the product of its margins
+  test     : chisq_test  (Chi-square test of independence)
+  cutoffs  : pvalue <= 0.05
+  verdict  : cramers_v = 0.38  (significant)
+```
+
+At the default cutoffs every cell misses — the omnibus test already rejected independence, but no single cell clears both a fold-change and an adjusted p-value at once. That is a different verdict from the table reading, which is one row and one association measure.
+
+`draw_mosaic_plot()` shades each tile by the residual under the same null, and draws the expected conditional proportion as a dashed line inside each strip so the eye reads distance from the null rather than distance from the neighbouring strip:
+
+```r
+draw_mosaic_plot(cat_comp)
+```
+
+![Mosaic plot shaded by Pearson residuals under independence](man/figures/README-mosaic.png)
+
+`plot()` on an `sa_categorical` is the same function under the name R users reach for first.
+
+### 10. Compare one sample against a hypothesised value
 
 ```r
 one <- compare_one_sample(sim$args$data, "gene_8", mu = 8)
@@ -537,7 +750,7 @@ compare_one_sample(flag, "is_case", mu = 0.5, p = 0.5)$tests$prop_test
 1        1  0.4038315  0.5961685
 ```
 
-### 9. Check the assumptions before choosing a test
+### 11. Check the assumptions before choosing a test
 
 Each assumption is checked twice, by tests that fail differently: Shapiro-Wilk against Kolmogorov-Smirnov for normality, median-centred Levene against Bartlett for homogeneity of variance.
 
@@ -584,7 +797,7 @@ screen_outliers(sim$args$data, first_ten, criterion = "grubbs", alpha = 0.05)
 
 The same checks are attached to every comparison as `$diagnostics` unless you pass `diagnose = FALSE`.
 
-### 10. Descriptive statistics
+### 12. Descriptive statistics
 
 ```r
 summarize_descriptive_stats(sim$args$data, paste0("gene_", 1:3))
@@ -606,15 +819,118 @@ summarize_descriptive_stats(sim$args$data, "gene_8", sim$args$group,
 2        18.02560 2.036055 -0.1622755       0.3640198
 ```
 
+### 13. Grouped barplot
+
+`draw_grouped_boxplot()` shows the spread a group's observations have. `draw_grouped_barplot()` shows one number standing for them — a mean, a median, or any column `summarize_descriptive_stats()` already computed — with an error bar whose meaning follows the height.
+
+```r
+sim_bar <- simulate_two_groups(
+  n_feats = 10, n_up = 3, n_down = 3, seed = 2026
+)
+
+draw_grouped_barplot(
+  data          = sim_bar$args$data,
+  feats         = sim_bar$args$feats,
+  group         = sim_bar$args$group,
+  group_lv      = sim_bar$args$group_lv,
+  control_label = "control",
+  errorbar      = "se"
+)
+```
+
+![Grouped barplot of ten features with standard-error bars](man/figures/README-grouped-barplot.png)
+
+The bar and the table row are the same number because the heights are read from `summarize_descriptive_stats()` rather than recomputed. A median takes only a notch interval; a count or a spread takes none:
+
+```r
+draw_grouped_barplot(
+  data     = sim_bar$args$data,
+  feats    = sim_bar$args$feats,
+  group    = sim_bar$args$group,
+  group_lv = sim_bar$args$group_lv,
+  mainbar  = "median",
+  errorbar = "ci"
+)
+```
+
+### 14. Feature-pair association
+
+Nothing in Part 1 yet asked how **two** features move together. `summarize_association_stats()` is a screen, not a contract: Pearson, Spearman and Kendall come back side by side on the same pairs, each as four square matrices — coefficient, p-value, adjusted p-value and the observations the pair shared.
+
+```r
+assoc_cor <- make_block_cor(
+  n_features = 10,
+  blocks = list(
+    list(features = 1:3, cor = 0.9),
+    list(features = 4:5, cor = 0.5, against = 6:7)
+  )
+)
+
+assoc_sim <- simulate_regression(
+  n_pred = 10, n_factor_pred = 0, cor_mat = assoc_cor, seed = 2026
+)
+
+assoc <- summarize_association_stats(
+  data = assoc_sim$args$data[, -1, drop = FALSE],
+  feats = colnames(assoc_sim$args$data)[-1]
+)
+
+assoc$design
+assoc$pearson$corr[1:3, 1:3]
+```
+
+```
+$feats
+ [1] "x_1"  "x_2"  "x_3"  "x_4"  "x_5"  "x_6"  "x_7"  "x_8"  "x_9"  "x_10"
+
+$n_obs
+[1] 200
+
+$methods
+[1] "pearson"  "spearman" "kendall" 
+
+$adj_type
+[1] "BH"
+
+$use
+[1] "pairwise.complete.obs"
+```
+
+```
+          x_1       x_2       x_3
+x_1 1.0000000 0.9169472 0.8981318
+x_2 0.9169472 1.0000000 0.9275508
+x_3 0.8981318 0.9275508 1.0000000
+```
+
+The `against` block planted a positive correlation inside `x_1`–`x_3` and `x_4`–`x_5`, and a negative one between those two sides, which is why the upper-left block reads near 0.9 and the cross-block cells read near -0.5.
+
+`draw_corrplot()` is three decisions on top of `draw_heatmap()`: nothing is standardised, the colours are fixed at -1 to 1, and both axes share one clustering order so the diagonal stays diagonal.
+
+```r
+draw_corrplot(assoc$pearson$corr)
+
+draw_corrplot(
+  assoc$pearson$corr,
+  pvalue = assoc$pearson$adj_pvalue
+)
+```
+
+| All pairs | Pairs that cleared BH at 0.05 |
+| --- | --- |
+| ![Correlation heatmap of ten predictors](man/figures/README-corrplot.png) | ![Correlation heatmap with non-significant cells blanked](man/figures/README-corrplot-masked.png) |
+
+Blanking happens **after** clustering, so the tree is built on the full matrix the reader is being shown. The distance is `1 - cor()`, the same rule `cluster_hclust()` and `draw_heatmap(dist_method = "correlation")` use.
+
 ---
 
 # Part 2 — Modelling
 
-A model has no feature axis. Every table in Part 1 repeats `features` in the same order; a model has one outcome and a set of **terms**, and the terms are not the columns that were handed in, since one factor predictor becomes several. `terms` takes the place of `features`, `coefficients$terms` repeats that order, and the eleven slots of an `sa_model` are the same eleven whichever of the five models produced it. §14 and §15 are the two sections here that are searches rather than fits, and they have an axis of their own again: `candidates`, the columns they were asked to choose between.
+A model has no feature axis. Every table in Part 1 repeats `features` in the same order; a model has one outcome and a set of **terms**, and the terms are not the columns that were handed in, since one factor predictor becomes several. `terms` takes the place of `features`, `coefficients$terms` repeats that order, and the eleven slots of an `sa_model` are the same eleven whichever of the five models produced it. §18 and §19 are the two sections here that are searches rather than fits, and they have an axis of their own again: `candidates`, the columns they were asked to choose between. §23 and §24 are the first sections that **score** fitted models on held-out rows rather than fit or search on training ones.
 
-### 11. Data whose coefficients are known, and a split that does not leak
+### 15. Data whose coefficients are known, and a split that does not leak
 
-`make_block_cor()` builds the correlation the predictors are drawn with. Blocks may not overlap, and a matrix that is symmetric with a unit diagonal but describes no data that could exist is refused here rather than inside an engine:
+`make_block_cor()` builds the correlation the predictors are drawn with. Blocks may not overlap, and a matrix that is symmetric with a unit diagonal but describes no data that could exist is refused here rather than inside an engine. A block whose predictors do not all move the same way names the other side as `against`, which is how a negative correlation below `-1/(k - 1)` gets written down at all: that is the floor on one value shared by `k` predictors, so three of them cannot disagree past -0.5 while a split block has no such limit.
 
 ```r
 cor_mat <- make_block_cor(
@@ -672,7 +988,7 @@ test_data  <- dataset$datasets[[1]]$test_data
 
 `sim_reg$split_args` is named after the arguments of `split_data()` for the same reason `args` is named after the arguments of the model, so either can be handed over with `do.call()`.
 
-### 12. Linear regression
+### 16. Linear regression
 
 Every model takes `data`, `outcome` and `predictors`, and every one resamples the same way. Cross-validation here scores the fit and does not choose it: the final model is fitted on all usable rows either way, so `cv = TRUE` and `cv = FALSE` give identical coefficients and differ only in `performance` and `resampling`.
 
@@ -767,7 +1083,7 @@ Dropping five predictors, one of them planted, cost 0.008 of correlation on the 
 
 `fit_stats` is a named list rather than a table, because these are quantities per model and not per term: `r_squared`, `adj_r_squared`, `sigma`, the F test, `aic` and `bic`.
 
-### 13. Logistic regression
+### 17. Logistic regression
 
 The same call with a two-class outcome. `outcome_lv` follows the `group_lv` rule — the first level is the reference — so the coefficients describe the odds of `outcome_lv[2]`, and a vector handed to both `compare_two_groups()` and this function points the same way in both.
 
@@ -855,7 +1171,7 @@ round(as.numeric(pROC::auc(roc_all)), 3)
 
 The five predictors behind the significant terms reach 0.911 against 0.917 for all nine, and the predictors behind the terms that were **not** significant still reach 0.844 — because `x_cat_1` appears in both sets. One of its two levels cleared the threshold and the other did not, so naming the columns behind the terms puts the factor on both sides. A term is not a predictor, and this is where the difference shows.
 
-### 14. Recursive feature elimination
+### 18. Recursive feature elimination
 
 The paragraph above selected predictors, and it did it the way most analyses do: fit once, read the p-values, keep what cleared 0.05. Two things are wrong with that even when the answer comes out right. The threshold is arbitrary, and the p-values that chose the predictors came from all 150 training rows, so the resampled score of the model that follows describes a fit whose predictors were already chosen — the choosing sits outside the resampling that reports on it. `perform_rfe()` asks the same question with the elimination **inside** the resampling: rank the candidates, drop the weakest, score what is left, and repeat until one predictor is standing. There is no `cv` argument, because an elimination with nothing held out has no score to choose a size by.
 
@@ -897,7 +1213,7 @@ rfe
 
 This is `sa_selection`, the fourth result contract. `candidates` takes the place `features` holds in a comparison, `terms` in a model and `points` in a reduction, and two tables hang off it because "which predictors" and "how many" are two different answers: `ranking` has one row per candidate, `profile` one row per subset size.
 
-Two details of the ranking are worth the space. It is the absolute Wald z rather than the coefficient, so a predictor measured in grams and the same predictor in kilograms are eliminated in the same order — a coefficient is an effect per unit, and ranking by its size ranks by the units. And `x_cat_1` is ranked as one candidate rather than as its two dummy terms, which is exactly the trap §13 ran into: one of its levels cleared 0.05 and the other did not, so naming the columns behind the terms put the factor on both sides of that comparison. Here a factor is kept or dropped as a column, which is the only thing a later `predictors =` could accept.
+Two details of the ranking are worth the space. It is the absolute Wald z rather than the coefficient, so a predictor measured in grams and the same predictor in kilograms are eliminated in the same order — a coefficient is an effect per unit, and ranking by its size ranks by the units. And `x_cat_1` is ranked as one candidate rather than as its two dummy terms, which is exactly the trap §17 ran into: one of its levels cleared 0.05 and the other did not, so naming the columns behind the terms put the factor on both sides of that comparison. Here a factor is kept or dropped as a column, which is the only thing a later `predictors =` could accept.
 
 ```r
 rfe$selected
@@ -907,7 +1223,7 @@ subset(sim_cls$truth, role != "null")$predictors
 #> [1] "x_1"     "x_5"     "x_7"     "x_8"     "x_cat_1"
 ```
 
-The five it kept are the five that were planted, and no threshold was named anywhere in the call. `x_2` is the interesting one at the other end: it is null but correlates with the planted `x_1` at 0.8, which is what `max_cor_signal` in §11 warned about, and it still lands in the bottom four rather than being carried in by that correlation.
+The five it kept are the five that were planted, and no threshold was named anywhere in the call. `x_2` is the interesting one at the other end: it is null but correlates with the planted `x_1` at 0.8, which is what `max_cor_signal` in §15 warned about, and it still lands in the bottom four rather than being carried in by that correlation.
 
 How many to keep is a resampled number like any other, and `profile` is where it is kept honest:
 
@@ -948,11 +1264,11 @@ round(as.numeric(pROC::auc(roc_rfe)), 3)
 #> [1] 0.911
 ```
 
-The same 0.911 the significant terms of §13 reached, against 0.917 for all nine. The gain is not a higher AUC — it is arriving there without a threshold, without the term-versus-predictor confusion, and with the size chosen on rows that did not score it. `control_label = "control"` fixes the direction of the search the way it does everywhere else, so the Wald z the ranking uses is about the odds of `case`, and `$fit` is the `caret::rfe()` object for anything the contract does not carry.
+The same 0.911 the significant terms of §17 reached, against 0.917 for all nine. The gain is not a higher AUC — it is arriving there without a threshold, without the term-versus-predictor confusion, and with the size chosen on rows that did not score it. `control_label = "control"` fixes the direction of the search the way it does everywhere else, so the Wald z the ranking uses is about the odds of `case`, and `$fit` is the `caret::rfe()` object for anything the contract does not carry.
 
-### 15. Stepwise selection by information criteria
+### 19. Stepwise selection by information criteria
 
-§14 bought its answer with resampling, and paid the full price: nine subset sizes, twenty-five resamples each. `perform_stepwise()` asks the same question and settles the bill another way. It walks one term at a time — drop the one whose absence costs least, refit, stop when no move helps — and judges every move by an information criterion, which is the likelihood of the model with a flat charge levied against the number of parameters it spent. Nothing is held out, so there is no `cv` argument and no `seed` either: the path is a deterministic consequence of the data and the charge.
+§18 bought its answer with resampling, and paid the full price: nine subset sizes, twenty-five resamples each. `perform_stepwise()` asks the same question and settles the bill another way. It walks one term at a time — drop the one whose absence costs least, refit, stop when no move helps — and judges every move by an information criterion, which is the likelihood of the model with a flat charge levied against the number of parameters it spent. Nothing is held out, so there is no `cv` argument and no `seed` either: the path is a deterministic consequence of the data and the charge.
 
 ```r
 step_sel <- perform_stepwise(
@@ -989,7 +1305,7 @@ step_sel
     x_2          -1.996  dropped
 ```
 
-Same contract, same `candidates` axis, and two slots that mean something different here. `ranking$estimate` is what leaving that one predictor out of the selected model would cost the criterion, so unlike §14's absolute Wald z it has a sign, and the sign is the verdict: positive for the five worth their parameters, negative for the four the model is better off without. `parameters$maximize` is `FALSE` for the same reason, since a criterion is a cost and not a score, and `resampling` is `NULL` because nothing was resampled.
+Same contract, same `candidates` axis, and two slots that mean something different here. `ranking$estimate` is what leaving that one predictor out of the selected model would cost the criterion, so unlike §18's absolute Wald z it has a sign, and the sign is the verdict: positive for the five worth their parameters, negative for the four the model is better off without. `parameters$maximize` is `FALSE` for the same reason, since a criterion is a cost and not a score, and `resampling` is `NULL` because nothing was resampled.
 
 ```r
 step_sel$selected
@@ -999,9 +1315,9 @@ subset(sim_cls$truth, role != "null")$predictors
 #> [1] "x_1"     "x_5"     "x_7"     "x_8"     "x_cat_1"
 ```
 
-The five that were planted, again, and `x_cat_1` is again one candidate rather than its two dummy terms. `x_2` is where the two searches read differently: the elimination of §14 left it in the bottom four, and here it is the first thing to go.
+The five that were planted, again, and `x_cat_1` is again one candidate rather than its two dummy terms. `x_2` is where the two searches read differently: the elimination of §18 left it in the bottom four, and here it is the first thing to go.
 
-That first drop is visible because `profile` is a different table on this side. §14's is a ladder, one row per subset size with all nine of them scored; this one is a path, one row per step, and `step` names the move that reached it:
+That first drop is visible because `profile` is a different table on this side. §18's is a ladder, one row per subset size with all nine of them scored; this one is a path, one row per step, and `step` names the move that reached it:
 
 ```r
 step_sel$profile
@@ -1035,7 +1351,7 @@ perform_stepwise(
 
 BIC charges `log(150)` = 5.01 per parameter against AIC's 2, and the `BIC` column above falls at every step of the path, so the heavier charge walks the same way and stops in the same place. It is closer than the identical answer suggests: `x_8` is worth 3.841 on the AIC scale and only 0.8303 on the BIC one, so the last predictor in is the first the charge would take. `direction` does not change the answer on this data either, since `"forward"` and `"both"` both arrive at the same five. That is what a well-separated signal looks like, and not something to count on — the AIC path and the BIC path are the same object only until one predictor sits near the charge.
 
-`$selected` is a set of column names and nothing else, so it goes back into a fit the way §14's did:
+`$selected` is a set of column names and nothing else, so it goes back into a fit the way §18's did:
 
 ```r
 step_fit <- fit_logistic_regression(
@@ -1053,9 +1369,9 @@ round(as.numeric(pROC::auc(roc_step)), 3)
 #> [1] 0.911
 ```
 
-0.911, which is where §14 landed and where §13's significant terms landed, from a search that never fitted a model to anything but the full 150 rows. That cheapness is also the one thing to hold against the number above it: `AIC = 91.6951` was computed on exactly the rows the model was fitted to, so it ranks the models on this path against each other and claims nothing about a new one. §14's accuracy came from folds the elimination had not seen and is a claim of that kind; this criterion is not, which is why the AUC is measured on `cls_test`. `$fit` is the `stats::step()` result, the selected `glm` with the whole path attached as `$anova`, for anything the contract does not carry.
+0.911, which is where §18 landed and where §17's significant terms landed, from a search that never fitted a model to anything but the full 150 rows. That cheapness is also the one thing to hold against the number above it: `AIC = 91.6951` was computed on exactly the rows the model was fitted to, so it ranks the models on this path against each other and claims nothing about a new one. §18's accuracy came from folds the elimination had not seen and is a claim of that kind; this criterion is not, which is why the AUC is measured on `cls_test`. `$fit` is the `stats::step()` result, the selected `glm` with the whole path attached as `$anova`, for anything the contract does not carry.
 
-### 16. Elastic net
+### 20. Elastic net
 
 One function covers the three corners of one model: `"lasso"` is alpha 1, `"ridge"` is alpha 0, and `"elastic_net"` tunes alpha as well. The outcome type is read from the column, so the same call does regression and classification.
 
@@ -1102,7 +1418,7 @@ The classification path is the same call with `outcome_lv`, and it separates the
 
 The terms LASSO kept reach 0.906 on the held-out half, the same as the full fit, and the ones it dropped reach 0.682.
 
-### 17. Random forest
+### 21. Random forest
 
 The first model with no coefficients. A forest holds hundreds of trees and their splits, not one effect per predictor, so `estimate` is **permutation importance** — `%IncMSE` for regression, `MeanDecreaseAccuracy` for classification — and the table is sorted by it, since that is the order worth reading first. `impurity` carries the other measure the same fit reports, because the two disagree in a way worth seeing: permutation is measured on out-of-bag rows, impurity on the splits themselves.
 
@@ -1173,7 +1489,7 @@ A forest splits factors by level directly, so there is no dummy coding and `x_ca
 
 The forest is the weakest of the five on this data, at 0.747 held-out correlation and 0.841 AUC, which is what a flexible model costs on 152 rows with a mostly linear truth. Its top five and low five separate cleanly all the same: 0.833 against 0.624.
 
-### 18. Support vector machine
+### 22. Support vector machine
 
 The second model with no coefficients, for the opposite reason. A forest has too many numbers per predictor to report one; a radial kernel machine has **none** — it holds support vectors and their weights, which are points in the data rather than directions in the predictor space. So `estimate` is permutation importance again, measured in the metric the resampling tuned on, so the table and `performance` read in the same unit.
 
@@ -1225,7 +1541,224 @@ Unlike the forest, this importance is measured on the rows the machine was fitte
 | --- | --- |
 | ![Predicted against observed for the machine](man/figures/README-svm-regression.png) | ![ROC curves for the machine](man/figures/README-svm-roc.png)  |
 
-### 19. Predict on held-out data
+### 23. Score regression models on held-out rows
+
+§16–§22 each scored themselves by hand — a correlation or an AUC beside a scatter or an ROC snippet. `evaluate_regression_models()` is the layer above `predict.sa_model()`: the same held-out rows for every model, one table of metrics and one of deltas against a baseline. Rows are the **intersection** of what every model could predict, not the union, because a delta only means something when the two numbers came from the same rows.
+
+The predictors are chosen once by RFE on the training half, then every model is refit on that same set so the comparison is about engines rather than about which columns each engine saw:
+
+```r
+eval_rfe <- perform_rfe(
+  data       = train_data,
+  outcome    = sim_reg$args$outcome,
+  predictors = sim_reg$args$predictors,
+  seed       = 2026
+)
+eval_sel <- eval_rfe$selected
+
+eval_lin <- fit_linear_regression(
+  data = train_data, outcome = sim_reg$args$outcome,
+  predictors = eval_sel, cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+eval_lasso <- fit_elastic_net(
+  data = train_data, outcome = sim_reg$args$outcome,
+  predictors = eval_sel, penalty = "lasso",
+  cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+eval_rf <- fit_rf(
+  data = train_data, outcome = sim_reg$args$outcome,
+  predictors = eval_sel, cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+eval_svm <- fit_svm(
+  data = train_data, outcome = sim_reg$args$outcome,
+  predictors = eval_sel, C = 2^seq(-5, 10, by = 2), sigma = NULL,
+  cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+
+eval_reg <- evaluate_regression_models(
+  baseline_model = eval_lin,
+  new_models     = list(lasso = eval_lasso, rf = eval_rf, svm = eval_svm),
+  newdata        = test_data,
+  answer         = test_data$y,
+  baseline_label = "linear"
+)
+
+eval_reg
+eval_reg$metrics
+eval_reg$comparisons
+```
+
+```
+<sa_performance> regression_performance
+  outcome  : <vector>  (continuous)
+  rows     : 48 scored
+  models   : 4, baseline = linear
+
+  metrics
+    linear  cor = 0.828, r_squared = 0.68, rmse = 2.14, mae = 1.67
+    lasso   cor = 0.828, r_squared = 0.682, rmse = 2.13, mae = 1.65
+    rf      cor = 0.761, r_squared = 0.553, rmse = 2.53, mae = 1.96
+    svm     cor = 0.827, r_squared = 0.651, rmse = 2.23, mae = 1.75
+
+  comparisons  (against linear)
+    lasso  delta_cor = 5.72e-05, delta_r_squared = 0.00204, delta_rmse =
+           -0.00681, delta_mae = -0.0121
+    rf     delta_cor = -0.0669, delta_r_squared = -0.127, delta_rmse = 0.389,
+           delta_mae = 0.297
+    svm    delta_cor = -0.000417, delta_r_squared = -0.0293, delta_rmse =
+           0.0958, delta_mae = 0.0832
+```
+
+```
+   model n_used       cor r_squared     rmse      mae       bias calib_slope
+1 linear     48 0.8276569 0.6801600 2.135962 1.665212 -0.1449732   0.7331519
+2  lasso     48 0.8277140 0.6821956 2.129154 1.653141 -0.1599249   0.7128353
+3     rf     48 0.7607476 0.5530111 2.525083 1.962046 -0.2248015   0.4654314
+4    svm     48 0.8272403 0.6508357 2.231732 1.748396 -0.3199326   0.5501323
+  calib_intercept
+1    -0.001149596
+2    -0.005151245
+3     0.063315928
+4    -0.077466584
+```
+
+```
+  model     delta_cor delta_r_squared   delta_rmse   delta_mae
+1 lasso  0.0000571794     0.002035625 -0.006808025 -0.01207140
+2    rf -0.0669092668    -0.127148879  0.389120084  0.29683330
+3   svm -0.0004165980    -0.029324210  0.095769772  0.08318366
+```
+
+There is no p-value beside the deltas: held-out error on rows the caller did not generate has no null the package can name. `cor` and `r_squared` sit together because their gap is what `calib_slope` and `calib_intercept` report — a slope under one is a model whose predictions are squeezed towards their own mean.
+
+`draw_prediction_plot()` reads those calibration numbers rather than refitting, so the line and the table cannot drift apart. With more than one model, `type = "overlay"` and `points = FALSE` compares the calibration lines alone:
+
+```r
+draw_prediction_plot(
+  eval_reg, type = "overlay",
+  anno_corr = TRUE, anno_rsq = TRUE, anno_lm = TRUE, cex.anno = 0.85
+)
+```
+
+![Predicted against observed for four regression models on the same held-out rows](man/figures/README-eval-regression.png)
+
+`plot()` on an `sa_performance` with `analysis = "regression_performance"` is the same function.
+
+### 24. Score classification models on held-out rows
+
+The same intersection rule and the same RFE-first pipeline, with logistic regression as the baseline. Here the comparisons add three paired questions beside `delta_auc`: DeLong's test on the ranks, the IDI on the probabilities, and the NRI on how often each probability moved the right way.
+
+```r
+eval_rfe_cls <- perform_rfe(
+  data = cls_train, outcome = sim_cls$args$outcome,
+  predictors = sim_cls$args$predictors,
+  outcome_lv = sim_cls$args$outcome_lv,
+  control_label = "control", seed = 2026, model = "logistic"
+)
+eval_sel_cls <- eval_rfe_cls$selected
+
+eval_log <- fit_logistic_regression(
+  data = cls_train, outcome = sim_cls$args$outcome,
+  predictors = eval_sel_cls, outcome_lv = sim_cls$args$outcome_lv,
+  control_label = "control",
+  cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+eval_lasso_cls <- fit_elastic_net(
+  data = cls_train, outcome = sim_cls$args$outcome,
+  predictors = eval_sel_cls, outcome_lv = sim_cls$args$outcome_lv,
+  penalty = "lasso", cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+eval_rf_cls <- fit_rf(
+  data = cls_train, outcome = sim_cls$args$outcome,
+  predictors = eval_sel_cls, outcome_lv = sim_cls$args$outcome_lv,
+  cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+eval_svm_cls <- fit_svm(
+  data = cls_train, outcome = sim_cls$args$outcome,
+  predictors = eval_sel_cls, outcome_lv = sim_cls$args$outcome_lv,
+  C = 2^seq(-5, 10, by = 2), sigma = NULL,
+  cv = TRUE, cv_method = "repeated_kfold",
+  n_fold = 10, n_repeat = 3, seed = 2026
+)
+
+eval_cls <- evaluate_classification_models(
+  baseline_model = eval_log,
+  new_models     = list(
+    lasso = eval_lasso_cls, rf = eval_rf_cls, svm = eval_svm_cls
+  ),
+  newdata        = cls_test,
+  answer         = cls_test$y,
+  outcome_lv     = sim_cls$args$outcome_lv,
+  control_label  = "control",
+  baseline_label = "logistic"
+)
+
+eval_cls
+eval_cls$comparisons
+```
+
+```
+<sa_performance> classification_performance
+  outcome  : <vector>  (two classes)
+             scoring the probability of case against control, 13 of 50 row(s)
+  rows     : 50 scored
+  models   : 4, baseline = logistic
+  threshold: 0.5  (accuracy, sensitivity and specificity only)
+
+  metrics
+    logistic  auc = 0.911 [0.824, 0.997], brier = 0.0965, accuracy = 0.88
+    lasso     auc = 0.886 [0.778, 0.994], brier = 0.107, accuracy = 0.86
+    rf        auc = 0.852 [0.717, 0.988], brier = 0.111, accuracy = 0.9
+    svm       auc = 0.89 [0.769, 1.01], brier = 0.096, accuracy = 0.9
+
+  comparisons  (against logistic)
+    lasso
+      delta_auc  = -0.0249 [-0.0663, 0.0164] p = 0.237
+      IDI        = -0.167 [-0.261, -0.0723] p = 0.000541
+      NRI        = -1.18 [-1.72, -0.638] p = 1.89e-05
+    rf
+      delta_auc  = -0.0582 [-0.151, 0.0342] p = 0.217
+      IDI        = -0.136 [-0.244, -0.0274] p = 0.0141
+      NRI        = -1.42 [-1.87, -0.972] p = 5.82e-10
+    svm
+      delta_auc  = -0.0208 [-0.109, 0.0676] p = 0.645
+      IDI        = -0.0413 [-0.135, 0.0523] p = 0.387
+      NRI        = -1.27 [-1.78, -0.76] p = 1.01e-06
+```
+
+```
+  model   delta_auc delta_auc_lower_conf delta_auc_upper_conf delta_auc_pval
+1 lasso -0.02494802          -0.06632472           0.01642867      0.2373018
+2    rf -0.05821206          -0.15061219           0.03418807      0.2169136
+3   svm -0.02079002          -0.10922284           0.06764280      0.6449596
+          idi idi_lower_conf idi_upper_conf     idi_pval       nri  nri_event
+1 -0.16683055     -0.2613504    -0.07231065 0.0005413859 -1.176715 -0.2307692
+2 -0.13560688     -0.2438270    -0.02738675 0.0140507709 -1.422037 -0.6923077
+3 -0.04127849     -0.1348295     0.05227251 0.3871400524 -1.268191 -0.5384615
+  nri_nonevent nri_lower_conf nri_upper_conf     nri_pval
+1   -0.9459459      -1.715864     -0.6375667 1.888282e-05
+2   -0.7297297      -1.871932     -0.9721430 5.824685e-10
+3   -0.7297297      -1.776480     -0.7599029 1.007561e-06
+```
+
+The logistic baseline's AUC of 0.911 is the same number §17 reached on the significant terms, now arrived at through one call. LASSO's AUC is lower but its IDI is significantly negative — probabilities moved the wrong way on average even when the ranks barely changed, which is why three statistics are reported rather than one.
+
+```r
+draw_roc_curve(eval_cls, anno_auc = TRUE, cex.anno = 1)
+```
+
+![ROC curves of four classifiers scored on the same held-out rows](man/figures/README-eval-classification.png)
+
+Every number is about the odds of `case`, because that is what the fitted models predict; `outcome_lv` and `control_label` are read as statements about what was already fit, not as knobs to turn after the fact.
+
+### 25. Predict on held-out data
 
 `predict()` goes to the **result**, not to `$fit`. The engine object knows only the column names it was handed: `glmnet` and `kernlab` were given a design matrix and read it by position, so a frame whose numeric columns are in a different order is multiplied by the wrong coefficients without any error, and a factor predictor is dropped from it entirely. The result object is the only thing that knows which columns were predictors and what the levels of a factor were, so one line covers all five models:
 
@@ -1240,11 +1773,11 @@ Extra columns in `newdata` are ignored, a missing one is an error that names it,
 
 ---
 
-# Part 3 — Dimension reduction
+# Part 3 — Unsupervised learning
 
-Everything above had an answer to score against. These three have none. What can be asked is where each point lands when many features are pressed into two dimensions, and the three answer differently on purpose: PCA is a rotation, so it is reversible and says which feature moved a point, but it only finds straight structure; t-SNE and UMAP find curved structure but cannot say which feature made it.
+Everything above had an answer to score against. These sections have none for the coordinates, and §27 has one for the labels when a grouping was known before any algorithm ran. §26 asks where each point lands when many features are pressed into two dimensions; the three functions answer differently on purpose: PCA is a rotation, so it is reversible and says which feature moved a point, but it only finds straight structure; t-SNE and UMAP find curved structure but cannot say which feature made it. §27 asks which points belong together on the same coordinates, using the same `points` axis the reductions use.
 
-### 20. `perform_pca()`, `perform_tsne()` and `perform_umap()`
+### 26. `perform_pca()`, `perform_tsne()` and `perform_umap()`
 
 Three functions rather than one call with a `methods` argument, because they answer in coordinates that share no scale — nothing but `points` could be joined between them — and because `perplexity`, `n_neighbors` and `metric` each belong to exactly one of them. What makes them comparable is the input: all three read `data` the same way, so the same rows drop for the same reason.
 
@@ -1361,6 +1894,112 @@ umap_res
 
 The coordinates are `$scores` in all three and the engine object is `$fit`. `seed` buys different things in the two stochastic methods: `umap` restores the random stream itself, so two seedless calls agree, while two seedless `Rtsne` calls do not.
 
+### 27. Cluster on an embedding
+
+The four `cluster_*()` functions read their input through the same path as the reductions, so a clustering and an embedding of the same frame are about the same rows. `sa_cluster` assigns every point a label — `0` is noise for the density methods — and `draw_dim_reduction_plot()` is where those labels meet the coordinates.
+
+Colour and shape are two channels on purpose. A clustering is what the data was found to say; a `group` is what was known before either algorithm ran. One colour per shape is a clustering that recovered the groups; one shape split across colours is a group the data does not see as one thing.
+
+```r
+clust_sim <- simulate_two_groups(
+  n_feats = 50, deg_log2fc = c(5, 10), seed = 2026
+)
+
+clust_pca <- perform_pca(
+  data            = clust_sim$args$data,
+  feats           = clust_sim$args$feats,
+  embedding_scale = "samples"
+)
+
+clust_km <- cluster_kmeans(
+  data          = clust_pca$scores,
+  feats         = c("PC1", "PC2"),
+  cluster_scale = "samples",
+  n_clust       = 2,
+  seed          = 2026
+)
+
+clust_km
+table(clust_sim$args$group, clust_km$assignments$cluster)
+```
+
+```
+<sa_cluster> kmeans
+  data     : 100 sample(s) x 2 feature(s)
+  points   : 100 sample(s)
+  scaling  : centred and scaled
+  clusters : 2
+  sizes    : #1 n = 50, s = 0.697; #2 n = 50, s = 0.385
+  silhouette: mean 0.541 over the 100 assigned sample(s), on the euclidean
+              distance
+  kmeans   : k = 2, 25 start(s), 100.21 within-cluster ss  (seed = 2026)
+```
+
+```
+         cluster
+group      1  2
+  case     0 50
+  control 50  0
+```
+
+Fifty features were moved up or down on a log2 scale of five to ten, embedded in the first two principal components of the samples, and cut into two clusters. Every control lands in cluster 1 and every case in cluster 2, which is the grouping that was planted — read through shape on the first plot and through colour on the second:
+
+```r
+draw_dim_reduction_plot(
+  clust_pca,
+  group    = clust_sim$args$group,
+  group_lv = clust_sim$args$group_lv,
+  col      = c("black", "red3")
+)
+
+draw_dim_reduction_plot(
+  clust_pca,
+  cluster_result = clust_km,
+  cluster_lv     = c("Cluster1", "Cluster2")
+)
+```
+
+| PCA, shape = known group | PCA, colour = k-means |
+| --- | --- |
+| ![PCA of fifty features coloured by the planted group](man/figures/README-cluster-pca-group.png) | ![PCA of fifty features coloured by k-means clusters](man/figures/README-cluster-pca-cluster.png) |
+
+The same read on a UMAP of the samples rather than a PCA:
+
+```r
+clust_umap <- perform_umap(
+  data            = clust_sim$args$data,
+  feats           = clust_sim$args$feats,
+  embedding_scale = "samples",
+  seed            = 2026
+)
+clust_km_umap <- cluster_kmeans(
+  data          = clust_umap$scores,
+  feats         = c("UMAP1", "UMAP2"),
+  cluster_scale = "samples",
+  n_clust       = 2,
+  seed          = 2026
+)
+
+draw_dim_reduction_plot(
+  clust_umap,
+  group    = clust_sim$args$group,
+  group_lv = clust_sim$args$group_lv,
+  col      = c("black", "red3")
+)
+
+draw_dim_reduction_plot(
+  clust_umap,
+  cluster_result = clust_km_umap,
+  cluster_lv     = c("Cluster1", "Cluster2")
+)
+```
+
+| UMAP, shape = known group | UMAP, colour = k-means |
+| --- | --- |
+| ![UMAP of fifty features shaped by the planted group](man/figures/README-cluster-umap-group.png) | ![UMAP of fifty features coloured by k-means clusters](man/figures/README-cluster-umap-cluster.png) |
+
+`plot()` on an `sa_reduction` is the same function. Noise from `cluster_dbscan()` or `cluster_snn()` is drawn grey rather than given a palette colour, because a point left out is the absence of a cluster rather than a cluster of its own.
+
 ---
 
 ## Main functions
@@ -1369,32 +2008,52 @@ The coordinates are `$scores` in all three and the engine object is `$fit`. `see
 | --- | --- |
 | `compare_two_groups()` | Welch / Wilcoxon / robust tests plus fold change for two groups |
 | `compare_multiple_groups()` | Four omnibus tests for three or more groups, each with its matching post-hoc stage; independent or repeated |
+| `compare_factorial_groups()` | One two-way, three-way or factorial ANOVA for crossed factors, with an answer per model term and Tukey contrasts on the marginal means and inside each stratum |
+| `compare_categorical_groups()` | Chi-square beside Fisher on two categorical variables, or McNemar / Cochran's Q on repeated binary conditions; `design$null` names the hypothesis the expected counts and residuals are read under, and the result is not an `sa_comparison` |
 | `compare_one_sample()` | One-sample t, signed-rank and proportion tests against a hypothesised value |
 | `diagnose_distribution()` | Normality, homogeneity of variance and outliers for a set of features |
 | `screen_outliers()` | Flag observations by IQR fences, robust z or Grubbs, without removing them |
-| `estimate_significance()` | Filter features by log2FC and p-value from any comparison result, over the omnibus test or one pairwise contrast at a time |
+| `estimate_significance()` | Filter features by log2FC and p-value from any comparison result, over the omnibus test, one pairwise contrast at a time, or one model term at a time |
+| `estimate_categorical_significance()` | The same verdict for a contingency table, read one cell at a time from `observed / expected` and the cell's standardized residual, or once for the table from an association measure and an omnibus p-value |
 | `summarize_descriptive_stats()` | Feature-wise (and optional group-wise) descriptive table |
+| `summarize_association_stats()` | Pearson, Spearman and Kendall on every pair of features, each as a square matrix of coefficients beside its p-values, the p-values adjusted across the pairs, and the observations the pair shared |
+| `center_by_control()` | Remove the control group's centre from every feature, so each value reads as its distance from the control rather than as a measurement of its own |
 | `draw_forest_plot()` | Forest plot of estimates, of pairwise contrasts, or of p-values; `plot()` on a `sa_comparison` calls it |
-| `draw_volcano_plot()` | Volcano plot from `estimate_significance()` output |
-| `draw_grouped_boxplot()` | Boxplots for several features x group levels |
+| `draw_volcano_plot()` | Volcano plot from `estimate_significance()` output, or one panel per model term from its `by = "term"` reading |
+| `draw_grouped_boxplot()` | Boxplots for several features x group levels, or for a crossed design as one panel per feature with the remaining factors along the x axis and the primary factor the boxes, so an interaction is visible inside a panel (`panel_by = "factor"` transposes it) |
+| `draw_grouped_barplot()` | One column of `summarize_descriptive_stats()` as clusters of bars, one cluster per feature and one bar per group level; `errorbar` is read under `mainbar`, so a mean takes a standard error, a standard deviation or Student's interval, a median takes the notch the boxplot notches with, and a count or a spread takes none |
 | `draw_heatmap()` | Clustered heatmap of features x samples, with the sample groups annotated |
+| `draw_corrplot()` | The correlation matrix as a heatmap: nothing standardised, the colours fixed at -1 to 1, one clustering shared by both axes so that the diagonal stays diagonal, and the pairs that did not clear their p-value drawn as blank cells |
 | `draw_butterfly_hist()` | Back-to-back histogram, kernel density, or both, for exactly two groups |
+| `draw_interaction_plot()` | Cell means of a crossed design joined across one factor, one line per level of another, in one pair of factors, every pair at once, or with a third factor kept in panels of its own |
+| `draw_mosaic_plot()` | Mosaic of a contingency table, shaded by the residual of the null the result was tested against and marked where that null would have cut each strip; `plot()` on an `sa_categorical` calls it |
 | `split_data()` | Train/test partition, stratified and leakage-aware through `id` |
 | `fit_linear_regression()` | Linear model with coefficient inference and resampled performance |
 | `fit_logistic_regression()` | Two-class logistic model with odds ratios and their intervals |
 | `fit_elastic_net()` | LASSO, ridge or elastic net for either outcome type, with the selected terms |
 | `fit_rf()` | Random forest with permutation and impurity importance and out-of-bag fit |
 | `fit_svm()` | Radial-kernel support vector machine with permutation importance |
+| `evaluate_regression_models()` | Score one or more fitted regressions on the same held-out rows, each against a baseline |
+| `evaluate_classification_models()` | The same for a two-class outcome, with DeLong's test, the IDI and the NRI against the baseline |
+| `draw_prediction_plot()` | Observed against predicted for a scored regression, with the identity line and the calibration line the metrics table already holds |
+| `draw_roc_curve()` | ROC curves of the scored classifications, always overlaid; `plot()` on an `sa_performance` calls whichever of these two the result calls for |
 | `perform_rfe()` | Recursive feature elimination inside the resampling, returning the predictors it kept, their ranking and the score at every subset size |
 | `perform_stepwise()` | Stepwise search by AIC or BIC, returning the predictors it kept, what each one is worth to the criterion, and the path it walked |
 | `perform_pca()` | Principal components of the samples or of the features, with loadings and variance |
 | `perform_tsne()` | t-SNE embedding of either margin |
 | `perform_umap()` | UMAP embedding of either margin |
+| `cluster_hclust()` | Hierarchical clustering of the samples or of the features, returning the tree as well as the cut |
+| `cluster_kmeans()` | k-means clustering of either margin, best of 25 starts |
+| `cluster_dbscan()` | Density-based clustering, deriving the number of clusters and leaving sparse points as noise |
+| `cluster_snn()` | Shared nearest neighbour clustering, which groups by how many neighbours two points have in common rather than by a radius |
+| `draw_dim_reduction_plot()` | Two coordinates of a reduction as a scatter, coloured by a clustering of the same points and shaped by a grouping that was known already, so the two can be read against each other; `plot()` on an `sa_reduction` calls it |
 | `simulate_two_groups()` | Two-group log2 expression data with the planted answer returned alongside it |
 | `simulate_multiple_groups()` | One control and any number of treatment groups, scored per feature, per level and per contrast |
+| `simulate_factorial_groups()` | Any number of crossed factors, each between subjects or within them, scored per model term as well as per cell and per contrast |
+| `simulate_categorical_groups()` | A contingency table, or repeated binary conditions, with the planted association returned cell by cell, and the symmetric share as well for a matched pair |
 | `simulate_regression()` | Continuous outcome from planted coefficients, with a correlation structure and the truth per predictor and per term |
 | `simulate_classification()` | Two-class outcome at a chosen event rate from the same design |
-| `make_block_cor()` | Block correlation matrix for the simulators, checked for positive definiteness |
+| `make_block_cor()` | Block correlation matrix for the simulators, with `against` for the predictors of a block that move the other way, checked for positive definiteness |
 
 ---
 

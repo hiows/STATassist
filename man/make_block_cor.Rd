@@ -10,7 +10,9 @@ make_block_cor(n_features, blocks = list(), default_cor = 0)
 \item{n_features}{Number of predictors the matrix describes, so its size.}
 
 \item{blocks}{List of blocks, each a list with \code{features}, the indices in the
-block, and \code{cor}, the correlation they share. \code{list()} gives a matrix with
+block, and \code{cor}, the correlation they share. A block may also name
+\code{against}, further indices that correlate at \code{cor} among themselves and at
+\code{-cor} with the ones in \code{features}. \code{list()} gives a matrix with
 \code{default_cor} everywhere off the diagonal.}
 
 \item{default_cor}{Correlation between any two predictors that are not in a
@@ -24,7 +26,8 @@ Assembles a correlation matrix out of groups of predictors that correlate with
 each other, which is the structure worth simulating when the question is how a
 model behaves under collinearity. Every predictor inside a block correlates
 with every other one in it at the same value, and everything outside every
-block correlates at \code{default_cor}.
+block correlates at \code{default_cor}. A block that names \code{against} is split in
+two instead: each side agrees within itself and disagrees with the other side.
 }
 \details{
 The matrix is what \code{\link[=simulate_regression]{simulate_regression()}} and \code{\link[=simulate_classification]{simulate_classification()}} take
@@ -34,16 +37,36 @@ estimated coefficient is drawn away from the zero it really has. That is the
 single most common reason a coefficient table names the wrong predictor, and it
 cannot be shown at all with independent predictors.
 
+Each block is its own \code{list()}. A single \code{list()} that names \code{features} twice
+is one block and not two, because \code{$} reads the first of a repeated name and
+nothing else, so the second pair of values would be dropped without a word.
+Repeated and unknown names in a block are refused for that reason.
+
 Blocks may not overlap. A predictor in two blocks would have two correlations
 with the same partner and only one of them could be written down, so the second
 block would silently win. Nest the smaller correlation as \code{default_cor} and
-name one block instead.
+name one block instead, or, when the second group is what the first moves
+against, name it as \code{against} in one block.
+
+How strong a negative correlation one block can hold depends on how many
+predictors are in it. A block of \code{k} predictors sharing one value is positive
+definite only above \code{-1/(k - 1)}: two predictors may disagree at -0.9, three at
+no more than -0.5, four at no more than -0.333. Three predictors cannot all
+disagree strongly, since whichever way the third moves it agrees with one of
+the first two.
+
+\code{against} is how a strong negative correlation is written down instead.
+\code{list(features = 1:3, cor = 0.9, against = 4:6)} puts 0.9 among the first
+three, 0.9 among the last three and -0.9 between the two sides. Splitting a
+block by which way its predictors move leaves it positive definite for any
+\code{cor} below 1 whatever its size, since it is then one factor with a sign per
+predictor rather than a demand that everything disagree at once.
 
 The result is checked for positive definiteness, which is the property that
 separates a matrix of correlations from a matrix of numbers between -1 and 1.
-Three predictors each correlated 0.9 with the other two are not jointly
-possible, and the moment to find that out is here rather than three arguments
-later inside a simulator.
+The blocks and \code{default_cor} are checked one at a time first, so that a value
+no block of that size could hold is named as such, and the eigenvalue of the
+assembled matrix is what reports a \code{default_cor} the blocks cannot sit inside.
 }
 \examples{
 ## Six predictors: the first two nearly interchangeable, the next three
@@ -63,6 +86,23 @@ round(cor_mat, 2)
 sim <- simulate_regression(n_pred = 6, beta = c(2, 0, 0, 0, 0, 0),
                            cor_mat = cor_mat, seed = 1)
 sim$truth[1:2, c("predictors", "role", "beta", "max_cor_signal")]
+
+## Three predictors moving one way and three the other. `against` carries the
+## sign, so -0.9 between the sides is available at any block size.
+opposed <- make_block_cor(
+  n_features = 6,
+  blocks = list(list(features = 1:3, cor = 0.9, against = 4:6))
+)
+round(opposed, 2)
+
+## Three predictors cannot all disagree at -0.6, and the limit for a block of
+## three is named rather than left to the matrix.
+try(make_block_cor(6, list(list(features = 1:3, cor = -0.6))))
+
+## Each block needs its own `list()`. One `list()` naming `features` twice is
+## a single block whose second value R would never read.
+try(make_block_cor(6, list(list(features = 1:3, cor = 0.9,
+                                features = 4:6, cor = -0.4))))
 
 ## Four predictors cannot all disagree with each other, so a request for it is
 ## refused here rather than met later by a draw that quietly ignores it.

@@ -205,25 +205,33 @@ sa_validate_wide_input <- function(data,
 #' which `control_label` says nothing about, so re-pointing the reference leaves
 #' most of what it said standing and is a correction rather than a conflict.
 #'
+#' A crossed design names one reference per factor rather than one in total, so
+#' `arg` and `lv_arg` let the two messages name the element that was wrong
+#' (`control_label$sex`, `factor_lv$sex`) instead of the whole argument. The move
+#' itself is the same one, made once, whichever list of levels it is made on.
+#'
 #' @param group_lv Group levels in display order, already validated.
 #' @param control_label The level to hold as the reference, or `NULL` to leave
 #'   the order as it arrived.
+#' @param arg,lv_arg What to call the two arguments in an error message, for a
+#'   caller that holds one set of levels per factor.
 #'
 #' @return `group_lv` with `control_label` first and the rest in their order.
 #'
 #' @keywords internal
 #' @noRd
-sa_control_first <- function(group_lv, control_label) {
+sa_control_first <- function(group_lv, control_label,
+                             arg = "control_label", lv_arg = "group_lv") {
   if (is.null(control_label)) {
     return(group_lv)
   }
   if (length(control_label) != 1L || is.na(control_label)) {
-    stop("`control_label` must be a single level name, the one to hold as ",
+    stop("`", arg, "` must be a single level name, the one to hold as ",
          "the reference.", call. = FALSE)
   }
   control_label <- as.character(control_label)
   if (!control_label %in% group_lv) {
-    stop("`control_label` names a level `group_lv` does not hold: ",
+    stop("`", arg, "` names a level `", lv_arg, "` does not hold: ",
          control_label, ". Present: ", paste(group_lv, collapse = ", "), ".",
          call. = FALSE)
   }

@@ -24,7 +24,23 @@
 #'     repeated: one-way, Welch's, trimmed mean and Kruskal-Wallis omnibus
 #'     tests, or repeated measures ANOVA and Friedman, each followed by the
 #'     post-hoc procedure that shares its assumptions.}
+#'   \item{[compare_factorial_groups()]}{Two or more crossed factors: one
+#'     two-way, three-way or factorial ANOVA, with an answer per model term and
+#'     Tukey contrasts on the marginal means and inside each stratum.}
+#'   \item{[compare_categorical_groups()]}{Two categorical variables, or
+#'     repeated binary conditions on the same row: a chi-square test beside
+#'     Fisher's exact test, or McNemar's test or Cochran's Q. Each design names
+#'     the null hypothesis it held the table against, and the expected counts and
+#'     residuals are read under that one. The result is deliberately not an
+#'     `sa_comparison`, because there is no feature axis and no signed effect for
+#'     a volcano plot to read.}
 #' }
+#'
+#' The factorial one is the exception to the rule above, and deliberately so.
+#' Where the others run competing tests of one hypothesis, it fits one model of
+#' several hypotheses: the multiplicity is across the terms of the design rather
+#' than across procedures, and which ANOVA it is called follows from how many
+#' factors were crossed rather than from an argument.
 #'
 #' Direction is the order of `group_lv` in both of the grouped ones, and
 #' `control_label` is the second way of stating it: the level it names moves to
@@ -62,16 +78,35 @@
 #'
 #' [draw_grouped_boxplot()] draws a grouped boxplot for the same wide-format
 #' input and optionally returns the box summary statistics and median
-#' confidence intervals behind the plot. [draw_butterfly_hist()] puts the two
+#' confidence intervals behind the plot. It takes the `factors` of a crossed
+#' design as well as a single `group`, drawing one panel per feature with the
+#' remaining factors along its x axis and the primary factor the boxes inside,
+#' so that an interaction can be read within a panel.
+#' [draw_butterfly_hist()] puts the two
 #' group distributions of a single feature back to back on shared breaks.
 #' [draw_heatmap()] takes that same input the other way round, drawing every
 #' feature and every sample at once as one cell each, with the sample groups
 #' annotated above the columns and a dendrogram on each axis it clustered.
+#' [draw_mosaic_plot()] is what [plot()] on an `sa_categorical` calls: the tiles
+#' of a contingency table, each one the cell's share of the table by area, shaded
+#' by the residual of the null the result was tested against and marked where that
+#' null would have cut each strip.
+#' [draw_corrplot()] hands [draw_heatmap()] the correlation matrix of
+#' [summarize_association_stats()] instead of the data: nothing standardised, the
+#' colours fixed at the range a correlation can take, one clustering shared by
+#' the two axes so that the diagonal stays diagonal, and the pairs that did not
+#' clear their p-value left as blank cells.
 #'
 #' @section Descriptive summary:
 #' [summarize_descriptive_stats()] reduces each feature to one row of sample
 #' size, central tendency, dispersion, quartiles, outlier fences and
 #' distribution shape, split by group level when a grouping vector is supplied.
+#'
+#' [summarize_association_stats()] is its pairwise counterpart, reducing every
+#' pair of features to a coefficient, a p-value, a p-value adjusted across the
+#' pairs and the observations the pair shared. Pearson, Spearman and Kendall come
+#' back side by side on the same pairs, so a linear coefficient and a monotonic
+#' one disagreeing is visible rather than a matter of which call was made.
 #'
 #' @section Result contract:
 #' Every comparison returns a `sa_comparison` object, a plain named list of
@@ -88,6 +123,25 @@
 #' and `pairwise`, the same numbers rearranged into one rectangular table per
 #' contrast. Those two slots are there only when a pairwise stage actually ran,
 #' so a two-group or one-sample result does not offer an empty version of them.
+#'
+#' A factorial comparison adds `terms`, one row per feature and model term. It is
+#' the one table in the contract that is not one row per feature, which is why it
+#' is a slot of its own rather than another entry in `tests`: the tables in
+#' `tests` are aligned with `features` position by position, and every consumer
+#' relies on that. `tests$anova_test` still holds the whole-model test at one row
+#' per feature, so a factorial result can be read by a function that does not
+#' know it is one. That result has no `pairwise`, since its contrasts are indexed
+#' by factor and stratum rather than by a single label.
+#'
+#' A categorical comparison is the one that steps outside the contract, and it
+#' returns an `sa_categorical` instead. There is no feature axis to align its
+#' tables to and no signed effect to put on a volcano axis, so it keeps the
+#' vocabulary -- `design`, `parameters`, `tests` beside `test_info`, `metadata` --
+#' and holds the table itself in `cells`, one row per cell. What it adds is
+#' `design$null`, the hypothesis the whole result is about, because a contingency
+#' table can be held against more than one and `expected` means a different number
+#' under each. The table is reached through `as.table()` rather than stored, which
+#' is what leaves every slot serialisable.
 #'
 #' @section Practising on a known answer:
 #' [simulate_two_groups()] generates log2-scale expression data with a chosen
@@ -120,6 +174,43 @@
 #'             by = c("features", "contrast"))
 #' table(differs = ph$is_diff, called = ph$pval_adj <= 0.05)
 #' ```
+#'
+#' [simulate_factorial_groups()] crosses any number of factors, so the treatment
+#' can be read alongside sex, time or anything else the design carries, and each
+#' factor can be measured between subjects or within them. Crossing factors makes
+#' the answer a statement per model term rather than per level, so `truth_term`
+#' comes back holding one row per main effect and per interaction of every order,
+#' and it is what scores an ANOVA table row by row. Each planted feature carries
+#' the shape of its effect across those terms, and the shapes are chosen so that
+#' the terms come apart: a `"crossover"` feature has an interaction and, exactly
+#' and not approximately, no main effect at all, which is the case a design read
+#' one factor at a time cannot see.
+#'
+#' `args` is named for [compare_factorial_groups()], so the two halves meet in one
+#' `do.call()` and the scoring is a merge on the term axis both sides count the
+#' same way.
+#'
+#' ```
+#' sim <- simulate_factorial_groups(seed = 1)
+#' res <- do.call(compare_factorial_groups, sim$args)
+#' scored <- merge(res$terms, sim$truth_term, by = c("features", "terms"))
+#' with(scored, table(called = pval_adj <= 0.05, planted = is_effect, terms))
+#' ```
+#'
+#' `truth_contrast` scores the pairwise stage the same way, on
+#' `c("features", "factor", "stratum", "contrast")`, with a `stratum` of `NA`
+#' marking the marginal contrasts and anything else the simple effects. A
+#' simulated design with `within` factors is ahead of the comparison, which reads
+#' between-subject factors in this version and says so rather than analysing
+#' repeated measurements as though they were independent.
+#'
+#' [simulate_categorical_groups()] plants an association between two categorical
+#' variables, or a transition between repeated binary conditions, and hands back
+#' the planted joint distribution cell by cell, keyed to merge with `$cells` of the
+#' comparison. `assoc = 0` is the product of the margins exactly, so it is null in
+#' the strict sense, and equal transition probabilities are the same for a matched
+#' design. A matched pair of conditions also carries the symmetric share, since
+#' symmetry rather than independence is the null that design is tested against.
 #'
 #' @section Machine learning:
 #' [split_data()] draws the train/test partition every later step is fitted
@@ -283,15 +374,18 @@
 #' [split_data()], which the search never saw.
 #'
 #' @section Unsupervised learning:
-#' [perform_pca()], [perform_tsne()] and [perform_umap()] are the first functions
-#' here with no outcome at all. Nothing is predicted and nothing is scored, so what
-#' they answer is where each sample sits once hundreds of features have been
-#' squeezed into two dimensions. There are three of them because they disagree, and
-#' the disagreement is the information: a principal component analysis is a
-#' rotation, so it is readable as "which features moved this sample" but can only
-#' find straight structure, while t-SNE and UMAP find structure that curves and
-#' cannot say which feature made it. A cluster all three find is a different fact
-#' from one that appears in a single embedding.
+#' The `perform_*()` and `cluster_*()` functions are the ones here with no outcome
+#' at all. Nothing is predicted and nothing is scored, so the questions are where
+#' each sample sits once hundreds of features have been squeezed into two
+#' dimensions, and which samples belong together.
+#'
+#' [perform_pca()], [perform_tsne()] and [perform_umap()] answer the first. There
+#' are three of them because they disagree, and the disagreement is the
+#' information: a principal component analysis is a rotation, so it is readable as
+#' "which features moved this sample" but can only find straight structure, while
+#' t-SNE and UMAP find structure that curves and cannot say which feature made it.
+#' A cluster all three find is a different fact from one that appears in a single
+#' embedding.
 #'
 #' All three return `sa_reduction`, a third row axis of its own: `points` takes the
 #' place `features` holds in a comparison and `terms` holds in a model, and `scores`
@@ -304,8 +398,7 @@
 #'
 #' ```
 #' res <- perform_pca(data)
-#' plot(res$scores[c("PC1", "PC2")],
-#'      xlab = paste0("PC1 (", round(res$variance$prop_var[1], 2), "%)"))
+#' plot(res, group = group)   # draw_dim_reduction_plot()
 #' ```
 #'
 #' The coordinates are `$scores` in all three, and the engine object is `$fit`. The
@@ -315,6 +408,39 @@
 #' which produces a picture that looks right and answers a third question; the three
 #' say so in their own documentation because the mistake is easy to make and hard to
 #' see.
+#'
+#' [cluster_hclust()], [cluster_kmeans()], [cluster_dbscan()] and [cluster_snn()]
+#' answer the second, and they are four rather than one for the same reason. The
+#' first two are told how many groups to find and will always find that many, so
+#' every point lands somewhere and a point in the middle of nowhere lands somewhere
+#' anyway. The other two are told how dense a group has to be and derive the count
+#' from that, so they can return two clusters, or nine, or none, and they can refuse
+#' to place a point. A grouping all four agree on is a different fact from one that
+#' only k-means, having been told to find two things, found two of.
+#'
+#' ```
+#' res <- cluster_kmeans(data, n_clust = 3)
+#' res$assignments   # one row per point: cluster and silhouette
+#' res$clusters      # one row per cluster: size and mean silhouette
+#' ```
+#'
+#' All four return `sa_cluster`, which keeps `points` as its row axis so that an
+#' assignment can be painted straight onto a reduction of the same rows — they read
+#' the input through the same helper, so the rows are the same rows. `cluster_scale`
+#' sits where `embedding_scale` does and means the same thing. Noise is cluster `0`,
+#' which is the density methods' own convention, and it is counted in
+#' `design$n_noise` rather than given a row in `clusters`. `silhouette` is the one
+#' number the four can be compared on, since coordinates from two embeddings share
+#' no scale but a ratio of distances does.
+#'
+#' [draw_dim_reduction_plot()] is where the two halves meet, and it is what
+#' [plot()] on an `sa_reduction` calls: two coordinates of a reduction as a
+#' scatter, coloured by a clustering of the same points and shaped by a grouping
+#' that was known all along. The two channels are separate on purpose, because the
+#' question a clustering raises is usually whether it recovered the grouping, and
+#' that is read off one picture rather than argued from a table — one colour per
+#' shape is a clustering that found the groups, and a shape split across colours
+#' is a group the data does not see as one thing.
 #'
 #' @keywords internal
 #' @importFrom caret createDataPartition rfe rfeControl train trainControl
@@ -329,22 +455,25 @@
 # dependency and keeps `predict()` and `importance()` on the fitted object
 # dispatching to `randomForest`'s own methods.
 #' @importFrom randomForest randomForest
-# `Rtsne` and `umap` are the two engines this package calls itself rather than
-# through `caret`, which has no method for either. Both are reached by `::` in
-# `perform_tsne()` and `perform_umap()` as well; the imports are here so that the
-# dependency is declared in one place with the other four.
+# `Rtsne`, `umap` and `dbscan` are the engines this package calls itself rather
+# than through `caret`, which has no method for any of them. All three are reached
+# by `::` in `perform_tsne()`, `perform_umap()` and the two density-based
+# `cluster_*()` functions as well; the imports are here so that the dependency is
+# declared in one place with the others.
 #' @importFrom Rtsne Rtsne
 #' @importFrom umap umap
+#' @importFrom dbscan dbscan kNNdist sNNclust
 #' @importFrom grDevices colorRampPalette hcl.colors
 #' @importFrom graphics abline axis boxplot grconvertX grconvertY grid hist
 #' @importFrom graphics layout legend par
 #' @importFrom graphics plot.default plot.new plot.window points rect segments
 #' @importFrom graphics strwidth text
 #' @importFrom stats AIC BIC as.dendrogram as.dist bartlett.test binomial coef
-#' @importFrom stats complete.cases cor cov dist dnorm friedman.test hclust
-#' @importFrom stats heatmap kruskal.test ks.test mad median p.adjust
-#' @importFrom stats p.adjust.methods pchisq pf pnorm prop.test pt ptukey qnorm
-#' @importFrom stats qt qtukey quantile rnorm runif sd setNames shapiro.test
-#' @importFrom stats t.test var wilcox.test
+#' @importFrom stats chisq.test complete.cases cor cor.test cov dist dnorm
+#' @importFrom stats fisher.test
+#' @importFrom stats friedman.test hclust heatmap kruskal.test ks.test mad
+#' @importFrom stats median p.adjust p.adjust.methods pchisq pf pnorm prop.test
+#' @importFrom stats pt ptukey qnorm qt qtukey quantile rnorm runif sd setNames
+#' @importFrom stats shapiro.test t.test var wilcox.test
 #' @importFrom utils combn head packageVersion tail
 "_PACKAGE"

@@ -32,7 +32,23 @@ mean test for dependent samples. The fold change comes with them.}
 repeated: one-way, Welch's, trimmed mean and Kruskal-Wallis omnibus
 tests, or repeated measures ANOVA and Friedman, each followed by the
 post-hoc procedure that shares its assumptions.}
+\item{\code{\link[=compare_factorial_groups]{compare_factorial_groups()}}}{Two or more crossed factors: one
+two-way, three-way or factorial ANOVA, with an answer per model term and
+Tukey contrasts on the marginal means and inside each stratum.}
+\item{\code{\link[=compare_categorical_groups]{compare_categorical_groups()}}}{Two categorical variables, or
+repeated binary conditions on the same row: a chi-square test beside
+Fisher's exact test, or McNemar's test or Cochran's Q. Each design names
+the null hypothesis it held the table against, and the expected counts and
+residuals are read under that one. The result is deliberately not an
+\code{sa_comparison}, because there is no feature axis and no signed effect for
+a volcano plot to read.}
 }
+
+The factorial one is the exception to the rule above, and deliberately so.
+Where the others run competing tests of one hypothesis, it fits one model of
+several hypotheses: the multiplicity is across the terms of the design rather
+than across procedures, and which ANOVA it is called follows from how many
+factors were crossed rather than from an argument.
 
 Direction is the order of \code{group_lv} in both of the grouped ones, and
 \code{control_label} is the second way of stating it: the level it names moves to
@@ -73,11 +89,24 @@ multi-group result. It is what \code{\link[=plot]{plot()}} on a \code{sa_compari
 
 \code{\link[=draw_grouped_boxplot]{draw_grouped_boxplot()}} draws a grouped boxplot for the same wide-format
 input and optionally returns the box summary statistics and median
-confidence intervals behind the plot. \code{\link[=draw_butterfly_hist]{draw_butterfly_hist()}} puts the two
+confidence intervals behind the plot. It takes the \code{factors} of a crossed
+design as well as a single \code{group}, drawing one panel per feature with the
+remaining factors along its x axis and the primary factor the boxes inside,
+so that an interaction can be read within a panel.
+\code{\link[=draw_butterfly_hist]{draw_butterfly_hist()}} puts the two
 group distributions of a single feature back to back on shared breaks.
 \code{\link[=draw_heatmap]{draw_heatmap()}} takes that same input the other way round, drawing every
 feature and every sample at once as one cell each, with the sample groups
 annotated above the columns and a dendrogram on each axis it clustered.
+\code{\link[=draw_mosaic_plot]{draw_mosaic_plot()}} is what \code{\link[=plot]{plot()}} on an \code{sa_categorical} calls: the tiles
+of a contingency table, each one the cell's share of the table by area, shaded
+by the residual of the null the result was tested against and marked where that
+null would have cut each strip.
+\code{\link[=draw_corrplot]{draw_corrplot()}} hands \code{\link[=draw_heatmap]{draw_heatmap()}} the correlation matrix of
+\code{\link[=summarize_association_stats]{summarize_association_stats()}} instead of the data: nothing standardised, the
+colours fixed at the range a correlation can take, one clustering shared by
+the two axes so that the diagonal stays diagonal, and the pairs that did not
+clear their p-value left as blank cells.
 }
 
 \section{Descriptive summary}{
@@ -85,6 +114,12 @@ annotated above the columns and a dendrogram on each axis it clustered.
 \code{\link[=summarize_descriptive_stats]{summarize_descriptive_stats()}} reduces each feature to one row of sample
 size, central tendency, dispersion, quartiles, outlier fences and
 distribution shape, split by group level when a grouping vector is supplied.
+
+\code{\link[=summarize_association_stats]{summarize_association_stats()}} is its pairwise counterpart, reducing every
+pair of features to a coefficient, a p-value, a p-value adjusted across the
+pairs and the observations the pair shared. Pearson, Spearman and Kendall come
+back side by side on the same pairs, so a linear coefficient and a monotonic
+one disagreeing is visible rather than a matter of which call was made.
 }
 
 \section{Result contract}{
@@ -103,6 +138,25 @@ whenever \code{diagnose = TRUE}. A comparison of three or more levels adds
 and \code{pairwise}, the same numbers rearranged into one rectangular table per
 contrast. Those two slots are there only when a pairwise stage actually ran,
 so a two-group or one-sample result does not offer an empty version of them.
+
+A factorial comparison adds \code{terms}, one row per feature and model term. It is
+the one table in the contract that is not one row per feature, which is why it
+is a slot of its own rather than another entry in \code{tests}: the tables in
+\code{tests} are aligned with \code{features} position by position, and every consumer
+relies on that. \code{tests$anova_test} still holds the whole-model test at one row
+per feature, so a factorial result can be read by a function that does not
+know it is one. That result has no \code{pairwise}, since its contrasts are indexed
+by factor and stratum rather than by a single label.
+
+A categorical comparison is the one that steps outside the contract, and it
+returns an \code{sa_categorical} instead. There is no feature axis to align its
+tables to and no signed effect to put on a volcano axis, so it keeps the
+vocabulary -- \code{design}, \code{parameters}, \code{tests} beside \code{test_info}, \code{metadata} --
+and holds the table itself in \code{cells}, one row per cell. What it adds is
+\code{design$null}, the hypothesis the whole result is about, because a contingency
+table can be held against more than one and \code{expected} means a different number
+under each. The table is reached through \code{as.table()} rather than stored, which
+is what leaves every slot serialisable.
 }
 
 \section{Practising on a known answer}{
@@ -135,6 +189,42 @@ ph <- merge(res$posthoc$anova_test, sim$truth_contrast,
             by = c("features", "contrast"))
 table(differs = ph$is_diff, called = ph$pval_adj <= 0.05)
 }\if{html}{\out{</div>}}
+
+\code{\link[=simulate_factorial_groups]{simulate_factorial_groups()}} crosses any number of factors, so the treatment
+can be read alongside sex, time or anything else the design carries, and each
+factor can be measured between subjects or within them. Crossing factors makes
+the answer a statement per model term rather than per level, so \code{truth_term}
+comes back holding one row per main effect and per interaction of every order,
+and it is what scores an ANOVA table row by row. Each planted feature carries
+the shape of its effect across those terms, and the shapes are chosen so that
+the terms come apart: a \code{"crossover"} feature has an interaction and, exactly
+and not approximately, no main effect at all, which is the case a design read
+one factor at a time cannot see.
+
+\code{args} is named for \code{\link[=compare_factorial_groups]{compare_factorial_groups()}}, so the two halves meet in one
+\code{do.call()} and the scoring is a merge on the term axis both sides count the
+same way.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{sim <- simulate_factorial_groups(seed = 1)
+res <- do.call(compare_factorial_groups, sim$args)
+scored <- merge(res$terms, sim$truth_term, by = c("features", "terms"))
+with(scored, table(called = pval_adj <= 0.05, planted = is_effect, terms))
+}\if{html}{\out{</div>}}
+
+\code{truth_contrast} scores the pairwise stage the same way, on
+\code{c("features", "factor", "stratum", "contrast")}, with a \code{stratum} of \code{NA}
+marking the marginal contrasts and anything else the simple effects. A
+simulated design with \code{within} factors is ahead of the comparison, which reads
+between-subject factors in this version and says so rather than analysing
+repeated measurements as though they were independent.
+
+\code{\link[=simulate_categorical_groups]{simulate_categorical_groups()}} plants an association between two categorical
+variables, or a transition between repeated binary conditions, and hands back
+the planted joint distribution cell by cell, keyed to merge with \verb{$cells} of the
+comparison. \code{assoc = 0} is the product of the margins exactly, so it is null in
+the strict sense, and equal transition probabilities are the same for a matched
+design. A matched pair of conditions also carries the symmetric share, since
+symmetry rather than independence is the null that design is tested against.
 }
 
 \section{Machine learning}{
@@ -300,15 +390,18 @@ rows read smaller than they are. The honest score is on the test half of
 
 \section{Unsupervised learning}{
 
-\code{\link[=perform_pca]{perform_pca()}}, \code{\link[=perform_tsne]{perform_tsne()}} and \code{\link[=perform_umap]{perform_umap()}} are the first functions
-here with no outcome at all. Nothing is predicted and nothing is scored, so what
-they answer is where each sample sits once hundreds of features have been
-squeezed into two dimensions. There are three of them because they disagree, and
-the disagreement is the information: a principal component analysis is a
-rotation, so it is readable as "which features moved this sample" but can only
-find straight structure, while t-SNE and UMAP find structure that curves and
-cannot say which feature made it. A cluster all three find is a different fact
-from one that appears in a single embedding.
+The \verb{perform_*()} and \verb{cluster_*()} functions are the ones here with no outcome
+at all. Nothing is predicted and nothing is scored, so the questions are where
+each sample sits once hundreds of features have been squeezed into two
+dimensions, and which samples belong together.
+
+\code{\link[=perform_pca]{perform_pca()}}, \code{\link[=perform_tsne]{perform_tsne()}} and \code{\link[=perform_umap]{perform_umap()}} answer the first. There
+are three of them because they disagree, and the disagreement is the
+information: a principal component analysis is a rotation, so it is readable as
+"which features moved this sample" but can only find straight structure, while
+t-SNE and UMAP find structure that curves and cannot say which feature made it.
+A cluster all three find is a different fact from one that appears in a single
+embedding.
 
 All three return \code{sa_reduction}, a third row axis of its own: \code{points} takes the
 place \code{features} holds in a comparison and \code{terms} holds in a model, and \code{scores}
@@ -320,8 +413,7 @@ reported in \code{engine}. \code{\link[=perform_umap]{perform_umap()}} leaves th
 its \code{metric} is where the scale question is usually answered instead.
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{res <- perform_pca(data)
-plot(res$scores[c("PC1", "PC2")],
-     xlab = paste0("PC1 (", round(res$variance$prop_var[1], 2), "\%)"))
+plot(res, group = group)   # draw_dim_reduction_plot()
 }\if{html}{\out{</div>}}
 
 The coordinates are \verb{$scores} in all three, and the engine object is \verb{$fit}. The
@@ -331,6 +423,38 @@ Transposing the input by hand instead standardises samples rather than features,
 which produces a picture that looks right and answers a third question; the three
 say so in their own documentation because the mistake is easy to make and hard to
 see.
+
+\code{\link[=cluster_hclust]{cluster_hclust()}}, \code{\link[=cluster_kmeans]{cluster_kmeans()}}, \code{\link[=cluster_dbscan]{cluster_dbscan()}} and \code{\link[=cluster_snn]{cluster_snn()}}
+answer the second, and they are four rather than one for the same reason. The
+first two are told how many groups to find and will always find that many, so
+every point lands somewhere and a point in the middle of nowhere lands somewhere
+anyway. The other two are told how dense a group has to be and derive the count
+from that, so they can return two clusters, or nine, or none, and they can refuse
+to place a point. A grouping all four agree on is a different fact from one that
+only k-means, having been told to find two things, found two of.
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{res <- cluster_kmeans(data, n_clust = 3)
+res$assignments   # one row per point: cluster and silhouette
+res$clusters      # one row per cluster: size and mean silhouette
+}\if{html}{\out{</div>}}
+
+All four return \code{sa_cluster}, which keeps \code{points} as its row axis so that an
+assignment can be painted straight onto a reduction of the same rows — they read
+the input through the same helper, so the rows are the same rows. \code{cluster_scale}
+sits where \code{embedding_scale} does and means the same thing. Noise is cluster \code{0},
+which is the density methods' own convention, and it is counted in
+\code{design$n_noise} rather than given a row in \code{clusters}. \code{silhouette} is the one
+number the four can be compared on, since coordinates from two embeddings share
+no scale but a ratio of distances does.
+
+\code{\link[=draw_dim_reduction_plot]{draw_dim_reduction_plot()}} is where the two halves meet, and it is what
+\code{\link[=plot]{plot()}} on an \code{sa_reduction} calls: two coordinates of a reduction as a
+scatter, coloured by a clustering of the same points and shaped by a grouping
+that was known all along. The two channels are separate on purpose, because the
+question a clustering raises is usually whether it recovered the grouping, and
+that is read off one picture rather than argued from a table — one colour per
+shape is a clustering that found the groups, and a shape split across colours
+is a group the data does not see as one thing.
 }
 
 \seealso{

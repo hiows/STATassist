@@ -7,8 +7,11 @@
 #' recomputing anything.
 #'
 #' @param comparison_result A comparison result, as returned by
-#'   [compare_two_groups()], [compare_multiple_groups()] or
-#'   [compare_one_sample()].
+#'   [compare_two_groups()], [compare_multiple_groups()],
+#'   [compare_one_sample()] or [compare_factorial_groups()]. A categorical
+#'   comparison is refused: it has no feature axis, which is what this function
+#'   reads a verdict along. [estimate_categorical_significance()] is its
+#'   counterpart and reads the cell axis instead.
 #' @param test Which test in `comparison_result` supplies the p-values. One of
 #'   `names(comparison_result$tests)`, so `"t_test"`, `"wilcox_test"` or
 #'   `"robust_test"` for a two-group comparison. Defaults to the first test the
@@ -24,9 +27,11 @@
 #'   comparison. Passing a method here does not adjust twice: the input is always
 #'   the unadjusted `pval` column.
 #' @param by Which p-value the verdict is read from. `"omnibus"`, the default,
-#'   uses the named test's own table, which is the only thing a two-group or a
-#'   one-sample comparison has. `"contrast"` uses the pairwise stage of a
-#'   multi-group comparison instead and returns one verdict table per contrast.
+#'   uses the named test's own table. `"contrast"` uses the pairwise stage of a
+#'   multi-group comparison and returns one verdict table per contrast. `"term"`
+#'   uses the `$terms` table of a factorial comparison and returns one verdict
+#'   table per model term, each carrying that term's own effect size in
+#'   `log2fc`.
 #'
 #' @return An `sa_significance` object, a list of two elements:
 #'   \describe{
@@ -35,17 +40,22 @@
 #'       scenario produced it.}
 #'     \item{`significance`}{With `by = "omnibus"`, a data.frame with one row per
 #'       feature and the columns `features`, `log2fc`, `pvalue`, `adj_pvalue` and
-#'       `is_signif`. With `by = "contrast"`, a list of those same data.frames,
-#'       one per pairwise contrast and named after it, in the order
-#'       `comparison_result$pairwise[[test]]` fixes.}
+#'       `is_signif`. A multi-group omnibus table also carries `extreme_level`,
+#'       and a factorial one carries `extreme_cell`, naming the level or cell
+#'       whose centre produced `log2fc`. With `by = "contrast"`, a list of those
+#'       same data.frames, one per pairwise contrast and named after it, in the
+#'       order `comparison_result$pairwise[[test]]` fixes. With `by = "term"`, the
+#'       same again, one per model term and named after it, in the order
+#'       `comparison_result$terms` lists them.}
 #'   }
 #'
 #'   The cutoffs, the test name and the adjustment actually used are attached to
 #'   each data.frame as attributes, which is where [draw_volcano_plot()] picks
 #'   them up so that the plotted guides cannot disagree with the verdict. A
-#'   contrast table carries `contrast`, `group1` and `group2` on top of those, so
-#'   a single element of `significance` can be handed straight to
-#'   [draw_volcano_plot()].
+#'   contrast table carries `contrast`, `group1` and `group2` on top of those and
+#'   a term table carries `term` and `term_order`, so a single element of
+#'   `significance` can be handed straight to [draw_volcano_plot()] — and a whole
+#'   list of term tables can, which is how the term panels are drawn.
 #'
 #' @details
 #' `is_signif` combines `abs(log2fc) >= log2fc_cutoff` with
@@ -67,6 +77,25 @@
 #' not at all for Tukey's HSD and Games-Howell, whose p-values are already
 #' family-wise. Naming a method instead adjusts across the features within each
 #' contrast, which is the axis `by = "omnibus"` always works on.
+#'
+#' A factorial comparison has a third reading. The default `"omnibus"` pairs the
+#' whole-model F test with the most extreme **cell** against the reference cell,
+#' the combination where every factor sits at its first level. The table also
+#' carries `extreme_cell`, naming which cell was furthest on the log2 scale.
+#' That says a feature responded to the design and how far it moved at its
+#' furthest point, but not **which part** of the design it responded to.
+#' `by = "term"` answers that, one table per main effect and per interaction,
+#' and needs no choice of adjustment axis:
+#' both branches adjust across the features of one term, which is the family
+#' `$terms$pval_adj` was built over as well.
+#'
+#' The `log2fc` of a term table is `$terms$log2_effect`, an ANOVA component rather
+#' than a ratio of two centres. It measures a deviation from what the rest of the
+#' model predicts, so a two-level factor whose levels differ by one log2 unit
+#' contributes -0.5 and +0.5 rather than 1. The default `log2fc_cutoff = 1` is
+#' therefore a stricter demand here than the same number is elsewhere; halving it
+#' asks of a two-level factor what the default asks of a fold change. See "The
+#' size of a term" in [compare_factorial_groups()].
 #'
 #' A feature whose omnibus test did not clear `posthoc_alpha` was never compared
 #' pairwise, so its `pvalue` is `NA` in every contrast table. Its `log2fc` is
@@ -117,19 +146,39 @@
 #' names(by_pair$significance)
 #' by_pair$significance[["virginica - setosa"]]
 #'
+#' ## One verdict table per term of a crossed design
+#' fact <- compare_factorial_groups(
+#'   data    = warpbreaks,
+#'   feats   = "breaks",
+#'   factors = list(wool = "wool", tension = "tension"),
+#'   posthoc = FALSE
+#' )
+#' draw_volcano_plot(estimate_significance(fact, log2fc_cutoff = 0.1))
+#' by_term <- estimate_significance(fact, by = "term", log2fc_cutoff = 0.1)
+#' names(by_term$significance)
+#' by_term$significance[["wool:tension"]]
+#'
 #' @export
 estimate_significance <- function(comparison_result,
                                   test = names(comparison_result$tests)[1],
                                   log2fc_cutoff = 1,
                                   pval_cutoff = 0.05,
                                   adj_type = NULL,
-                                  by = c("omnibus", "contrast")) {
+                                  by = c("omnibus", "contrast", "term")) {
 
   by <- match.arg(by)
   sa_check_scalar_num(log2fc_cutoff, "log2fc_cutoff", 0)
   sa_check_scalar_num(pval_cutoff, "pval_cutoff", 0, 1, lower_open = TRUE)
   if (!is.null(adj_type)) {
     sa_check_p_adjust(adj_type, "adj_type")
+  }
+
+  if (inherits(comparison_result, "sa_categorical")) {
+    stop("`comparison_result` is a categorical comparison. This scenario has ",
+         "no feature axis, so it cannot be read as a volcano plot. ",
+         "estimate_categorical_significance() is what reads it, one verdict ",
+         "per cell of the table, and draw_mosaic_plot() is what draws it.",
+         call. = FALSE)
   }
 
   tbl <- sa_pick_test(comparison_result, test, arg = "comparison_result")
@@ -139,6 +188,14 @@ estimate_significance <- function(comparison_result,
       comparison_result$analysis,
       sa_significance_by_contrast(comparison_result, test, adj_type,
                                   log2fc_cutoff, pval_cutoff)
+    ))
+  }
+
+  if (by == "term") {
+    return(sa_new_significance(
+      comparison_result$analysis,
+      sa_significance_by_term(comparison_result, test, adj_type,
+                              log2fc_cutoff, pval_cutoff)
     ))
   }
 
@@ -160,6 +217,12 @@ estimate_significance <- function(comparison_result,
                                comparison_result$effect$log2fc,
                                pvalue, adj_pvalue,
                                log2fc_cutoff, pval_cutoff)
+
+  if (identical(comparison_result$analysis, "factorial_comparison")) {
+    out$extreme_cell <- comparison_result$effect$extreme_cell
+  } else if (identical(comparison_result$analysis, "multi_group_comparison")) {
+    out$extreme_level <- comparison_result$effect$extreme_level
+  }
 
   out <- do.call(structure,
                  c(list(out),
@@ -228,6 +291,54 @@ sa_significance_table <- function(features, log2fc, pvalue, adj_pvalue,
 }
 
 
+#' One verdict table per model term
+#'
+#' The factorial counterpart of `sa_significance_by_contrast()`, and the same
+#' shape: a named list of verdict tables, in the order `$terms` lists the terms,
+#' which is main effects first and then the interactions.
+#'
+#' @keywords internal
+#' @noRd
+sa_significance_by_term <- function(comparison_result, test, adj_type,
+                                    log2fc_cutoff, pval_cutoff) {
+  terms_tbl <- comparison_result$terms
+  if (is.null(terms_tbl) || nrow(terms_tbl) == 0L) {
+    stop("`by = \"term\"` needs a term axis, and `comparison_result$terms` is ",
+         "absent. compare_factorial_groups() is the one scenario that builds ",
+         "it; a design with a single factor has one term and reads out through ",
+         "`by = \"omnibus\"`.", call. = FALSE)
+  }
+
+  labels <- unique(terms_tbl$terms)
+  blocks <- split(terms_tbl, factor(terms_tbl$terms, levels = labels))
+
+  lapply(blocks, function(tbl) {
+    pvalue <- tbl$pval
+    sa_check_pvalues(pvalue)
+    # Both branches adjust along the feature axis within one term, so unlike the
+    # contrast reading there is no second family to choose between: naming a
+    # method changes the method and nothing else.
+    if (is.null(adj_type)) {
+      adj_pvalue <- tbl$pval_adj
+      adj_used <- comparison_result$parameters$p_adjust
+    } else {
+      adj_pvalue <- stats::p.adjust(pvalue, method = adj_type)
+      adj_used <- adj_type
+    }
+
+    out <- sa_significance_table(tbl$features, tbl$log2_effect, pvalue,
+                                 adj_pvalue, log2fc_cutoff, pval_cutoff)
+
+    do.call(structure,
+            c(list(out),
+              sa_significance_attrs(comparison_result, test, adj_used,
+                                    log2fc_cutoff, pval_cutoff),
+              list(term       = tbl$terms[1],
+                   term_order = tbl$term_order[1])))
+  })
+}
+
+
 #' One verdict table per pairwise contrast
 #'
 #' @keywords internal
@@ -237,9 +348,10 @@ sa_significance_by_contrast <- function(comparison_result, test, adj_type,
   pairwise <- comparison_result$pairwise[[test]]
   if (is.null(pairwise) || length(pairwise) == 0L) {
     stop("`by = \"contrast\"` needs a pairwise stage, and ",
-         "`comparison_result$pairwise$", test, "` is absent. Only ",
-         "compare_multiple_groups() runs one, and only when ",
-         "`posthoc = TRUE`.", call. = FALSE)
+         "`comparison_result$pairwise$", test, "` is absent. ",
+         "compare_multiple_groups() is the one scenario that builds it, and ",
+         "only when `posthoc = TRUE`; a factorial comparison keeps its ",
+         "contrasts in `$posthoc` alone.", call. = FALSE)
   }
 
   lapply(pairwise, function(tbl) {
@@ -288,7 +400,7 @@ sa_significance_by_contrast <- function(comparison_result, test, adj_type,
 #'
 #' @export
 print.sa_significance <- function(x, ...) {
-  # A contrast reading holds one table per contrast, and every one of them was
+  # A contrast or term reading holds one table each, and every one of them was
   # judged by the same rule, so the header is read off whichever comes first.
   tables <- if (is.data.frame(x$significance)) {
     list(x$significance)
@@ -318,7 +430,10 @@ print.sa_significance <- function(x, ...) {
   if (is.data.frame(x$significance)) {
     cat("  verdict  : ", count(x$significance), "\n", sep = "")
   } else {
-    cat("\n  $significance, one table per contrast\n")
+    # Which axis the list runs along is a property of the tables, not of the
+    # object, since the reading is not recorded anywhere else.
+    axis <- if (is.null(attr(head_tbl, "term"))) "contrast" else "term"
+    cat("\n  $significance, one table per ", axis, "\n", sep = "")
     width <- max(nchar(names(tables)))
     for (nm in names(tables)) {
       cat("    ", formatC(nm, width = -width), "  ", count(tables[[nm]]), "\n",

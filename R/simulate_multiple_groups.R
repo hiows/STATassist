@@ -427,28 +427,37 @@ sa_sim_design <- function(n_control, n_treat, group_lv, use_default, paired) {
 
 #' Check the shape weights and drop the ones set to zero
 #'
+#' `simulate_factorial_groups()` weights two sets of shapes rather than one, and
+#' the four things that make a set of weights wrong are the same for both, so the
+#' catalogue and the argument name are parameters rather than a second copy of
+#' this function.
+#'
+#' @param known The shape names the caller accepts.
+#' @param arg Argument name to name in the error.
+#'
 #' @keywords internal
 #' @noRd
-sa_sim_pattern_mix <- function(pattern_mix) {
-  known <- c("all", "gradient", "single")
+sa_sim_pattern_mix <- function(pattern_mix,
+                               known = c("all", "gradient", "single"),
+                               arg = "pattern_mix") {
   if (!is.numeric(pattern_mix) || length(pattern_mix) == 0L ||
       is.null(names(pattern_mix)) || anyNA(pattern_mix) ||
       anyDuplicated(names(pattern_mix)) > 0L) {
-    stop("`pattern_mix` must be a named numeric vector of weights with one ",
+    stop("`", arg, "` must be a named numeric vector of weights with one ",
          "entry per shape and no duplicates. Known shapes are: ",
          paste(known, collapse = ", "), ".", call. = FALSE)
   }
   unknown <- setdiff(names(pattern_mix), known)
   if (length(unknown) > 0L) {
-    stop("`pattern_mix` names unknown shape(s): ",
+    stop("`", arg, "` names unknown shape(s): ",
          paste(unknown, collapse = ", "), ". Known shapes are: ",
          paste(known, collapse = ", "), ".", call. = FALSE)
   }
   if (any(pattern_mix < 0)) {
-    stop("`pattern_mix` weights must not be negative.", call. = FALSE)
+    stop("`", arg, "` weights must not be negative.", call. = FALSE)
   }
   if (sum(pattern_mix) <= 0) {
-    stop("`pattern_mix` needs at least one positive weight, otherwise there ",
+    stop("`", arg, "` needs at least one positive weight, otherwise there ",
          "is no shape left to plant an effect in.", call. = FALSE)
   }
   pattern_mix[pattern_mix > 0]
