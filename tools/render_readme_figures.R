@@ -600,44 +600,36 @@ figure("corrplot-masked", 700, 700, draw_corrplot(
 
 cat("=== 13. evaluate regression models ===\n")
 
-eval_reg_sim <- simulate_regression(cor_mat = cor_mat, seed = 2026)
-eval_reg_args <- eval_reg_sim$args
-eval_reg_split <- split_data(
-  data = eval_reg_args$data, p_train = 0.75, times = 1, seed = 2026
-)
-eval_reg_train <- eval_reg_split$datasets[[1]]$train_data
-eval_reg_test <- eval_reg_split$datasets[[1]]$test_data
-
 eval_rfe <- perform_rfe(
-  data       = eval_reg_train,
-  outcome    = eval_reg_args$outcome,
-  predictors = eval_reg_args$predictors,
+  data       = reg_train,
+  outcome    = reg_args$outcome,
+  predictors = reg_args$predictors,
   seed       = 2026
 )
 eval_sel <- eval_rfe$selected
 
 eval_lin <- do.call(fit_linear_regression, c(list(
-  data = eval_reg_train, outcome = eval_reg_args$outcome,
+  data = reg_train, outcome = reg_args$outcome,
   predictors = eval_sel
 ), cv))
 eval_lasso <- do.call(fit_elastic_net, c(list(
-  data = eval_reg_train, outcome = eval_reg_args$outcome,
+  data = reg_train, outcome = reg_args$outcome,
   predictors = eval_sel, penalty = "lasso"
 ), cv))
 eval_rf <- do.call(fit_rf, c(list(
-  data = eval_reg_train, outcome = eval_reg_args$outcome,
+  data = reg_train, outcome = reg_args$outcome,
   predictors = eval_sel
 ), cv))
 eval_svm <- do.call(fit_svm, c(list(
-  data = eval_reg_train, outcome = eval_reg_args$outcome,
+  data = reg_train, outcome = reg_args$outcome,
   predictors = eval_sel
 ), svm_grid, cv))
 
 eval_reg <- evaluate_regression_models(
   baseline_model = eval_lin,
   new_models     = list(lasso = eval_lasso, rf = eval_rf, svm = eval_svm),
-  newdata        = eval_reg_test,
-  answer         = eval_reg_test$y,
+  newdata        = reg_test,
+  answer         = reg_test$y,
   baseline_label = "linear"
 )
 
@@ -653,20 +645,11 @@ figure("eval-regression", 800, 650, draw_prediction_plot(
 
 cat("=== 14. evaluate classification models ===\n")
 
-eval_cls_sim <- simulate_classification(cor_mat = cor_mat, seed = 2026)
-eval_cls_args <- eval_cls_sim$args
-eval_cls_split <- split_data(
-  data = eval_cls_args$data, stratified = eval_cls_args$data$y,
-  p_train = 0.75, times = 1, seed = 2026
-)
-eval_cls_train <- eval_cls_split$datasets[[1]]$train_data
-eval_cls_test <- eval_cls_split$datasets[[1]]$test_data
-
 eval_rfe_cls <- perform_rfe(
-  data          = eval_cls_train,
-  outcome       = eval_cls_args$outcome,
-  predictors    = eval_cls_args$predictors,
-  outcome_lv    = eval_cls_args$outcome_lv,
+  data          = cls_train,
+  outcome       = cls_args$outcome,
+  predictors    = cls_args$predictors,
+  outcome_lv    = cls_args$outcome_lv,
   control_label = "control",
   seed          = 2026,
   model         = "logistic"
@@ -674,22 +657,22 @@ eval_rfe_cls <- perform_rfe(
 eval_sel_cls <- eval_rfe_cls$selected
 
 eval_log <- do.call(fit_logistic_regression, c(list(
-  data = eval_cls_train, outcome = eval_cls_args$outcome,
-  predictors = eval_sel_cls, outcome_lv = eval_cls_args$outcome_lv,
+  data = cls_train, outcome = cls_args$outcome,
+  predictors = eval_sel_cls, outcome_lv = cls_args$outcome_lv,
   control_label = "control"
 ), cv))
 eval_lasso_cls <- do.call(fit_elastic_net, c(list(
-  data = eval_cls_train, outcome = eval_cls_args$outcome,
-  predictors = eval_sel_cls, outcome_lv = eval_cls_args$outcome_lv,
+  data = cls_train, outcome = cls_args$outcome,
+  predictors = eval_sel_cls, outcome_lv = cls_args$outcome_lv,
   penalty = "lasso"
 ), cv))
 eval_rf_cls <- do.call(fit_rf, c(list(
-  data = eval_cls_train, outcome = eval_cls_args$outcome,
-  predictors = eval_sel_cls, outcome_lv = eval_cls_args$outcome_lv
+  data = cls_train, outcome = cls_args$outcome,
+  predictors = eval_sel_cls, outcome_lv = cls_args$outcome_lv
 ), cv))
 eval_svm_cls <- do.call(fit_svm, c(list(
-  data = eval_cls_train, outcome = eval_cls_args$outcome,
-  predictors = eval_sel_cls, outcome_lv = eval_cls_args$outcome_lv
+  data = cls_train, outcome = cls_args$outcome,
+  predictors = eval_sel_cls, outcome_lv = cls_args$outcome_lv
 ), svm_grid, cv))
 
 eval_cls <- evaluate_classification_models(
@@ -697,9 +680,9 @@ eval_cls <- evaluate_classification_models(
   new_models     = list(
     lasso = eval_lasso_cls, rf = eval_rf_cls, svm = eval_svm_cls
   ),
-  newdata        = eval_cls_test,
-  answer         = eval_cls_test$y,
-  outcome_lv     = eval_cls_args$outcome_lv,
+  newdata        = cls_test,
+  answer         = cls_test$y,
+  outcome_lv     = cls_args$outcome_lv,
   control_label  = "control",
   baseline_label = "logistic"
 )
