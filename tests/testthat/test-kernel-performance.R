@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # The performance kernels, checked two ways. Where `pROC` computes the same
 # quantity it is the oracle, since agreeing with the reference implementation is
 # the whole reason for writing these out rather than depending on it. Where it

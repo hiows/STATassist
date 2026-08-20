@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # Scoring fitted classifications on held-out rows. The kernels are checked in
 # test-kernel-performance.R; what is checked here is that the right kernel is
 # handed the right vectors in the right direction, that the three comparisons

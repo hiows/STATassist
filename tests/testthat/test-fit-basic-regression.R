@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # These two functions are wrappers, so what is worth pinning is not arithmetic
 # they perform but arithmetic they must not disturb: the coefficients have to be
 # the ones `lm()` and `glm()` give on the same rows, and cross-validating must

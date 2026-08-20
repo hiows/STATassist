@@ -455,6 +455,10 @@
 # dependency and keeps `predict()` and `importance()` on the fitted object
 # dispatching to `randomForest`'s own methods.
 #' @importFrom randomForest randomForest
+# `kernlab` is reached both through `caret` (`method = "svmRadial"`) and by
+# direct calls to `sigest()` / `nSV()` in `fit_svm()`. The import declares the
+# dependency alongside the other engines.
+#' @importFrom kernlab nSV sigest
 # `Rtsne`, `umap` and `dbscan` are the engines this package calls itself rather
 # than through `caret`, which has no method for any of them. All three are reached
 # by `::` in `perform_tsne()`, `perform_umap()` and the two density-based

@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # A tree is judged on two things. First, that the labels really are the tree cut at
 # `n_clust` and not something reconstructed beside it, which is pinned by
 # reproducing the `hclust()` and `cutree()` calls directly. Second, that the

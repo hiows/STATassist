@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # The one reduction that standardises nothing by default, so the first thing to pin
 # is that the engine really is handed the values as they arrived and that turning the
 # two flags on reaches it. Everything else is the same standard the other embedding

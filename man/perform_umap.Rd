@@ -146,19 +146,14 @@ separate \code{umap-learn} package rather than anything in scikit-learn.
 ## The group was never shown to the embedding, so the split is its to find.
 sim <- simulate_two_groups(n_feats = 30, n_up = 5, n_down = 5, seed = 3)
 res <- perform_umap(sim$args$data, seed = 1)
-res
 head(res$scores)
 
+\donttest{
 plot(res$scores[c("UMAP1", "UMAP2")],
      col = as.integer(factor(sim$args$group)), pch = 16)
-
-## Standardising is what makes this embedding comparable with the other two,
-## which do it by default.
 scaled <- perform_umap(sim$args$data, scale = TRUE, seed = 1)
-scaled
 
-## `embedding_scale = "features"` embeds the features instead. Here the
-## correlation blocks are planted, and the embedding was not told about them.
+## Feature-scale embedding over planted correlation blocks.
 cor_mat <- make_block_cor(
   n_features = 60,
   blocks = list(list(features = 1:20, cor = 0.8),
@@ -169,10 +164,9 @@ blocks <- simulate_classification(n_pred = 60, cor_mat = cor_mat,
                                   seed = 2026)$args$data
 by_feat <- perform_umap(blocks, feats = paste0("x_", 1:60),
                         embedding_scale = "features", scale = TRUE, seed = 1)
-by_feat$points
 plot(by_feat$scores[c("UMAP1", "UMAP2")],
      col = rep(1:3, each = 20), pch = 16)
-
+}
 }
 \seealso{
 \code{\link[=perform_pca]{perform_pca()}}, which answers about the same points in a way that can

@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # The second density method, and the one whose arguments are easiest to confuse
 # with another function's. `eps` here counts shared neighbours and `eps` in
 # `cluster_dbscan()` is a radius, so the test that matters most is the one holding

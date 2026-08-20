@@ -119,20 +119,19 @@ Dropping the row instead would make the table quietly shorter than the model
 it describes.
 }
 \examples{
-## Fitted on every row, scored on rows each fold had not seen.
+## Fitted without resampling (fast enough for examples).
 fit <- fit_linear_regression(mtcars, outcome = "mpg",
                              predictors = c("wt", "hp", "disp"),
-                             cv_method = "kfold", seed = 1)
-fit
+                             cv = FALSE)
 fit$coefficients
-fit$performance
 
-## Cross-validation scores the model, it does not change it: the coefficients
-## are the ones the same data gives without any resampling at all.
-plain <- fit_linear_regression(mtcars, outcome = "mpg",
-                               predictors = c("wt", "hp", "disp"),
-                               cv = FALSE)
-all.equal(plain$coefficients, fit$coefficients)
+\donttest{
+## Cross-validation scores the model; it does not change the coefficients.
+scored <- fit_linear_regression(mtcars, outcome = "mpg",
+                                predictors = c("wt", "hp", "disp"),
+                                cv_method = "kfold", seed = 1)
+all.equal(fit$coefficients, scored$coefficients)
+}
 
 ## A factor predictor becomes one term per level beyond the first.
 cars <- mtcars

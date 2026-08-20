@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # The first of the two methods that are not told how many groups to find, so the
 # count and the noise are both results and both have to be checked as results.
 # What is pinned here beyond the contract is that the derived arguments are

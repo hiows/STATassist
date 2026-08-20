@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # A machine is deterministic given its data and its two arguments, so more can be
 # pinned here than for a forest. What cannot be pinned by comparing one fit with
 # another is the importance, because it is measured by shuffling and the shuffles

@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # compare_factorial_groups() has an external answer for almost everything it
 # computes, so most of what follows is an equality against base R rather than a
 # tolerance band. stats::aov() reports Type I sums of squares, which coincide

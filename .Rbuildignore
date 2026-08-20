@@ -7,3 +7,4 @@
 ^\.gitignore$
 ^cran-comments\.md$
 ^tools/
+^tests/testthat/Rplots\.pdf$

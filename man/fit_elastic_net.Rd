@@ -189,27 +189,22 @@ within the resolution of the path, and everything the result reports comes
 from the same interpolation, so the object is consistent with itself.
 }
 \examples{
-## A lasso on the whole grid of penalties, scored by 5-fold cross-validation.
-## The pair that won is in `parameters`, and every pair that was tried is in
-## `performance`.
+## A single lasso without resampling (fast enough for examples).
 fit <- fit_elastic_net(mtcars, outcome = "mpg", penalty = "lasso",
-                       lambda = c(0.01, 0.1, 0.5, 1, 2),
-                       cv_method = "kfold", n_fold = 5, seed = 1)
-fit
+                       lambda = 0.5, cv = FALSE)
 fit$parameters[c("penalty", "alpha", "lambda")]
 fit$coefficients[c("terms", "estimate", "selected")]
 
-## Penalizing harder drops more terms. A ridge shrinks the same coefficients
-## without ever dropping one.
+\donttest{
+## Cross-validated grid search, ridge vs hard lasso, and known-truth scoring.
+fit_elastic_net(mtcars, outcome = "mpg", penalty = "lasso",
+                lambda = c(0.01, 0.1, 0.5, 1, 2),
+                cv_method = "kfold", n_fold = 5, seed = 1)
 hard <- fit_elastic_net(mtcars, outcome = "mpg", penalty = "lasso",
                         lambda = 2, cv = FALSE)
 ridge <- fit_elastic_net(mtcars, outcome = "mpg", penalty = "ridge",
                          lambda = 2, cv = FALSE)
 c(lasso = hard$fit_stats$n_selected, ridge = ridge$fit_stats$n_selected)
-
-## Scored against an answer that is known: a simulated regression plants some
-## coefficients at exactly zero, so what the lasso dropped can be compared
-## with what was never there.
 sim <- simulate_regression(seed = 1)
 lasso <- do.call(fit_elastic_net,
                  c(sim$args, list(penalty = "lasso", lambda = 0.5,
@@ -217,14 +212,13 @@ lasso <- do.call(fit_elastic_net,
 scored <- merge(lasso$coefficients, sim$truth_term, by = "terms")
 table(planted = scored$beta != 0, selected = scored$selected)
 
-## A two-class outcome is the penalized logistic regression, and `outcome_lv`
-## fixes its direction the way it does there: the odds are `virginica`'s.
 iris2 <- iris[iris$Species != "setosa", ]
 clf <- fit_elastic_net(iris2, outcome = "Species",
                        outcome_lv = c("versicolor", "virginica"),
                        penalty = "lasso", lambda = c(0.001, 0.01, 0.1),
                        cv_method = "kfold", n_fold = 5, seed = 1)
 clf$coefficients[c("terms", "estimate", "odds_ratio", "selected")]
+}
 
 }
 \seealso{

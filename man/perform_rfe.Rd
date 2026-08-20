@@ -201,25 +201,26 @@ In a Python transcription this is \code{sklearn.feature_selection.RFECV}.
 }
 
 \examples{
-## Six candidates and one continuous outcome. The profile says what each size
-## was worth, and `$selected` is the size that won.
+## Linear RFE on a small candidate set (fast enough for examples).
 res <- perform_rfe(mtcars, outcome = "mpg",
-                   predictors = c("wt", "hp", "disp", "qsec", "drat", "carb"),
+                   predictors = c("wt", "hp", "disp", "qsec"),
                    cv_method = "kfold", n_fold = 3, seed = 1)
-res
 res$selected
-res$profile
 
-## The selection is a set of column names, so it goes straight back into a fit.
-fit_linear_regression(mtcars, outcome = "mpg", predictors = res$selected,
+\donttest{
+res_full <- perform_rfe(mtcars, outcome = "mpg",
+                        predictors = c("wt", "hp", "disp", "qsec", "drat",
+                                       "carb"),
+                        cv_method = "kfold", n_fold = 3, seed = 1)
+fit_linear_regression(mtcars, outcome = "mpg", predictors = res_full$selected,
                       cv = FALSE)$coefficients
 
-## A two-class outcome, with the reference named on its own. A forest ranks by
-## permutation importance rather than by a coefficient.
+## Forest ranking on a two-class outcome.
 iris2 <- iris[iris$Species != "setosa", ]
 perform_rfe(iris2, outcome = "Species", control_label = "versicolor",
             model = "rf", ntree = 100, cv_method = "kfold", n_fold = 3,
             seed = 1)
+}
 
 }
 \seealso{

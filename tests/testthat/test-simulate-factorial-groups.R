@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # The value of a simulator is that the answer is known, so what is pinned here is
 # mostly that the answer it reports is the answer it planted. Beyond what the
 # one-factor simulator has to promise, this one plants effects across the terms of

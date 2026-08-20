@@ -120,8 +120,7 @@
 #' fit <- fit_logistic_regression(iris2, outcome = "Species",
 #'                                predictors = c("Petal.Length", "Sepal.Width"),
 #'                                outcome_lv = c("versicolor", "virginica"),
-#'                                cv_method = "kfold", seed = 1)
-#' fit
+#'                                cv = FALSE)
 #' fit$coefficients[c("terms", "estimate", "odds_ratio", "pval")]
 #' fit$fit_stats$mcfadden_r2
 #'

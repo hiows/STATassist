@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # The drawing itself is not compared against a reference image; vdiffr is not a
 # dependency and a pixel comparison would fail on every graphics device change.
 # What is tested is which rows the method decided to draw and in what order,

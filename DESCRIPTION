@@ -4,62 +4,24 @@ Version: 1.0.0
 Authors@R: 
     person("Wonseok", "Oh", , "hiows97@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0009-0002-0687-8466"))
-Description: Runs every test applicable to a comparison through a single
-    function call and returns standardised, feature-wise result tables. One
-    sample, two groups and three or more groups each have one function, and each
-    reports parametric, rank-based and robust results side by side, together with
-    fold changes, effect estimates, confidence intervals and multiplicity
-    adjusted p-values, so that a conclusion is never based on a single test.
-    Multi-group comparison pairs each omnibus test with the post-hoc procedure
-    that shares its assumptions. Crossed factors have a function of their own
-    that fits a single two-way, three-way or factorial model, reports the answer
-    per model term as well as per feature, and compares levels on the unweighted
-    marginal means and inside each combination of the remaining factors.
-    Two categorical variables, or repeated binary conditions on the same row,
-    have a function of their own that returns a contingency table rather than a
-    feature-wise comparison, with the chi-square test beside Fisher's exact test
-    or McNemar's test or Cochran's Q. That result names the null hypothesis it
-    tested, independence or symmetry or marginal homogeneity, and its expected
-    counts and residuals are read under that one, so the mosaic plot of it shades
-    departure from the hypothesis the p-value beside it is about.
-    Assumption diagnostics are attached to every
-    result and never change which tests run. Significance tables and volcano and
-    forest visualisations are derived from the same result object, which keeps
-    effect sizes and p-values describing the same observations, while boxplot,
-    clustered heatmap and back-to-back histogram visualisations read the wide
-    input the comparisons take. Supervised models for a continuous or a two-class
-    outcome, and principal component, t-SNE and UMAP embeddings, return two further
-    contracts built the same way, with one train/test partition function ahead of
-    them that keeps a sampling unit on one side of the split. One further pair of
-    functions scores any number of those fitted models on the same held-out rows,
-    keeping only the rows every model could predict so that the paired comparisons
-    of discrimination, reclassification and calibration describe one sample, and
-    returns them beside a scatter of the predictions or overlaid ROC curves.
-    Simulators return
-    two-group, multi-group, crossed-factor and supervised learning data together
-    with the effects and coefficients planted in them, so a verdict can be scored
-    against an answer that is known. The factorial simulator states its answer per
-    model term, main effects and interactions alike, and marks each factor as
-    measured between subjects or within them, which is the answer key the
-    factorial comparison is scored against. The categorical simulator plants an
-    association between two variables, or a transition between repeated binary
-    conditions, and states it cell by cell under the same null hypothesis the
-    comparison holds the drawn table against.
-    The implemented methods include those described by
-    Welch
-    (1947) <doi:10.1093/biomet/34.1-2.28>, Wilcoxon (1945)
-    <doi:10.2307/3001968>, Mann and Whitney (1947)
-    <doi:10.1214/aoms/1177730491>, Kruskal and Wallis (1952)
+Description: Runs the applicable tests for a comparison in one call and returns
+    standardised result tables. One-sample, two-group, multi-group, factorial and
+    categorical workflows report parametric, rank-based and robust results side by
+    side with effect sizes, confidence intervals and multiplicity-adjusted
+    p-values. Supervised fits, embeddings, clustering and simulators follow the
+    same result contracts. Methods include those of Welch (1947)
+    <doi:10.1093/biomet/34.1-2.28>, Wilcoxon (1945) <doi:10.2307/3001968>, Mann
+    and Whitney (1947) <doi:10.1214/aoms/1177730491>, Kruskal and Wallis (1952)
     <doi:10.1080/01621459.1952.10483441>, Friedman (1937)
-    <doi:10.1080/01621459.1937.10503522>, Tukey (1949) <doi:10.2307/3001913>,
-    Dunn (1964) <doi:10.1080/00401706.1964.10490181>, Yuen (1974)
+    <doi:10.1080/01621459.1937.10503522>, Tukey (1949) <doi:10.2307/3001913>, Dunn
+    (1964) <doi:10.1080/00401706.1964.10490181>, Yuen (1974)
     <doi:10.1093/biomet/61.1.165>, Brunner and Munzel (2000)
     <doi:10.1002/(SICI)1521-4036(200001)42:1%3C17::AID-BIMJ17%3E3.0.CO;2-U>,
-    Algina, Keselman and Penfield (2005) <doi:10.1037/1082-989X.10.3.317>,
-    DeLong, DeLong and Clarke-Pearson (1988) <doi:10.2307/2531595>, Sun and Xu
-    (2014) <doi:10.1109/LSP.2014.2337313>, Pencina, D'Agostino, D'Agostino and
-    Vasan (2008) <doi:10.1002/sim.2929>, and Pencina, D'Agostino and Steyerberg
-    (2011) <doi:10.1002/sim.4085>.
+    Algina, Keselman and Penfield (2005) <doi:10.1037/1082-989X.10.3.317>, DeLong,
+    DeLong and Clarke-Pearson (1988) <doi:10.2307/2531595>, Sun and Xu (2014)
+    <doi:10.1109/LSP.2014.2337313>, Pencina, D'Agostino, D'Agostino and Vasan
+    (2008) <doi:10.1002/sim.2929>, and Pencina, D'Agostino and Steyerberg (2011)
+    <doi:10.1002/sim.4085>.
 License: MIT + file LICENSE
 URL: https://github.com/hiows/STATassist
 BugReports: https://github.com/hiows/STATassist/issues

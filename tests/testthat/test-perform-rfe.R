@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # A search is scored by resampling and the fold assignment is random, so what is
 # pinned here is the boundary rather than which predictors won. That the ranking
 # is the columns that were passed in and not the dummy columns a factor becomes,

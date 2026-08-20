@@ -1,5 +1,9 @@
 # STATassist (development version)
 
+* CRAN submission prep: shortened DESCRIPTION Description, declared
+  `kernlab` imports, trimmed heavy examples with `\donttest`, and skipped the
+  slowest tests on CRAN (`skip_on_cran()`).
+
 # STATassist 1.0.0
 
 Scoring the models. The five fitting functions returned a model and the README

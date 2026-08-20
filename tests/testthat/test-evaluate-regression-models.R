@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # Scoring fitted regressions on held-out rows. The arithmetic is checked against
 # the same arithmetic written out a second way rather than against another
 # package, since every quantity here is two lines long and the point of writing

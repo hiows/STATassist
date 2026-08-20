@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # A simulator is judged on whether the answer it hands back is the answer that is
 # in the data. So the properties pinned here are mostly identities rather than
 # tolerances: the outcome is exactly the linear predictor plus the noise, a null

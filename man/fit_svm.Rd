@@ -194,37 +194,31 @@ make a column of zeroes and ones a classification; naming it alongside an
 \code{\link[=fit_logistic_regression]{fit_logistic_regression()}}.
 }
 \examples{
-## Fitted on every row, scored on rows each fold had not seen. The table is in
-## descending order, so its first rows are the terms the machine leaned on.
+## A single machine without resampling (fast enough for examples).
 fit <- fit_svm(mtcars, outcome = "mpg", predictors = c("wt", "hp", "disp"),
-               C = 1, cv_method = "kfold", n_fold = 5, seed = 1)
-fit
+               C = 1, cv = FALSE, seed = 1)
 fit$coefficients
 fit$fit_stats
 
-## `C` and `sigma` are chosen by the resampling: a single pair is scored,
-## several are compared.
+\donttest{
+## Cross-validated fit and a search over `C`.
+fit_svm(mtcars, outcome = "mpg", predictors = c("wt", "hp", "disp"),
+        C = 1, cv_method = "kfold", n_fold = 5, seed = 1)
 tuned <- fit_svm(mtcars, outcome = "mpg", predictors = c("wt", "hp", "disp"),
                  C = c(0.5, 2, 8), cv_method = "kfold", n_fold = 5, seed = 1)
 tuned$parameters[c("C", "sigma", "n_candidates")]
-tuned$performance[c("C", "RMSE")]
 
-## A two-class outcome is a classification, and `outcome_lv` fixes which class
-## the sensitivity and `type = "response"` are about.
+## Two-class outcome and a simulated regression scored against known truth.
 iris2 <- iris[iris$Species != "setosa", ]
 clf <- fit_svm(iris2, outcome = "Species",
                outcome_lv = c("versicolor", "virginica"), C = 1, cv = FALSE,
                seed = 1)
 clf$fit_stats[c("accuracy", "sensitivity", "specificity")]
-head(predict(clf, newdata = iris2, type = "response"))
-
-## Scored against an answer that is known: a simulated regression plants some
-## coefficients at exactly zero, so the null terms are the ones the importance
-## ought to leave at the bottom of the table.
 sim <- simulate_regression(seed = 1)
 svm <- do.call(fit_svm, c(sim$args, list(C = 1, cv = FALSE, seed = 1)))
 scored <- merge(svm$coefficients, sim$truth_term, by = "terms")
 tapply(scored$estimate, scored$beta != 0, mean)
+}
 
 }
 \seealso{

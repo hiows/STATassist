@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # What is pinned here is that the rows to predict can be handed over as they came.
 # The method exists because the engine object cannot take them: `caret` prepares
 # `newdata` for `glmnet` by keeping the columns whose names it recognises, in the

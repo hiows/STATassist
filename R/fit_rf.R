@@ -172,37 +172,30 @@
 #'   was not fitted on.
 #'
 #' @examples
-#' ## Fitted on every row, scored on rows each fold had not seen. The table is in
-#' ## descending order, so its first rows are the predictors the forest leaned on.
-#' fit <- fit_rf(mtcars, outcome = "mpg", ntree = 200,
-#'               cv_method = "kfold", n_fold = 5, seed = 1)
-#' fit
+#' ## A single forest without resampling (fast enough for examples).
+#' fit <- fit_rf(mtcars, outcome = "mpg", ntree = 50, cv = FALSE, seed = 1)
 #' fit$coefficients
 #' fit$fit_stats
 #'
-#' ## `mtry` is the one argument the resampling can choose between: a single value
-#' ## is scored, several are compared.
+#' \donttest{
+#' ## Cross-validated fit and an `mtry` search.
+#' fit_rf(mtcars, outcome = "mpg", ntree = 200,
+#'        cv_method = "kfold", n_fold = 5, seed = 1)
 #' tuned <- fit_rf(mtcars, outcome = "mpg", mtry = c(2, 5, 10), ntree = 200,
 #'                 cv_method = "kfold", n_fold = 5, seed = 1)
 #' tuned$parameters[c("mtry", "n_candidates")]
-#' tuned$performance[c("mtry", "RMSE")]
 #'
-#' ## A two-class outcome is a classification, and `outcome_lv` fixes which class
-#' ## the sensitivity and `type = "response"` are about.
+#' ## Two-class outcome and a simulated regression scored against known truth.
 #' iris2 <- iris[iris$Species != "setosa", ]
 #' clf <- fit_rf(iris2, outcome = "Species",
 #'               outcome_lv = c("versicolor", "virginica"),
 #'               ntree = 200, cv = FALSE)
 #' clf$fit_stats[c("oob_accuracy", "oob_sensitivity", "oob_specificity")]
-#' head(predict(clf, newdata = iris2, type = "response"))
-#'
-#' ## Scored against an answer that is known: a simulated regression plants some
-#' ## coefficients at exactly zero, so the null predictors are the ones the
-#' ## importance ought to leave at the bottom of the table.
 #' sim <- simulate_regression(seed = 1)
 #' rf <- do.call(fit_rf, c(sim$args, list(ntree = 200, cv = FALSE)))
 #' scored <- merge(rf$coefficients, sim$truth_term, by = "terms")
 #' tapply(scored$estimate, scored$beta != 0, mean)
+#' }
 #'
 #' @export
 fit_rf <- function(data,

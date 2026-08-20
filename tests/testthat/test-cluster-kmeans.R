@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # The one clustering here whose answer depends on the random stream, so the two
 # things worth pinning are that the arithmetic is `stats::kmeans()`'s own and that
 # `seed` makes a run repeatable without leaving the caller's stream disturbed. The

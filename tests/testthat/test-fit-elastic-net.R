@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # Like the two unpenalized fits, this is a wrapper, so what is pinned is what it
 # must not disturb: the coefficients have to be the ones `glmnet` gives at the
 # same penalty on the same columns. Three things are specific to this one and none

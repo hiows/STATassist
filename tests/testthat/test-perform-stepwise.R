@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # Nothing here is resampled, so unlike the elimination there is no fold assignment
 # to pin and the path is a fact about the data. What these check is that it is read
 # out of `step()` correctly, that the three tables describe the same search,

@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # What an embedding can be held to is not where a point landed — that is the
 # method's business and a different perplexity is a different answer — but that the
 # engine was handed the matrix this function says it was handed. Every test that

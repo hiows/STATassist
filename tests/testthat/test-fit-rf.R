@@ -1,3 +1,6 @@
+# Heavy for CRAN check time; full suite still runs under `devtools::test()`
+# (NOT_CRAN=true).
+skip_on_cran()
 # A forest is random twice over — the rows of each tree and the predictors of each
 # split — so almost nothing here can be pinned against a second fit of the same
 # data. Two forests grown from the same seed with the class levels in the other
