@@ -18,7 +18,10 @@ New submission
 
 ## Notes
 
-This is a new submission.
+This is a new submission (resubmission).
+
+README linked to `LICENSE.md`, which is excluded from the build via
+`.Rbuildignore`. The relative link now points to the package `LICENSE` file.
 
 Examples that fit a model by cross-validation, tune a hyperparameter or compute
 a t-SNE or UMAP embedding are wrapped in `\donttest`. A faster form of each is

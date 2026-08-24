@@ -2063,4 +2063,4 @@ draw_dim_reduction_plot(
 
 ## License
 
-MIT © 2026 Wonseok Oh. See [LICENSE.md](LICENSE.md) for details.
+MIT © 2026 Wonseok Oh. See [LICENSE](LICENSE) for details.
