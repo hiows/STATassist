@@ -51,23 +51,26 @@ significant, drawn as guides. \code{NULL}, the default, takes the values
 \code{\link[=estimate_significance]{estimate_significance()}} recorded on \code{significance_result}, so the guides
 agree with its \code{is_signif} column. Supply a number to override them.
 Selecting a subset of rows keeps the recorded values, but selecting
-columns drops them, in which case both must be given.}
+columns drops them, in which case both must be given. Under a term reading
+the magnitude cutoff is applied to \code{abs(log2_effect)}.}
 
 \item{anno_feats}{Logical. If \code{TRUE}, label the strongest significant
 features. A run where no feature clears both cutoffs still draws the plot,
 with a \code{message()} in place of the labels.}
 
-\item{anno_top}{How many features to label in each direction, so up to
-\code{2 * anno_top} labels in total.}
+\item{anno_top}{How many features to label in each direction under a signed
+reading (up to \code{2 * anno_top} in total), or how many significant features
+to label under a term reading.}
 
 \item{cex.anno}{Character expansion for those labels.}
 
 \item{xlim, ylim}{Numeric length-2 axis ranges, or \code{NULL} to derive them from
 the data. A supplied range is used as given. Across panels a derived range
-is derived from all of them at once, so the panels can be compared.}
+is derived from all of them at once, so the panels can be compared. Term
+panels start at 0 on the x axis unless \code{xlim} says otherwise.}
 
-\item{xlab}{X axis label, or \code{NULL} to derive it from what \code{log2fc} compares
-in the comparison behind the verdict.}
+\item{xlab}{X axis label, or \code{NULL} to derive it from the effect column the
+verdict carries.}
 
 \item{main}{Plot title. With panels it is the title of the figure, written
 once above them, and each panel is titled with its term.}
@@ -84,10 +87,12 @@ Applied to every panel.}
 \code{NULL} invisibly.
 }
 \description{
-Plots \code{log2fc} against \code{-log10(pvalue)} for the table
+Plots the effect size against \code{-log10(pvalue)} for the table
 \code{\link[=estimate_significance]{estimate_significance()}} returns, colours the features that clear both
-cutoffs by direction and labels the strongest of them. A term reading of a
-factorial comparison is drawn as one panel per term in a single figure.
+cutoffs and labels the strongest of them. Under an omnibus or contrast
+reading the effect is signed \code{log2fc} and points are coloured by direction.
+A term reading of a factorial comparison is drawn as one panel per term, with
+\verb{|log2_effect|} on the x axis and a single significance colour.
 }
 \details{
 The plot margins are restored on exit, but the coordinate system is
@@ -105,23 +110,26 @@ group centre is zero, is capped at the edge of the x axis the same way. Either
 kind of capping is reported in a \code{message()}, since a capped point no longer
 sits at its true coordinate.
 
-What \code{log2fc} compares is not the same question in every scenario, so the x
-axis label follows the comparison the verdict came from. A multi-group omnibus
+What the x axis compares is not the same question in every scenario, so the
+label follows the comparison the verdict came from. A multi-group omnibus
 verdict carries the single fold change its \code{effect} table holds, the level
 furthest from the reference rather than any named pair, and the label says so.
 A factorial omnibus verdict does the same with cells: the reference cell is
 where every factor sits at its first level, and the label names it. A term
-table carries an ANOVA component rather than a ratio of two centres, so
-it is labelled as an effect and not as a fold change; see "The size of a term"
-in \code{\link[=compare_factorial_groups]{compare_factorial_groups()}} for how to read its magnitude. Every other
-reading compares two fixed centres and is labelled \verb{log2 FC}. Pass \code{xlab} to
-override this.
+table carries an ANOVA component rather than a ratio of two centres, so the
+panel plots \verb{|log2_effect|} and is labelled as an absolute effect rather than
+a fold change; see "The size of a term" in \code{\link[=compare_factorial_groups]{compare_factorial_groups()}} for
+how to read its magnitude. Every other reading compares two fixed centres and
+is labelled \verb{log2 FC}. Pass \code{xlab} to override this.
 
 Points are coloured by the same masks that select the labels, so which
 features are highlighted and which are labelled can never disagree. With the
 default arguments those masks reproduce the \code{is_signif} column of the input.
-The labels are drawn in a brighter shade than the points on purpose, so that
-a label stays legible where it overlaps them.
+Signed readings colour up and down separately; a term panel draws significant
+points in black because the axis has no direction, and keeps labels red so
+they stay legible without being read as up-regulation. The labels are drawn
+in a brighter shade than the points on purpose, so that a label stays
+legible where it overlaps them.
 }
 \section{One panel per term}{
 
@@ -134,7 +142,11 @@ counts and is arbitrary.
 
 Every panel is judged by one rule, the cutoffs of the first table, and shares
 the axes with the others unless \code{xlim} or \code{ylim} says otherwise. Both are what
-makes a point in one panel comparable with a point in another.
+makes a point in one panel comparable with a point in another. The shared x
+axis starts at zero and the magnitude cutoff is drawn as a single vertical
+guide, because the plotted quantity is \verb{|log2_effect|} rather than a signed
+fold change. Significant points are black; labels stay red so they are not
+read as up-regulation.
 }
 
 \examples{

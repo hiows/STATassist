@@ -533,11 +533,12 @@ test_that("by = 'term' returns one verdict table per term", {
   for (nm in names(sig$significance)) {
     one <- sig$significance[[nm]]
     expect_identical(names(one),
-                     c("features", "log2fc", "pvalue", "adj_pvalue",
+                     c("features", "log2_effect", "pvalue", "adj_pvalue",
                        "is_signif"))
+    expect_false("log2fc" %in% names(one))
     expect_identical(one$features, res$features)
     at <- res$terms$terms == nm
-    expect_equal(one$log2fc, res$terms$log2_effect[at])
+    expect_equal(one$log2_effect, res$terms$log2_effect[at])
     expect_equal(one$pvalue, res$terms$pval[at])
     expect_equal(one$adj_pvalue, res$terms$pval_adj[at])
     # Which term a table is for travels with it, which is what lets the plot
@@ -547,6 +548,7 @@ test_that("by = 'term' returns one verdict table per term", {
   }
   expect_identical(attr(sig$significance[["wool:tension"]], "term_order"), 2L)
   expect_output(print(sig), "one table per term")
+  expect_output(print(sig), "abs\\(log2_effect\\)")
 })
 
 test_that("by = 'term' adjusts within the term either way", {

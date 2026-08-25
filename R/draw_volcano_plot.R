@@ -1,9 +1,11 @@
 #' Draw a volcano plot
 #'
-#' Plots `log2fc` against `-log10(pvalue)` for the table
+#' Plots the effect size against `-log10(pvalue)` for the table
 #' [estimate_significance()] returns, colours the features that clear both
-#' cutoffs by direction and labels the strongest of them. A term reading of a
-#' factorial comparison is drawn as one panel per term in a single figure.
+#' cutoffs and labels the strongest of them. Under an omnibus or contrast
+#' reading the effect is signed `log2fc` and points are coloured by direction.
+#' A term reading of a factorial comparison is drawn as one panel per term, with
+#' `|log2_effect|` on the x axis and a single significance colour.
 #'
 #' @param significance_result The object returned by
 #'   [estimate_significance()], whose `significance` element is what is plotted.
@@ -26,18 +28,21 @@
 #'   [estimate_significance()] recorded on `significance_result`, so the guides
 #'   agree with its `is_signif` column. Supply a number to override them.
 #'   Selecting a subset of rows keeps the recorded values, but selecting
-#'   columns drops them, in which case both must be given.
+#'   columns drops them, in which case both must be given. Under a term reading
+#'   the magnitude cutoff is applied to `abs(log2_effect)`.
 #' @param anno_feats Logical. If `TRUE`, label the strongest significant
 #'   features. A run where no feature clears both cutoffs still draws the plot,
 #'   with a `message()` in place of the labels.
-#' @param anno_top How many features to label in each direction, so up to
-#'   `2 * anno_top` labels in total.
+#' @param anno_top How many features to label in each direction under a signed
+#'   reading (up to `2 * anno_top` in total), or how many significant features
+#'   to label under a term reading.
 #' @param cex.anno Character expansion for those labels.
 #' @param xlim,ylim Numeric length-2 axis ranges, or `NULL` to derive them from
 #'   the data. A supplied range is used as given. Across panels a derived range
-#'   is derived from all of them at once, so the panels can be compared.
-#' @param xlab X axis label, or `NULL` to derive it from what `log2fc` compares
-#'   in the comparison behind the verdict.
+#'   is derived from all of them at once, so the panels can be compared. Term
+#'   panels start at 0 on the x axis unless `xlim` says otherwise.
+#' @param xlab X axis label, or `NULL` to derive it from the effect column the
+#'   verdict carries.
 #' @param main Plot title. With panels it is the title of the figure, written
 #'   once above them, and each panel is titled with its term.
 #' @param cex.lab,cex.axis,cex.main Character expansion for the axis labels,
@@ -64,23 +69,26 @@
 #' kind of capping is reported in a `message()`, since a capped point no longer
 #' sits at its true coordinate.
 #'
-#' What `log2fc` compares is not the same question in every scenario, so the x
-#' axis label follows the comparison the verdict came from. A multi-group omnibus
+#' What the x axis compares is not the same question in every scenario, so the
+#' label follows the comparison the verdict came from. A multi-group omnibus
 #' verdict carries the single fold change its `effect` table holds, the level
 #' furthest from the reference rather than any named pair, and the label says so.
 #' A factorial omnibus verdict does the same with cells: the reference cell is
 #' where every factor sits at its first level, and the label names it. A term
-#' table carries an ANOVA component rather than a ratio of two centres, so
-#' it is labelled as an effect and not as a fold change; see "The size of a term"
-#' in [compare_factorial_groups()] for how to read its magnitude. Every other
-#' reading compares two fixed centres and is labelled `log2 FC`. Pass `xlab` to
-#' override this.
+#' table carries an ANOVA component rather than a ratio of two centres, so the
+#' panel plots `|log2_effect|` and is labelled as an absolute effect rather than
+#' a fold change; see "The size of a term" in [compare_factorial_groups()] for
+#' how to read its magnitude. Every other reading compares two fixed centres and
+#' is labelled `log2 FC`. Pass `xlab` to override this.
 #'
 #' Points are coloured by the same masks that select the labels, so which
 #' features are highlighted and which are labelled can never disagree. With the
 #' default arguments those masks reproduce the `is_signif` column of the input.
-#' The labels are drawn in a brighter shade than the points on purpose, so that
-#' a label stays legible where it overlaps them.
+#' Signed readings colour up and down separately; a term panel draws significant
+#' points in black because the axis has no direction, and keeps labels red so
+#' they stay legible without being read as up-regulation. The labels are drawn
+#' in a brighter shade than the points on purpose, so that a label stays
+#' legible where it overlaps them.
 #'
 #' @section One panel per term:
 #' A term reading is drawn as a figure rather than asked to name one table,
@@ -92,7 +100,11 @@
 #'
 #' Every panel is judged by one rule, the cutoffs of the first table, and shares
 #' the axes with the others unless `xlim` or `ylim` says otherwise. Both are what
-#' makes a point in one panel comparable with a point in another.
+#' makes a point in one panel comparable with a point in another. The shared x
+#' axis starts at zero and the magnitude cutoff is drawn as a single vertical
+#' guide, because the plotted quantity is `|log2_effect|` rather than a signed
+#' fold change. Significant points are black; labels stay red so they are not
+#' read as up-regulation.
 #'
 #' @seealso [estimate_significance()], whose output is the only argument this
 #'   function needs.
@@ -362,7 +374,8 @@ sa_volcano_p_col <- function(use_adjusted) {
 #' @keywords internal
 #' @noRd
 sa_volcano_check_cols <- function(tbl, p_col) {
-  absent <- setdiff(c("features", "log2fc", p_col), names(tbl))
+  effect_col <- sa_verdict_effect_col(tbl)
+  absent <- setdiff(c("features", effect_col, p_col), names(tbl))
   if (length(absent) > 0L) {
     stop("`significance_result` is missing the column(s) ",
          paste(absent, collapse = ", "),
@@ -414,14 +427,19 @@ sa_volcano_lims <- function(tables, p_col, log2fc_cutoff, pval_cutoff, xlim,
     return(list(xlim = xlim, ylim = ylim))
   }
 
+  effect_col <- sa_verdict_effect_col(tables[[1]])
+  magnitude <- effect_col == "log2_effect"
   pull <- function(f) unlist(lapply(tables, f), use.names = FALSE)
   neglog_p <- -log10(pull(function(tbl) tbl[[p_col]]))
-  log2fc <- pull(function(tbl) tbl$log2fc)
+  effect <- pull(function(tbl) tbl[[effect_col]])
+  if (magnitude) {
+    effect <- abs(effect)
+  }
   y_finite <- neglog_p[is.finite(neglog_p)]
-  x_finite <- log2fc[is.finite(log2fc)]
+  x_finite <- effect[is.finite(effect)]
   if (length(y_finite) == 0L || length(x_finite) == 0L) {
-    stop("nothing can be plotted: no feature has both a finite `log2fc` and a ",
-         "finite -log10(`", p_col, "`).", call. = FALSE)
+    stop("nothing can be plotted: no feature has both a finite `",
+         effect_col, "` and a finite -log10(`", p_col, "`).", call. = FALSE)
   }
 
   # A run where every p-value is 1 leaves the top at 0, which is not a usable
@@ -429,7 +447,11 @@ sa_volcano_lims <- function(tables, p_col, log2fc_cutoff, pval_cutoff, xlim,
   y_top <- max(max(y_finite), -log10(pval_cutoff), 1)
   x_max <- max(max(abs(x_finite)), log2fc_cutoff)
 
-  list(xlim = if (is.null(xlim)) c(-x_max, x_max) * 1.05 else xlim,
+  list(xlim = if (is.null(xlim)) {
+         if (magnitude) c(0, x_max) * c(1, 1.05) else c(-x_max, x_max) * 1.05
+       } else {
+         xlim
+       },
        ylim = if (is.null(ylim)) c(0, y_top * 1.1) else ylim)
 }
 
@@ -459,7 +481,10 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
 
   feats <- as.character(tbl$features)
   sa_check_feat_names(feats)
-  log2fc <- tbl$log2fc
+  effect_col <- sa_verdict_effect_col(tbl)
+  magnitude <- effect_col == "log2_effect"
+  effect <- tbl[[effect_col]]
+  mag <- if (magnitude) abs(effect) else effect
   pvalue <- tbl[[p_col]]
   sa_check_pvalues(pvalue, p_col)
 
@@ -484,30 +509,41 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
   # Capped points are pulled just inside the panel rather than onto its edge, so
   # that a label still fits above them.
   plot_y <- neglog_p
-  plot_x <- log2fc
+  plot_x <- mag
   inf_y <- is.infinite(plot_y)
   inf_x <- is.infinite(plot_x)
   n_capped_y <- sum(inf_y)
   n_capped_x <- sum(inf_x)
   plot_y[inf_y] <- max(ylim) - 2 * label_offset
-  plot_x[inf_x] <- ifelse(plot_x[inf_x] > 0,
-                          max(xlim) - diff(xlim) * 0.02,
-                          min(xlim) + diff(xlim) * 0.02)
+  if (magnitude) {
+    plot_x[inf_x] <- max(xlim) - diff(xlim) * 0.02
+  } else {
+    plot_x[inf_x] <- ifelse(plot_x[inf_x] > 0,
+                            max(xlim) - diff(xlim) * 0.02,
+                            min(xlim) + diff(xlim) * 0.02)
+  }
   if (n_capped_y > 0L || n_capped_x > 0L) {
     message("Drew ", max(n_capped_y, n_capped_x),
             " point(s) at the edge of the plot",
             if (n_capped_y > 0L) paste0(" (", n_capped_y, " with p = 0)"),
             if (n_capped_x > 0L) {
-              paste0(" (", n_capped_x, " with an infinite log2 fold change)")
+              paste0(" (", n_capped_x, " with an infinite ", effect_col, ")")
             },
             "; their true position is off the axis.")
   }
 
-  # One mask per direction, shared by the points and the labels so that a point
-  # can never be coloured as changed while its label is left out, or vice versa.
+  # One mask per direction (or one mask for magnitude), shared by the points and
+  # the labels so that a point can never be coloured as changed while its label
+  # is left out, or vice versa.
   passes_p <- !is.na(pvalue) & pvalue <= pval_cutoff
-  is_up <- passes_p & !is.na(log2fc) & log2fc >= log2fc_cutoff
-  is_down <- passes_p & !is.na(log2fc) & log2fc <= -log2fc_cutoff
+  if (magnitude) {
+    is_hit <- passes_p & !is.na(mag) & mag >= log2fc_cutoff
+    is_up <- is_hit
+    is_down <- rep(FALSE, length(is_hit))
+  } else {
+    is_up <- passes_p & !is.na(mag) & mag >= log2fc_cutoff
+    is_down <- passes_p & !is.na(mag) & mag <= -log2fc_cutoff
+  }
 
   # Only `mar` is restored, not every settable parameter. A blanket
   # par(no.readonly = TRUE) restore would also put `usr` back, resetting the
@@ -541,26 +577,44 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
     col = ns_color,
     ...
   )
-  graphics::abline(
-    h = -log10(pval_cutoff),
-    v = c(-log2fc_cutoff, log2fc_cutoff),
-    col = "green3", lwd = 2, lty = 3
-  )
+  if (magnitude) {
+    graphics::abline(
+      h = -log10(pval_cutoff),
+      v = log2fc_cutoff,
+      col = "green3", lwd = 2, lty = 3
+    )
+  } else {
+    graphics::abline(
+      h = -log10(pval_cutoff),
+      v = c(-log2fc_cutoff, log2fc_cutoff),
+      col = "green3", lwd = 2, lty = 3
+    )
+  }
 
-  graphics::points(plot_x[is_up], plot_y[is_up], col = up_color, pch = 16)
-  graphics::points(plot_x[is_down], plot_y[is_down], col = down_color, pch = 16)
+  if (magnitude) {
+    graphics::points(plot_x[is_up], plot_y[is_up], col = "black", pch = 16)
+  } else {
+    graphics::points(plot_x[is_up], plot_y[is_up], col = up_color, pch = 16)
+    graphics::points(plot_x[is_down], plot_y[is_down], col = down_color, pch = 16)
+  }
 
   if (anno_feats && anno_top >= 1) {
-    # Strongest first means smallest p-value, then largest fold change away from
-    # zero in the direction concerned.
+    # Strongest first means smallest p-value, then largest magnitude away from
+    # zero in the direction concerned (or away from zero under a term reading).
     pick <- function(mask, decreasing) {
       i <- which(mask)
-      i <- i[order(pvalue[i], if (decreasing) -log2fc[i] else log2fc[i])]
+      i <- i[order(pvalue[i], if (decreasing) -mag[i] else mag[i])]
       i[seq_len(min(anno_top, length(i)))]
     }
-    up_idx <- pick(is_up, TRUE)
-    down_idx <- pick(is_down, FALSE)
-    idx <- c(up_idx, down_idx)
+    if (magnitude) {
+      idx <- pick(is_up, TRUE)
+      up_idx <- idx
+      down_idx <- integer(0)
+    } else {
+      up_idx <- pick(is_up, TRUE)
+      down_idx <- pick(is_down, FALSE)
+      idx <- c(up_idx, down_idx)
+    }
 
     # text() treats a zero-length `labels` as an error rather than as nothing to
     # draw, so a run where no feature clears both cutoffs has to stop here.
@@ -589,8 +643,9 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
 #' omnibus verdict holds the level furthest from the reference, and which level
 #' that is differs per feature. A factorial omnibus verdict does the same with
 #' cells rather than levels. A term table holds an ANOVA component, a
-#' deviation from what the rest of the model predicts rather than a ratio at all.
-#' A contrast table of the same comparison does compare a named pair, so it is
+#' deviation from what the rest of the model predicts rather than a ratio at all,
+#' and the panel plots its absolute value so the axis has no direction. A
+#' contrast table of the same comparison does compare a named pair, so it is
 #' left alone.
 #'
 #' @keywords internal
@@ -598,7 +653,9 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
 sa_volcano_xlab <- function(tbl) {
   term <- attr(tbl, "term")
   if (!is.null(term)) {
-    return(as.expression(bquote(log[2] ~ effect ~ .(paste0("(", term, ")")))))
+    return(as.expression(
+      bquote("|" ~ log[2] ~ effect ~ "|" ~ .(paste0("(", term, ")")))
+    ))
   }
   if (!is.null(attr(tbl, "contrast"))) {
     return(expression(log[2] ~ FC))

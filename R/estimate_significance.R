@@ -16,8 +16,10 @@
 #'   `names(comparison_result$tests)`, so `"t_test"`, `"wilcox_test"` or
 #'   `"robust_test"` for a two-group comparison. Defaults to the first test the
 #'   scenario ran, which is the parametric one in every scenario.
-#' @param log2fc_cutoff Minimum `abs(log2fc)` required to call a feature
-#'   significant. The default of 1 is a two-fold change.
+#' @param log2fc_cutoff Minimum absolute effect size required to call a feature
+#'   significant. Under `by = "omnibus"` and `by = "contrast"` that is
+#'   `abs(log2fc)`; under `by = "term"` it is `abs(log2_effect)`. The default of
+#'   1 is a two-fold change on a fold-change axis.
 #' @param pval_cutoff Largest `adj_pvalue` allowed for a feature to be called
 #'   significant.
 #' @param adj_type Multiplicity adjustment. `NULL`, the default, reuses the
@@ -31,7 +33,7 @@
 #'   multi-group comparison and returns one verdict table per contrast. `"term"`
 #'   uses the `$terms` table of a factorial comparison and returns one verdict
 #'   table per model term, each carrying that term's own effect size in
-#'   `log2fc`.
+#'   `log2_effect` rather than `log2fc`.
 #'
 #' @return An `sa_significance` object, a list of two elements:
 #'   \describe{
@@ -44,9 +46,10 @@
 #'       and a factorial one carries `extreme_cell`, naming the level or cell
 #'       whose centre produced `log2fc`. With `by = "contrast"`, a list of those
 #'       same data.frames, one per pairwise contrast and named after it, in the
-#'       order `comparison_result$pairwise[[test]]` fixes. With `by = "term"`, the
-#'       same again, one per model term and named after it, in the order
-#'       `comparison_result$terms` lists them.}
+#'       order `comparison_result$pairwise[[test]]` fixes. With `by = "term"`,
+#'       one data.frame per model term named after it, in the order
+#'       `comparison_result$terms` lists them, with `log2_effect` in place of
+#'       `log2fc`.}
 #'   }
 #'
 #'   The cutoffs, the test name and the adjustment actually used are attached to
@@ -58,9 +61,10 @@
 #'   list of term tables can, which is how the term panels are drawn.
 #'
 #' @details
-#' `is_signif` combines `abs(log2fc) >= log2fc_cutoff` with
+#' `is_signif` combines the absolute effect size against `log2fc_cutoff` with
 #' `adj_pvalue <= pval_cutoff`, and is therefore judged on the adjusted
-#' p-values. Pass `adj_type = "none"` to test the raw ones.
+#' p-values. Pass `adj_type = "none"` to test the raw ones. The effect column is
+#' `log2fc` except under `by = "term"`, where it is `log2_effect`.
 #'
 #' The two ways of reading a multi-group comparison answer different questions
 #' and use different numbers. `by = "omnibus"` asks whether a feature differs
@@ -89,13 +93,16 @@
 #' both branches adjust across the features of one term, which is the family
 #' `$terms$pval_adj` was built over as well.
 #'
-#' The `log2fc` of a term table is `$terms$log2_effect`, an ANOVA component rather
-#' than a ratio of two centres. It measures a deviation from what the rest of the
-#' model predicts, so a two-level factor whose levels differ by one log2 unit
-#' contributes -0.5 and +0.5 rather than 1. The default `log2fc_cutoff = 1` is
-#' therefore a stricter demand here than the same number is elsewhere; halving it
-#' asks of a two-level factor what the default asks of a fold change. See "The
-#' size of a term" in [compare_factorial_groups()].
+#' A term table carries `log2_effect`, the same ANOVA component
+#' `$terms$log2_effect` holds, rather than a ratio of two centres renamed to
+#' `log2fc`. It measures a deviation from what the rest of the model predicts, so
+#' a two-level factor whose levels differ by one log2 unit contributes -0.5 and
+#' +0.5 rather than 1. The default `log2fc_cutoff = 1` is therefore a stricter
+#' demand here than the same number is elsewhere; halving it asks of a two-level
+#' factor what the default asks of a fold change. See "The size of a term" in
+#' [compare_factorial_groups()]. The column name matches the quantity so a term
+#' volcano does not read as a fold-change plot; [draw_volcano_plot()] plots
+#' `|log2_effect|` on that axis.
 #'
 #' A feature whose omnibus test did not clear `posthoc_alpha` was never compared
 #' pairwise, so its `pvalue` is `NA` in every contrast table. Its `log2fc` is
@@ -268,23 +275,42 @@ sa_significance_attrs <- function(comparison_result, test, adj_used,
 }
 
 
-#' The verdict table both reading of a comparison produce
+#' The effect-size column a verdict table carries
 #'
-#' Shared so that the two axes and the rule combining them cannot drift apart
-#' between the omnibus and the contrast paths.
+#' Term readings store the ANOVA component under `log2_effect`; every other
+#' reading keeps `log2fc`. [draw_volcano_plot()] and [print.sa_significance()]
+#' both ask here so the column they read cannot drift from the one the table
+#' was built with.
 #'
 #' @keywords internal
 #' @noRd
-sa_significance_table <- function(features, log2fc, pvalue, adj_pvalue,
-                                  log2fc_cutoff, pval_cutoff) {
+sa_verdict_effect_col <- function(tbl) {
+  if ("log2_effect" %in% names(tbl)) "log2_effect" else "log2fc"
+}
+
+
+#' The verdict table both reading of a comparison produce
+#'
+#' Shared so that the two axes and the rule combining them cannot drift apart
+#' between the omnibus and the contrast paths. `effect_col` is `"log2fc"` for
+#' those paths and `"log2_effect"` for a term reading.
+#'
+#' @keywords internal
+#' @noRd
+sa_significance_table <- function(features, effect, pvalue, adj_pvalue,
+                                  log2fc_cutoff, pval_cutoff,
+                                  effect_col = "log2fc") {
   out <- data.frame(
     features   = features,
-    log2fc     = log2fc,
     pvalue     = pvalue,
     adj_pvalue = adj_pvalue,
     stringsAsFactors = FALSE
   )
-  out$is_signif <- abs(out$log2fc) >= log2fc_cutoff &
+  out[[effect_col]] <- effect
+  # Keep the effect column between features and pvalue, matching the historical
+  # column order of the fold-change reading.
+  out <- out[c("features", effect_col, "pvalue", "adj_pvalue")]
+  out$is_signif <- abs(out[[effect_col]]) >= log2fc_cutoff &
     out$adj_pvalue <= pval_cutoff
   rownames(out) <- NULL
   out
@@ -327,7 +353,8 @@ sa_significance_by_term <- function(comparison_result, test, adj_type,
     }
 
     out <- sa_significance_table(tbl$features, tbl$log2_effect, pvalue,
-                                 adj_pvalue, log2fc_cutoff, pval_cutoff)
+                                 adj_pvalue, log2fc_cutoff, pval_cutoff,
+                                 effect_col = "log2_effect")
 
     do.call(structure,
             c(list(out),
@@ -416,7 +443,8 @@ print.sa_significance <- function(x, ...) {
   # stage adjusted nothing and the attribute is absent rather than "none".
   adj_used <- attr(head_tbl, "adj_type")
   if (is.null(adj_used)) adj_used <- "none"
-  cat("  cutoffs  : abs(log2fc) >= ", attr(head_tbl, "log2fc_cutoff"),
+  effect_col <- sa_verdict_effect_col(head_tbl)
+  cat("  cutoffs  : abs(", effect_col, ") >= ", attr(head_tbl, "log2fc_cutoff"),
       ", adj_pvalue <= ", attr(head_tbl, "pval_cutoff"),
       "  (", adj_used, ")\n", sep = "")
 

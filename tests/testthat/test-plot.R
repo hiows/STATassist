@@ -376,14 +376,27 @@ test_that("the x axis names what a multi-group log2fc compares", {
                               by = "contrast")$significance
   expect_identical(sa_volcano_xlab(ct[[1]]), expression(log[2] ~ FC))
 
-  # A term component is not a ratio of two centres at all, so it is not labelled
-  # as a fold change.
+  # A term component is not a ratio of two centres at all, so it is plotted as
+  # an absolute effect rather than a signed fold change.
   term <- estimate_significance(sa_factorial_fixture(posthoc = FALSE),
                                 by = "term")$significance
   lab <- deparse(sa_volcano_xlab(term[["wool:tension"]]))
   expect_true(grepl("effect", lab, fixed = TRUE))
   expect_true(grepl("(wool:tension)", lab, fixed = TRUE))
   expect_false(grepl("FC", lab, fixed = TRUE))
+  expect_true(grepl("|", lab, fixed = TRUE))
+
+  # Term panels share a magnitude axis that starts at zero; omnibus stays
+  # symmetric around zero.
+  term_lims <- sa_volcano_lims(term, "adj_pvalue", 1, 0.05, NULL, NULL)
+  expect_equal(term_lims$xlim[1], 0)
+  expect_gt(term_lims$xlim[2], 0)
+  omni <- estimate_significance(sa_factorial_fixture(posthoc = FALSE),
+                                log2fc_cutoff = 0.1)$significance
+  omni_lims <- sa_volcano_lims(list(omni), "adj_pvalue", 0.1, 0.05, NULL, NULL)
+  expect_lt(omni_lims$xlim[1], 0)
+  expect_gt(omni_lims$xlim[2], 0)
+  expect_equal(omni_lims$xlim[1], -omni_lims$xlim[2])
 })
 
 test_that("xlab overrides the derived label", {

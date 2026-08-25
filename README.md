@@ -35,7 +35,7 @@ Install from GitHub:
 ```r
 # install.packages("remotes")
 remotes::install_github("hiows/STATassist")          # latest
-remotes::install_github("hiows/STATassist@v1.0.1")   # pinned to a release
+remotes::install_github("hiows/STATassist@v1.1.0")   # pinned to a release
 ```
 
 Each release is tagged, so the pinned form keeps returning the same code no matter what lands on the default branch afterwards. `v0.6.0` is the previous release, and [NEWS.md](NEWS.md) says what changed between them: a fifth and sixth and seventh result contract for a table, a scored evaluation and a clustering; factorial and categorical comparisons with their own significance and plots; model evaluation on held-out rows; feature-pair association screens; and a grouped barplot beside the boxplot. Nothing an existing call reads has moved.
@@ -577,6 +577,8 @@ draw_forest_plot(
   feats = paste0("prot_", 1:20), sort_by = "pvalue"
 )
 ```
+
+`by = "term"` puts each term's `log2_effect` on its own panel and plots `|log2 effect|`, so the axis is a magnitude rather than an up/down fold change.
 
 ```
 <sa_significance> factorial_comparison

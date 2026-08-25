@@ -1,5 +1,14 @@
 # STATassist (development version)
 
+# STATassist 1.1.0
+
+* `estimate_significance(by = "term")` verdict tables carry `log2_effect`
+  instead of `log2fc` (breaking for callers that read that column by name).
+* Term panels of `draw_volcano_plot()` plot `|log2 effect|` with a single
+  cutoff guide and no up/down colouring.
+* Term volcano significant points are black; labels stay red so they are not
+  read as up-regulation.
+
 # STATassist 1.0.1
 
 * `compare_factorial_groups()` `$terms$log2_effect` treats absolute values

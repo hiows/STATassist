@@ -26,8 +26,10 @@ counterpart and reads the cell axis instead.}
 \code{"robust_test"} for a two-group comparison. Defaults to the first test the
 scenario ran, which is the parametric one in every scenario.}
 
-\item{log2fc_cutoff}{Minimum \code{abs(log2fc)} required to call a feature
-significant. The default of 1 is a two-fold change.}
+\item{log2fc_cutoff}{Minimum absolute effect size required to call a feature
+significant. Under \code{by = "omnibus"} and \code{by = "contrast"} that is
+\code{abs(log2fc)}; under \code{by = "term"} it is \code{abs(log2_effect)}. The default of
+1 is a two-fold change on a fold-change axis.}
 
 \item{pval_cutoff}{Largest \code{adj_pvalue} allowed for a feature to be called
 significant.}
@@ -44,7 +46,7 @@ uses the named test's own table. \code{"contrast"} uses the pairwise stage of a
 multi-group comparison and returns one verdict table per contrast. \code{"term"}
 uses the \verb{$terms} table of a factorial comparison and returns one verdict
 table per model term, each carrying that term's own effect size in
-\code{log2fc}.}
+\code{log2_effect} rather than \code{log2fc}.}
 }
 \value{
 An \code{sa_significance} object, a list of two elements:
@@ -58,9 +60,10 @@ feature and the columns \code{features}, \code{log2fc}, \code{pvalue}, \code{adj
 and a factorial one carries \code{extreme_cell}, naming the level or cell
 whose centre produced \code{log2fc}. With \code{by = "contrast"}, a list of those
 same data.frames, one per pairwise contrast and named after it, in the
-order \code{comparison_result$pairwise[[test]]} fixes. With \code{by = "term"}, the
-same again, one per model term and named after it, in the order
-\code{comparison_result$terms} lists them.}
+order \code{comparison_result$pairwise[[test]]} fixes. With \code{by = "term"},
+one data.frame per model term named after it, in the order
+\code{comparison_result$terms} lists them, with \code{log2_effect} in place of
+\code{log2fc}.}
 }
 
 The cutoffs, the test name and the adjustment actually used are attached to
@@ -79,9 +82,10 @@ be read out through the parametric, the rank-based or the robust lens without
 recomputing anything.
 }
 \details{
-\code{is_signif} combines \code{abs(log2fc) >= log2fc_cutoff} with
+\code{is_signif} combines the absolute effect size against \code{log2fc_cutoff} with
 \code{adj_pvalue <= pval_cutoff}, and is therefore judged on the adjusted
-p-values. Pass \code{adj_type = "none"} to test the raw ones.
+p-values. Pass \code{adj_type = "none"} to test the raw ones. The effect column is
+\code{log2fc} except under \code{by = "term"}, where it is \code{log2_effect}.
 
 The two ways of reading a multi-group comparison answer different questions
 and use different numbers. \code{by = "omnibus"} asks whether a feature differs
@@ -110,13 +114,16 @@ and needs no choice of adjustment axis:
 both branches adjust across the features of one term, which is the family
 \verb{$terms$pval_adj} was built over as well.
 
-The \code{log2fc} of a term table is \verb{$terms$log2_effect}, an ANOVA component rather
-than a ratio of two centres. It measures a deviation from what the rest of the
-model predicts, so a two-level factor whose levels differ by one log2 unit
-contributes -0.5 and +0.5 rather than 1. The default \code{log2fc_cutoff = 1} is
-therefore a stricter demand here than the same number is elsewhere; halving it
-asks of a two-level factor what the default asks of a fold change. See "The
-size of a term" in \code{\link[=compare_factorial_groups]{compare_factorial_groups()}}.
+A term table carries \code{log2_effect}, the same ANOVA component
+\verb{$terms$log2_effect} holds, rather than a ratio of two centres renamed to
+\code{log2fc}. It measures a deviation from what the rest of the model predicts, so
+a two-level factor whose levels differ by one log2 unit contributes -0.5 and
++0.5 rather than 1. The default \code{log2fc_cutoff = 1} is therefore a stricter
+demand here than the same number is elsewhere; halving it asks of a two-level
+factor what the default asks of a fold change. See "The size of a term" in
+\code{\link[=compare_factorial_groups]{compare_factorial_groups()}}. The column name matches the quantity so a term
+volcano does not read as a fold-change plot; \code{\link[=draw_volcano_plot]{draw_volcano_plot()}} plots
+\verb{|log2_effect|} on that axis.
 
 A feature whose omnibus test did not clear \code{posthoc_alpha} was never compared
 pairwise, so its \code{pvalue} is \code{NA} in every contrast table. Its \code{log2fc} is
