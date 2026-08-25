@@ -205,12 +205,14 @@ verdict of \code{estimate_significance(fact, by = "term")}.
 
 A component is a deviation from what the rest of the model already predicts,
 \strong{not} a difference between two levels. A two-level factor whose levels differ
-by one log2 unit has components \code{-0.5} and \code{+0.5}, so \code{log2_effect} is \code{0.5}
-where the marginal fold change is 2. The definition is kept because it is the
-one \code{simulate_factorial_groups()} records in \code{truth_term$max_abs_delta}, which
-makes the column scorable against an answer key; the consequence is that
-cutoffs meant for a fold change, \code{log2fc_cutoff = 1} among them, are stricter
-here than they look.
+by one log2 unit has components \code{-0.5} and \code{+0.5}, so \verb{|log2_effect|} is \code{0.5}
+where the marginal fold change is 2. Exact and near ties in absolute value
+(within the factorial tolerance) keep the earlier, reference cell's sign; do
+not read that sign as a treatment-versus-control direction. The definition is
+kept because it is the one \code{simulate_factorial_groups()} records in
+\code{truth_term$max_abs_delta}, which makes the column scorable against an answer
+key; the consequence is that cutoffs meant for a fold change,
+\code{log2fc_cutoff = 1} among them, are stricter here than they look.
 
 Components do not depend on which cell is the reference, since subtracting one
 cell from every cell cancels out of the deviation. That is the one place the

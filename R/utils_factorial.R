@@ -241,6 +241,31 @@ sa_fact_collapse <- function(eff, cells, keep) {
 }
 
 
+#' Index of the largest `|component|`, with near-ties taking the earlier cell
+#'
+#' Values within `sa_fact_tol()` of the running maximum are treated as equal, so
+#' a two-level factor's `-d/2` / `+d/2` pair keeps the earlier (reference) cell
+#' even when floating point has made one side a hair larger.
+#'
+#' @keywords internal
+#' @noRd
+sa_fact_first_max_abs <- function(comp) {
+  best <- -Inf
+  chosen <- NA_integer_
+  for (i in seq_along(comp)) {
+    magnitude <- abs(comp[[i]])
+    if (!is.finite(magnitude)) {
+      next
+    }
+    if (is.na(chosen) || magnitude > best + sa_fact_tol()) {
+      best <- magnitude
+      chosen <- i
+    }
+  }
+  if (is.na(chosen)) 1L else chosen
+}
+
+
 #' The largest effect each term accounts for, with its sign
 #'
 #' One number per term out of the whole component vector, so that a term has an
@@ -261,8 +286,10 @@ sa_fact_collapse <- function(eff, cells, keep) {
 #' @param cells Grid of level indices, as `sa_fact_grid()` returns.
 #' @param terms List of character vectors, as `sa_fact_terms()` returns.
 #'
-#' @return Numeric vector, one entry per term, in `terms` order. Ties in absolute
-#'   value take the earlier cell, which is the earlier level of the first factor.
+#' @return Numeric vector, one entry per term, in `terms` order. Absolute values
+#'   within `sa_fact_tol()` of the maximum are treated as a tie (exact or near),
+#'   and the earlier cell wins — the earlier level of the first factor, which is
+#'   the reference after `control_label`.
 #'
 #' @keywords internal
 #' @noRd
@@ -272,7 +299,7 @@ sa_fact_term_effect <- function(eff, cells, terms) {
     if (all(is.na(comp))) {
       return(NA_real_)
     }
-    comp[which.max(abs(comp))]
+    comp[[sa_fact_first_max_abs(comp)]]
   }, numeric(1), USE.NAMES = FALSE)
 }
 

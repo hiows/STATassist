@@ -1,8 +1,11 @@
 # STATassist (development version)
 
-* CRAN submission prep: shortened DESCRIPTION Description, declared
-  `kernlab` imports, trimmed heavy examples with `\donttest`, and skipped the
-  slowest tests on CRAN (`skip_on_cran()`).
+# STATassist 1.0.1
+
+* `compare_factorial_groups()` `$terms$log2_effect` treats absolute values
+  within the factorial tolerance as a tie and keeps the earlier (reference)
+  cell, matching the Python port so a two-level term no longer flips sign on an
+  ULP.
 
 # STATassist 1.0.0
 

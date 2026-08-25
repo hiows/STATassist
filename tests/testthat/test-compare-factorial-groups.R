@@ -465,6 +465,25 @@ test_that("log2_effect is the term's own share of the cell centres", {
   expect_equal(eff[["a:b"]], 0)
 })
 
+test_that("near-ties in |component| keep the earlier cell", {
+  tol <- sa_fact_tol()
+  # Later cell is larger by less than tol — bare which.max flips; near-tie does not.
+  tipped <- c(-1, 1 + tol / 2)
+  expect_identical(which.max(abs(tipped)), 2L)
+  expect_identical(sa_fact_first_max_abs(tipped), 1L)
+  expect_equal(tipped[[sa_fact_first_max_abs(tipped)]], -1)
+
+  # A clearly larger later cell still wins.
+  expect_identical(sa_fact_first_max_abs(c(-1, 1 + 2 * tol)), 2L)
+
+  lv <- list(a = c("a1", "a2"), b = c("b1", "b2"))
+  cells <- sa_fact_grid(lv)
+  terms <- sa_fact_terms(names(lv))
+  # Exact additive ±1 tie: earlier (reference) cell of `a` keeps the sign.
+  exact <- sa_fact_term_effect(c(0, 2, 2, 4), cells, terms)
+  expect_equal(exact[[1]], -1)
+})
+
 test_that("the components of every term add back up to the cells", {
   lv <- list(a = c("a1", "a2", "a3"), b = c("b1", "b2"))
   cells <- sa_fact_grid(lv)
