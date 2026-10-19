@@ -30,7 +30,13 @@ And the same wide input feeds the plots that look at the data instead of at a re
 
 ## Installation
 
-Install from GitHub:
+Install from CRAN:
+
+```r
+install.packages("STATassist")
+```
+
+Or from GitHub:
 
 ```r
 # install.packages("remotes")
@@ -39,8 +45,6 @@ remotes::install_github("hiows/STATassist@v1.1.0")   # pinned to a release
 ```
 
 Each release is tagged, so the pinned form keeps returning the same code no matter what lands on the default branch afterwards. `v0.6.0` is the previous release, and [NEWS.md](NEWS.md) says what changed between them: a fifth and sixth and seventh result contract for a table, a scored evaluation and a clustering; factorial and categorical comparisons with their own significance and plots; model evaluation on held-out rows; feature-pair association screens; and a grouped barplot beside the boxplot. Nothing an existing call reads has moved.
-
-The package is not on CRAN yet. When it is submitted, this README will note the CRAN line as well.
 
 ---
 
@@ -751,6 +755,30 @@ compare_one_sample(flag, "is_case", mu = 0.5, p = 0.5)$tests$prop_test
   pval_adj lower_conf upper_conf
 1        1  0.4038315  0.5961685
 ```
+
+A single sample is compared with a number rather than with a second group, so there is no fold change to read. `estimate_significance()` judges a one-sample result on the p-value alone, ignores `log2fc_cutoff`, and carries the distance the test estimated from its reference instead of `log2fc`: `delta_mu` for `t_test` and `wilcox_test`, `delta_p` (the proportion minus `p`) for `prop_test`.
+
+```r
+one_all <- compare_one_sample(sim$args$data, sim$args$feats, mu = 8)
+one_sig <- estimate_significance(one_all)
+one_sig
+head(one_sig$significance, 4)
+draw_volcano_plot(one_sig)
+```
+
+```
+<sa_significance> one_sample_comparison
+  test     : t_test  (One-sample t-test)
+  cutoffs  : adj_pvalue <= 0.05  (BH)
+  verdict  : 26 of 30 significant
+  features    delta_mu       pvalue   adj_pvalue is_signif
+1   gene_1  0.02328081 9.356100e-01 9.356100e-01     FALSE
+2   gene_2 -0.09435493 6.634470e-01 7.108360e-01     FALSE
+3   gene_3 -5.15043076 5.537422e-41 2.768711e-40      TRUE
+4   gene_4 -2.01106263 3.649841e-19 6.083069e-19      TRUE
+```
+
+`draw_volcano_plot()` draws each feature at its estimate, so the x axis reads on the scale of the data with `mu = 8` in the middle, symmetric about it, and is labelled `mean (Δ from μ = 8)`. The y axis is `-log10` of the adjusted p-value as in every other volcano plot.
 
 ### 11. Check the assumptions before choosing a test
 

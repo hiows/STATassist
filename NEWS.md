@@ -1,5 +1,25 @@
 # STATassist (development version)
 
+* `compare_one_sample()` no longer takes a fold change against `mu`: `$effect`
+  drops `fold_change` and `log2fc` and keeps `n_used`, `center`, `mu` and
+  `diff` (breaking for callers that read those two columns). The `mu = 0`
+  message about an undefined ratio is gone with them. `fc_mean` and
+  `input_scale` still choose the `center` and `diff` they report.
+* `estimate_significance()` judges a `compare_one_sample()` result on the
+  p-value alone: `is_signif` is `adj_pvalue <= pval_cutoff` and
+  `log2fc_cutoff` is ignored. The verdict table carries the distance the named
+  test estimated from its reference in place of `log2fc` (breaking): `delta_mu`
+  for `t_test` (mean minus `mu`) and `wilcox_test` (pseudo-median minus `mu`),
+  `delta_p` for `prop_test` (proportion minus `p`), on the scale the test ran
+  on. The table records `reference` and `estimate_label` attributes instead of
+  `log2fc_cutoff`, and `print()` shows the p-value cutoff only.
+* `draw_volcano_plot()` draws a one-sample verdict around its reference: each
+  point sits at the estimate itself (reference plus distance), the derived x
+  range is symmetric about the reference, a single vertical guide marks it, and
+  the axis is labelled with the estimate and the reference, such as
+  `mean (Δ from μ = 3)`. The y axis is `-log10 p` as before, `log2fc_cutoff` is
+  ignored, and significant points are red above the reference and blue below.
+
 # STATassist 1.1.0
 
 * `estimate_significance(by = "term")` verdict tables carry `log2_effect`

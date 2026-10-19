@@ -406,6 +406,51 @@ test_that("xlab overrides the derived label", {
   expect_null(draw_volcano_plot(sig, xlab = "fold change"))
 })
 
+test_that("a one-sample volcano is centred on its reference", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  sig <- estimate_significance(sa_one_sample_fixture())
+  tbl <- sig$significance
+  # Asymmetric on purpose: every iris mean except one sits above mu = 3, and
+  # the axis still has to be symmetric about 3 rather than about zero.
+  lims <- sa_volcano_lims(list(tbl), "adj_pvalue", NULL, 0.05, NULL, NULL)
+  expect_equal(mean(lims$xlim), 3)
+  expect_equal(diff(lims$xlim) / 2, max(abs(tbl$delta_mu)) * 1.05)
+
+  expect_null(draw_volcano_plot(sig))
+  expect_equal(mean(graphics::par("usr")[1:2]), 3)
+  # The magnitude cutoff has nothing to apply to and does not move anything.
+  expect_null(draw_volcano_plot(sig, log2fc_cutoff = 100))
+  expect_equal(mean(graphics::par("usr")[1:2]), 3)
+})
+
+test_that("a one-sample volcano labels the estimate and the reference", {
+  res <- sa_one_sample_fixture()
+  t_lab <- sa_volcano_xlab(estimate_significance(res)$significance)
+  expect_match(paste(deparse(t_lab[[1]]), collapse = ""), "mean")
+  expect_match(paste(deparse(t_lab[[1]]), collapse = ""), "Delta")
+  expect_match(paste(deparse(t_lab[[1]]), collapse = ""), "mu == 3")
+
+  flags <- data.frame(am = mtcars$am, vs = mtcars$vs)
+  prop <- suppressWarnings(
+    compare_one_sample(flags, c("am", "vs"), p = 0.3, diagnose = FALSE)
+  )
+  p_tbl <- estimate_significance(prop, test = "prop_test")$significance
+  p_lab <- paste(deparse(sa_volcano_xlab(p_tbl)[[1]]), collapse = "")
+  expect_match(p_lab, "proportion")
+  expect_match(p_lab, "italic\\(p\\) == 0.3")
+  expect_equal(mean(sa_volcano_lims(list(p_tbl), "adj_pvalue", NULL, 0.05,
+                                    NULL, NULL)$xlim), 0.3)
+})
+
+test_that("a one-sample table that lost its reference says so", {
+  skip_if_not_installed("withr")
+  local_null_device()
+  tbl <- estimate_significance(sa_one_sample_fixture())$significance
+  attr(tbl, "reference") <- NULL
+  expect_error(draw_volcano_plot(tbl), "reference")
+})
+
 sa_butterfly_data <- function() iris[iris$Species != "setosa", ]
 
 sa_butterfly_levels <- c("versicolor", "virginica")

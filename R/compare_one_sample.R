@@ -29,15 +29,16 @@
 #'   `"two.sided"`, `"less"` or `"greater"`. `"greater"` tests whether the
 #'   sample exceeds `mu`, and every reported quantity follows that direction.
 #' @param conf_level Confidence level for all reported intervals.
-#' @param fc_mean Which centre the fold change divides `mu` into, `"arith"` for
-#'   the arithmetic mean or `"geom"` for the geometric mean. Defaults to
-#'   `"geom"` when `input_scale = "log2"` and to `"arith"` otherwise. Affects
-#'   the `effect` table only: the t-test is a test of the mean either way.
+#' @param fc_mean Which centre `effect$center` reports, `"arith"` for the
+#'   arithmetic mean or `"geom"` for the geometric mean. Defaults to `"geom"`
+#'   when `input_scale = "log2"` and to `"arith"` otherwise. Affects the
+#'   `center` and `diff` of the `effect` table only: the t-test is a test of the
+#'   mean either way, and no fold change is taken in this scenario.
 #' @param input_scale The scale `data` and `mu` arrive on, `"raw"` or `"log2"`.
-#'   On the log2 scale both are raised back through `2^x` before the ratio is
-#'   taken, so `fold_change` means what it does for raw input. This changes the
-#'   `effect` table only, never the tests. See [compare_two_groups()] for the
-#'   full account.
+#'   On the log2 scale both are raised back through `2^x` before `effect$center`
+#'   and `effect$diff` are taken, so those two read on the original measurement
+#'   scale. This changes the `effect` table only, never the tests. See
+#'   [compare_two_groups()] for the full account.
 #' @param p_adjust Multiplicity adjustment applied across `feats` within each
 #'   test table, passed to [stats::p.adjust()]. Use `"none"` to disable.
 #' @param diagnose Logical. If `TRUE`, the normality check the t-test rests on
@@ -46,8 +47,9 @@
 #' @return A `sa_comparison` object with the layout described in
 #'   [compare_two_groups()], with two differences. `design` carries `mu`,
 #'   `p` and `success` instead of `group_lv`, since there are no groups, and
-#'   `effect` holds `n_used`, `center` (the centre `fc_mean` selected), `mu`,
-#'   `diff`, `fold_change` and `log2fc`, the ratio being that centre over `mu`.
+#'   `effect` holds `n_used`, `center` (the centre `fc_mean` selected), `mu` and
+#'   `diff`, that centre minus `mu`. There is no `fold_change` or `log2fc`: see
+#'   "Distance from a hypothesised value" below.
 #'   Every column of `effect` is on the original measurement scale, so with
 #'   `input_scale = "log2"` its `center`, `mu` and `diff` are back-transformed
 #'   and differ from the same-named columns of `tests$t_test`, which stay on the
@@ -67,18 +69,28 @@
 #'       stays inside `[0, 1]` where a Wald interval does not.}
 #'   }
 #'
-#' @section Fold change against a hypothesised value:
-#' `fold_change` is `center / mu` and `log2fc` its base-2 logarithm, so both are
-#' undefined when `mu` is zero, which is also its most common value. Both
-#' columns are `NA` in that case rather than infinite, a message says so, and
-#' [estimate_significance()] will call every feature undecided. Reporting `Inf`
-#' would read as an infinitely large increase when what actually happened is
-#' that the question has no answer.
+#' @section Distance from a hypothesised value:
+#' A single sample is compared with a number rather than with a second group, so
+#' the effect it reports is a distance from that number and not a ratio. A ratio
+#' against `mu` would be undefined at `mu = 0`, its most common value, and would
+#' change meaning with the sign of `mu`; a distance has neither problem.
 #'
-#' This cannot arise under `input_scale = "log2"`. There the reference is
-#' `2^mu`, which is positive whatever `mu` is, and `mu = 0` simply means a
-#' reference of 1. Under the default `fc_mean = "geom"` the whole row reduces to
-#' `log2fc = mean(x) - mu`.
+#' [estimate_significance()] therefore reads a one-sample result on the p-value
+#' alone: `is_signif` is `adj_pvalue <= pval_cutoff`, and `log2fc_cutoff` is
+#' ignored. Beside the p-value its verdict table carries the distance each test
+#' estimated, on the scale the test ran on:
+#'
+#' \describe{
+#'   \item{`delta_mu`}{For `t_test`, the mean minus `mu`; for `wilcox_test`, the
+#'     Hodges-Lehmann pseudo-median minus `mu`.}
+#'   \item{`delta_p`}{For `prop_test`, the observed proportion minus `p`.}
+#' }
+#'
+#' [draw_volcano_plot()] draws that verdict on an axis centred on the reference.
+#'
+#' With `input_scale = "log2"` the verdict's distance is in log2 units, the
+#' scale the tests ran on, while `effect$diff` is back-transformed to the
+#' original scale, so the two are different numbers.
 #'
 #' @details
 #' Missing values are dropped per feature, so `n_used` varies between features
@@ -160,8 +172,8 @@ compare_one_sample <- function(data,
   })
   names(samples) <- feats
 
-  # The tests take `mu` as supplied, but a ratio needs both sides on the scale
-  # the measurement was made on, so the `effect` table compares against this.
+  # The tests take `mu` as supplied, but the `effect` table reads on the scale
+  # the measurement was made on, so it compares against this.
   mu_ref <- if (input_scale == "log2") 2^mu else mu
   if (!is.finite(mu_ref)) {
     stop("2^`mu` overflows to infinity, so `mu` = ", mu, " is not on the log2 ",
@@ -169,32 +181,20 @@ compare_one_sample <- function(data,
   }
 
   effect <- sa_feature_table(
-    feats, c("n_used", "center", "mu", "diff", "fold_change", "log2fc"),
-    "Fold change against mu", p_adjust = NULL,
+    feats, c("n_used", "center", "mu", "diff"),
+    "Distance from mu", p_adjust = NULL,
     fun = function(i) {
       v <- samples[[i]]
       if (length(v) == 0L) {
         stop("no usable observation left.", call. = FALSE)
       }
       center <- sa_fc_center(v, "sample", fc_mean, input_scale)
-      # mu = 0 is both the usual default and the one value a ratio cannot be
-      # taken against. Reporting Inf would suggest an infinitely large increase
-      # when what happened is that the question has no answer. On the log2 scale
-      # the reference is 2^mu, which is positive whatever mu is, so the case
-      # cannot arise there.
-      ratio <- if (mu_ref == 0) NA_real_ else center / mu_ref
-      c(n_used      = length(v),
-        center      = center,
-        mu          = mu_ref,
-        diff        = center - mu_ref,
-        fold_change = ratio,
-        log2fc      = suppressWarnings(log2(ratio)))
+      c(n_used = length(v),
+        center = center,
+        mu     = mu_ref,
+        diff   = center - mu_ref)
     }
   )
-  if (mu_ref == 0) {
-    message("`mu` is 0, so `fold_change` and `log2fc` are undefined and the ",
-            "`effect` table reports them as NA.")
-  }
 
   t_columns <- c("n_used", "center", "mu", "diff", "stderr", "t_stat", "df",
                  "cohens_d", "pval", "lower_conf", "upper_conf")

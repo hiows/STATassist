@@ -110,9 +110,13 @@ test_that("one model on its own is scored without a comparison", {
   expect_false("comparisons" %in% names(res))
   # An empty list is the same statement as NULL and reads better out of a
   # lapply() that found nothing.
-  expect_identical(evaluate_regression_models(parts$models$full,
-                                              list(), newdata = parts$test),
-                   res, ignore_attr = "metadata")
+  empty <- evaluate_regression_models(parts$models$full, list(),
+                                      newdata = parts$test)
+  # `metadata` is a list element carrying a per-call timestamp, not an
+  # attribute, so `ignore_attr` cannot drop it; it is removed before comparing.
+  empty$metadata <- NULL
+  res$metadata <- NULL
+  expect_identical(empty, res)
 })
 
 test_that("the baseline is labelled as the caller asks", {

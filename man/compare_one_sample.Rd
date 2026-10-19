@@ -40,16 +40,17 @@ sample exceeds \code{mu}, and every reported quantity follows that direction.}
 
 \item{conf_level}{Confidence level for all reported intervals.}
 
-\item{fc_mean}{Which centre the fold change divides \code{mu} into, \code{"arith"} for
-the arithmetic mean or \code{"geom"} for the geometric mean. Defaults to
-\code{"geom"} when \code{input_scale = "log2"} and to \code{"arith"} otherwise. Affects
-the \code{effect} table only: the t-test is a test of the mean either way.}
+\item{fc_mean}{Which centre \code{effect$center} reports, \code{"arith"} for the
+arithmetic mean or \code{"geom"} for the geometric mean. Defaults to \code{"geom"}
+when \code{input_scale = "log2"} and to \code{"arith"} otherwise. Affects the
+\code{center} and \code{diff} of the \code{effect} table only: the t-test is a test of the
+mean either way, and no fold change is taken in this scenario.}
 
 \item{input_scale}{The scale \code{data} and \code{mu} arrive on, \code{"raw"} or \code{"log2"}.
-On the log2 scale both are raised back through \code{2^x} before the ratio is
-taken, so \code{fold_change} means what it does for raw input. This changes the
-\code{effect} table only, never the tests. See \code{\link[=compare_two_groups]{compare_two_groups()}} for the
-full account.}
+On the log2 scale both are raised back through \code{2^x} before \code{effect$center}
+and \code{effect$diff} are taken, so those two read on the original measurement
+scale. This changes the \code{effect} table only, never the tests. See
+\code{\link[=compare_two_groups]{compare_two_groups()}} for the full account.}
 
 \item{p_adjust}{Multiplicity adjustment applied across \code{feats} within each
 test table, passed to \code{\link[stats:p.adjust]{stats::p.adjust()}}. Use \code{"none"} to disable.}
@@ -61,8 +62,9 @@ is attached as \verb{$diagnostics}.}
 A \code{sa_comparison} object with the layout described in
 \code{\link[=compare_two_groups]{compare_two_groups()}}, with two differences. \code{design} carries \code{mu},
 \code{p} and \code{success} instead of \code{group_lv}, since there are no groups, and
-\code{effect} holds \code{n_used}, \code{center} (the centre \code{fc_mean} selected), \code{mu},
-\code{diff}, \code{fold_change} and \code{log2fc}, the ratio being that centre over \code{mu}.
+\code{effect} holds \code{n_used}, \code{center} (the centre \code{fc_mean} selected), \code{mu} and
+\code{diff}, that centre minus \code{mu}. There is no \code{fold_change} or \code{log2fc}: see
+"Distance from a hypothesised value" below.
 Every column of \code{effect} is on the original measurement scale, so with
 \code{input_scale = "log2"} its \code{center}, \code{mu} and \code{diff} are back-transformed
 and differ from the same-named columns of \code{tests$t_test}, which stay on the
@@ -104,19 +106,29 @@ when the data are incomplete. Features that cannot be tested do not abort the
 run: their row is filled with \code{NA} and all such features are reported
 together in a single warning.
 }
-\section{Fold change against a hypothesised value}{
+\section{Distance from a hypothesised value}{
 
-\code{fold_change} is \code{center / mu} and \code{log2fc} its base-2 logarithm, so both are
-undefined when \code{mu} is zero, which is also its most common value. Both
-columns are \code{NA} in that case rather than infinite, a message says so, and
-\code{\link[=estimate_significance]{estimate_significance()}} will call every feature undecided. Reporting \code{Inf}
-would read as an infinitely large increase when what actually happened is
-that the question has no answer.
+A single sample is compared with a number rather than with a second group, so
+the effect it reports is a distance from that number and not a ratio. A ratio
+against \code{mu} would be undefined at \code{mu = 0}, its most common value, and would
+change meaning with the sign of \code{mu}; a distance has neither problem.
 
-This cannot arise under \code{input_scale = "log2"}. There the reference is
-\code{2^mu}, which is positive whatever \code{mu} is, and \code{mu = 0} simply means a
-reference of 1. Under the default \code{fc_mean = "geom"} the whole row reduces to
-\code{log2fc = mean(x) - mu}.
+\code{\link[=estimate_significance]{estimate_significance()}} therefore reads a one-sample result on the p-value
+alone: \code{is_signif} is \code{adj_pvalue <= pval_cutoff}, and \code{log2fc_cutoff} is
+ignored. Beside the p-value its verdict table carries the distance each test
+estimated, on the scale the test ran on:
+
+\describe{
+\item{\code{delta_mu}}{For \code{t_test}, the mean minus \code{mu}; for \code{wilcox_test}, the
+Hodges-Lehmann pseudo-median minus \code{mu}.}
+\item{\code{delta_p}}{For \code{prop_test}, the observed proportion minus \code{p}.}
+}
+
+\code{\link[=draw_volcano_plot]{draw_volcano_plot()}} draws that verdict on an axis centred on the reference.
+
+With \code{input_scale = "log2"} the verdict's distance is in log2 units, the
+scale the tests ran on, while \code{effect$diff} is back-transformed to the
+original scale, so the two are different numbers.
 }
 
 \examples{

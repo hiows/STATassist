@@ -5,7 +5,8 @@
 #' cutoffs and labels the strongest of them. Under an omnibus or contrast
 #' reading the effect is signed `log2fc` and points are coloured by direction.
 #' A term reading of a factorial comparison is drawn as one panel per term, with
-#' `|log2_effect|` on the x axis and a single significance colour.
+#' `|log2_effect|` on the x axis and a single significance colour. A one-sample
+#' verdict is drawn on an axis centred on its reference; see "One sample".
 #'
 #' @param significance_result The object returned by
 #'   [estimate_significance()], whose `significance` element is what is plotted.
@@ -29,7 +30,8 @@
 #'   agree with its `is_signif` column. Supply a number to override them.
 #'   Selecting a subset of rows keeps the recorded values, but selecting
 #'   columns drops them, in which case both must be given. Under a term reading
-#'   the magnitude cutoff is applied to `abs(log2_effect)`.
+#'   the magnitude cutoff is applied to `abs(log2_effect)`. A one-sample verdict
+#'   has no magnitude cutoff, so `log2fc_cutoff` is ignored for it.
 #' @param anno_feats Logical. If `TRUE`, label the strongest significant
 #'   features. A run where no feature clears both cutoffs still draws the plot,
 #'   with a `message()` in place of the labels.
@@ -106,6 +108,17 @@
 #' fold change. Significant points are black; labels stay red so they are not
 #' read as up-regulation.
 #'
+#' @section One sample:
+#' A [compare_one_sample()] verdict carries a distance from a reference,
+#' `delta_mu` or `delta_p`, rather than a fold change, and is judged on the
+#' p-value alone. Each point is drawn at the estimate itself, the reference plus
+#' that distance, so the x axis reads on the scale of the data with the
+#' reference in the middle: the derived range is symmetric about it, a single
+#' vertical guide marks it, and the axis is labelled with the estimate and the
+#' reference, for example `mean (Delta from mu = 3)`. The horizontal guide is
+#' the p-value cutoff, as everywhere else. Significant points are red above the
+#' reference and blue below it.
+#'
 #' @seealso [estimate_significance()], whose output is the only argument this
 #'   function needs.
 #'
@@ -145,6 +158,10 @@
 #' ## One panel per term of a crossed design: wool, tension, wool:tension
 #' draw_volcano_plot(estimate_significance(fact, by = "term", log2fc_cutoff = 0.1),
 #'                   main = "warpbreaks, by term")
+#'
+#' ## A one-sample verdict is drawn around its reference, here mu = 3
+#' one <- suppressWarnings(compare_one_sample(iris, names(iris)[1:4], mu = 3))
+#' draw_volcano_plot(estimate_significance(one))
 #'
 #' @export
 draw_volcano_plot <- function(significance_result,
@@ -394,11 +411,23 @@ sa_volcano_check_cols <- function(tbl, p_col) {
 #' @keywords internal
 #' @noRd
 sa_volcano_cutoffs <- function(tbl, log2fc_cutoff, pval_cutoff) {
-  if (is.null(log2fc_cutoff)) {
-    log2fc_cutoff <- attr(tbl, "log2fc_cutoff")
-  }
   if (is.null(pval_cutoff)) {
     pval_cutoff <- attr(tbl, "pval_cutoff")
+  }
+  # A one-sample verdict is judged on the p-value alone, so a magnitude cutoff
+  # has nothing to apply to and is not asked for.
+  if (sa_verdict_is_delta(sa_verdict_effect_col(tbl))) {
+    if (is.null(pval_cutoff)) {
+      stop("`significance_result` does not carry the cutoff ",
+           "estimate_significance() records, so `pval_cutoff` must be ",
+           "supplied. Selecting columns from the table drops it.",
+           call. = FALSE)
+    }
+    sa_check_scalar_num(pval_cutoff, "pval_cutoff", 0, 1, lower_open = TRUE)
+    return(list(log2fc = NULL, pval = pval_cutoff))
+  }
+  if (is.null(log2fc_cutoff)) {
+    log2fc_cutoff <- attr(tbl, "log2fc_cutoff")
   }
   if (is.null(log2fc_cutoff) || is.null(pval_cutoff)) {
     stop("`significance_result` does not carry the cutoffs ",
@@ -447,12 +476,41 @@ sa_volcano_lims <- function(tables, p_col, log2fc_cutoff, pval_cutoff, xlim,
   y_top <- max(max(y_finite), -log10(pval_cutoff), 1)
   x_max <- max(max(abs(x_finite)), log2fc_cutoff)
 
+  # A distance is drawn at the estimate it describes, so the axis is centred on
+  # the reference rather than on zero, and is symmetric about it.
+  centre <- if (sa_verdict_is_delta(effect_col)) {
+    sa_volcano_reference(tables[[1]])
+  } else {
+    0
+  }
+
   list(xlim = if (is.null(xlim)) {
-         if (magnitude) c(0, x_max) * c(1, 1.05) else c(-x_max, x_max) * 1.05
+         if (magnitude) {
+           c(0, x_max) * c(1, 1.05)
+         } else {
+           centre + c(-x_max, x_max) * 1.05
+         }
        } else {
          xlim
        },
        ylim = if (is.null(ylim)) c(0, y_top * 1.1) else ylim)
+}
+
+
+#' The reference a one-sample verdict measured its distance from
+#'
+#' @keywords internal
+#' @noRd
+sa_volcano_reference <- function(tbl) {
+  reference <- attr(tbl, "reference")
+  if (!is.numeric(reference) || length(reference) != 1L ||
+        !is.finite(reference)) {
+    stop("`significance_result` does not carry the `reference` attribute ",
+         "estimate_significance() records for a one-sample verdict, so the ",
+         "axis has nothing to be centred on. Selecting columns from the table ",
+         "drops it.", call. = FALSE)
+  }
+  reference
 }
 
 
@@ -483,6 +541,10 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
   sa_check_feat_names(feats)
   effect_col <- sa_verdict_effect_col(tbl)
   magnitude <- effect_col == "log2_effect"
+  distance <- sa_verdict_is_delta(effect_col)
+  # A distance is drawn at the estimate it was taken from, so the points and the
+  # guide sit on the reference's own scale rather than on a scale around zero.
+  centre <- if (distance) sa_volcano_reference(tbl) else 0
   effect <- tbl[[effect_col]]
   mag <- if (magnitude) abs(effect) else effect
   pvalue <- tbl[[p_col]]
@@ -509,7 +571,7 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
   # Capped points are pulled just inside the panel rather than onto its edge, so
   # that a label still fits above them.
   plot_y <- neglog_p
-  plot_x <- mag
+  plot_x <- centre + mag
   inf_y <- is.infinite(plot_y)
   inf_x <- is.infinite(plot_x)
   n_capped_y <- sum(inf_y)
@@ -518,7 +580,7 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
   if (magnitude) {
     plot_x[inf_x] <- max(xlim) - diff(xlim) * 0.02
   } else {
-    plot_x[inf_x] <- ifelse(plot_x[inf_x] > 0,
+    plot_x[inf_x] <- ifelse(plot_x[inf_x] > centre,
                             max(xlim) - diff(xlim) * 0.02,
                             min(xlim) + diff(xlim) * 0.02)
   }
@@ -540,6 +602,10 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
     is_hit <- passes_p & !is.na(mag) & mag >= log2fc_cutoff
     is_up <- is_hit
     is_down <- rep(FALSE, length(is_hit))
+  } else if (distance) {
+    # The p-value alone decides, and the side of the reference only colours.
+    is_up <- passes_p & !is.na(mag) & mag >= 0
+    is_down <- passes_p & !is.na(mag) & mag < 0
   } else {
     is_up <- passes_p & !is.na(mag) & mag >= log2fc_cutoff
     is_down <- passes_p & !is.na(mag) & mag <= -log2fc_cutoff
@@ -583,6 +649,12 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
       v = log2fc_cutoff,
       col = "green3", lwd = 2, lty = 3
     )
+  } else if (distance) {
+    graphics::abline(
+      h = -log10(pval_cutoff),
+      v = centre,
+      col = "green3", lwd = 2, lty = 3
+    )
   } else {
     graphics::abline(
       h = -log10(pval_cutoff),
@@ -619,7 +691,11 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
     # text() treats a zero-length `labels` as an error rather than as nothing to
     # draw, so a run where no feature clears both cutoffs has to stop here.
     if (length(idx) == 0L) {
-      message("No feature clears both cutoffs, so nothing was labelled.")
+      message(if (distance) {
+        "No feature clears the p-value cutoff, so nothing was labelled."
+      } else {
+        "No feature clears both cutoffs, so nothing was labelled."
+      })
     } else {
       graphics::text(
         plot_x[idx],
@@ -646,11 +722,22 @@ sa_volcano_one <- function(tbl, use_adjusted, log2fc_cutoff, pval_cutoff,
 #' deviation from what the rest of the model predicts rather than a ratio at all,
 #' and the panel plots its absolute value so the axis has no direction. A
 #' contrast table of the same comparison does compare a named pair, so it is
-#' left alone.
+#' left alone. A one-sample table is drawn at the estimate itself, so the label
+#' names that estimate and the reference its distance was taken from.
 #'
 #' @keywords internal
 #' @noRd
 sa_volcano_xlab <- function(tbl) {
+  effect_col <- sa_verdict_effect_col(tbl)
+  if (sa_verdict_is_delta(effect_col)) {
+    estimate <- attr(tbl, "estimate_label")
+    if (is.null(estimate)) estimate <- "estimate"
+    symbol <- if (effect_col == "delta_mu") quote(mu) else quote(italic(p))
+    reference <- signif(sa_volcano_reference(tbl), 4)
+    return(as.expression(bquote(
+      .(estimate) ~ group("(", Delta ~ "from" ~ .(symbol) == .(reference), ")")
+    )))
+  }
   term <- attr(tbl, "term")
   if (!is.null(term)) {
     return(as.expression(

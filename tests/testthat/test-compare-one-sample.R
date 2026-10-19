@@ -60,26 +60,71 @@ test_that("the design records mu instead of group levels", {
   expect_false(res$design$paired)
 })
 
-test_that("the effect table divides the sample centre by mu", {
+test_that("the effect table reports a distance from mu and no fold change", {
   res <- sa_one_sample_fixture()
+  expect_identical(names(res$effect),
+                   c("features", "n_used", "center", "mu", "diff"))
   row <- res$effect[res$effect$features == "Sepal.Length", ]
   expect_equal(row$center, mean(iris$Sepal.Length))
+  expect_equal(row$mu, 3)
   expect_equal(row$diff, mean(iris$Sepal.Length) - 3)
-  expect_equal(row$fold_change, mean(iris$Sepal.Length) / 3)
-  expect_equal(row$log2fc, log2(mean(iris$Sepal.Length) / 3))
 })
 
-test_that("mu = 0 leaves the ratio undefined rather than infinite", {
-  expect_message(
+test_that("mu = 0 is an ordinary reference for a distance", {
+  expect_no_message(
     res <- suppressWarnings(
       compare_one_sample(iris, "Sepal.Length", mu = 0, diagnose = FALSE)
-    ),
-    "undefined"
+    )
   )
-  expect_true(is.na(res$effect$fold_change))
-  expect_true(is.na(res$effect$log2fc))
-  # The tests themselves are unaffected; only the ratio has no meaning.
+  expect_equal(res$effect$diff, mean(iris$Sepal.Length))
   expect_false(is.na(res$tests$t_test$pval))
+})
+
+test_that("a one-sample verdict carries each test's own distance", {
+  res <- sa_one_sample_fixture()
+
+  t_sig <- estimate_significance(res, test = "t_test")$significance
+  expect_identical(names(t_sig),
+                   c("features", "delta_mu", "pvalue", "adj_pvalue",
+                     "is_signif"))
+  expect_equal(t_sig$delta_mu, res$tests$t_test$diff)
+  expect_identical(attr(t_sig, "reference"), 3)
+  expect_identical(attr(t_sig, "estimate_label"), "mean")
+  expect_null(attr(t_sig, "log2fc_cutoff"))
+
+  w_sig <- estimate_significance(res, test = "wilcox_test")$significance
+  expect_equal(w_sig$delta_mu, res$tests$wilcox_test$hl_shift - 3)
+  expect_identical(attr(w_sig, "estimate_label"), "pseudo-median")
+
+  flags <- data.frame(am = mtcars$am, vs = mtcars$vs)
+  prop <- suppressWarnings(
+    compare_one_sample(flags, c("am", "vs"), mu = 0.5, p = 0.3,
+                       diagnose = FALSE)
+  )
+  p_sig <- estimate_significance(prop, test = "prop_test")$significance
+  expect_true("delta_p" %in% names(p_sig))
+  expect_false("delta_mu" %in% names(p_sig))
+  expect_equal(p_sig$delta_p, colMeans(flags) - 0.3, ignore_attr = TRUE)
+  expect_identical(attr(p_sig, "reference"), 0.3)
+})
+
+test_that("a one-sample verdict is decided by the p-value alone", {
+  res <- sa_one_sample_fixture()
+  loose <- estimate_significance(res, log2fc_cutoff = 0)$significance
+  strict <- estimate_significance(res, log2fc_cutoff = 100)$significance
+  expect_identical(loose$is_signif, strict$is_signif)
+  expect_identical(strict$is_signif, strict$adj_pvalue <= 0.05)
+
+  # A test that could not run leaves the verdict undecided, not negative.
+  na_sig <- estimate_significance(res, test = "prop_test")$significance
+  expect_true(all(is.na(na_sig$is_signif)))
+})
+
+test_that("printing a one-sample verdict shows the p-value cutoff only", {
+  sig <- estimate_significance(sa_one_sample_fixture())
+  expect_output(print(sig), "cutoffs  : adj_pvalue <= 0.05  \\(BH\\)")
+  out <- capture.output(print(sig))
+  expect_false(any(grepl("log2fc|delta", out)))
 })
 
 test_that("a one-sided alternative leaves the untested side open", {

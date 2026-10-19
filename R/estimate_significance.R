@@ -19,7 +19,8 @@
 #' @param log2fc_cutoff Minimum absolute effect size required to call a feature
 #'   significant. Under `by = "omnibus"` and `by = "contrast"` that is
 #'   `abs(log2fc)`; under `by = "term"` it is `abs(log2_effect)`. The default of
-#'   1 is a two-fold change on a fold-change axis.
+#'   1 is a two-fold change on a fold-change axis. Ignored for a
+#'   [compare_one_sample()] result, which is judged on the p-value alone.
 #' @param pval_cutoff Largest `adj_pvalue` allowed for a feature to be called
 #'   significant.
 #' @param adj_type Multiplicity adjustment. `NULL`, the default, reuses the
@@ -49,7 +50,8 @@
 #'       order `comparison_result$pairwise[[test]]` fixes. With `by = "term"`,
 #'       one data.frame per model term named after it, in the order
 #'       `comparison_result$terms` lists them, with `log2_effect` in place of
-#'       `log2fc`.}
+#'       `log2fc`. A one-sample verdict carries `delta_mu` or `delta_p` in place
+#'       of `log2fc`; see "One sample" below.}
 #'   }
 #'
 #'   The cutoffs, the test name and the adjustment actually used are attached to
@@ -120,6 +122,24 @@
 #' Note that `subset()` and `[` drop `NA` rows silently, so filter with
 #' `which(x$significance$is_signif)` if the count matters.
 #'
+#' @section One sample:
+#' A [compare_one_sample()] result has no second group, so there is no fold
+#' change to read and no magnitude cutoff to apply. `is_signif` is
+#' `adj_pvalue <= pval_cutoff`, `log2fc_cutoff` is ignored without a message,
+#' and the table records no `log2fc_cutoff` attribute. In place of `log2fc` the
+#' table carries the distance the named test estimated from its reference, on
+#' the scale the test ran on:
+#'
+#' \describe{
+#'   \item{`delta_mu`}{`t_test`: the mean minus `mu`. `wilcox_test`: the
+#'     Hodges-Lehmann pseudo-median minus `mu`.}
+#'   \item{`delta_p`}{`prop_test`: the observed proportion minus `p`.}
+#' }
+#'
+#' The reference and the name of the estimated centre are attached as the
+#' `reference` and `estimate_label` attributes, which is what
+#' [draw_volcano_plot()] centres and labels its x axis by.
+#'
 #' @seealso [compare_two_groups()] for the input and [draw_volcano_plot()] for
 #'   the output.
 #'
@@ -164,6 +184,15 @@
 #' by_term <- estimate_significance(fact, by = "term", log2fc_cutoff = 0.1)
 #' names(by_term$significance)
 #' by_term$significance[["wool:tension"]]
+#'
+#' ## A single sample against a hypothesised value is judged on the p-value
+#' ## alone, and reports its distance from mu instead of a fold change
+#' ## (the proportion test does not apply to these continuous columns, hence the
+#' ## suppressed warning).
+#' one <- suppressWarnings(
+#'   compare_one_sample(iris, c("Sepal.Length", "Sepal.Width"), mu = 3)
+#' )
+#' estimate_significance(one)$significance
 #'
 #' @export
 estimate_significance <- function(comparison_result,
@@ -218,6 +247,22 @@ estimate_significance <- function(comparison_result,
   } else {
     adj_pvalue <- stats::p.adjust(pvalue, method = adj_type)
     adj_used <- adj_type
+  }
+
+  if (identical(comparison_result$analysis, "one_sample_comparison")) {
+    dist <- sa_one_sample_delta(comparison_result, test)
+    out <- sa_significance_table(comparison_result$features, dist$delta,
+                                 pvalue, adj_pvalue, log2fc_cutoff,
+                                 pval_cutoff, effect_col = dist$col)
+    attrs <- sa_significance_attrs(comparison_result, test, adj_used,
+                                   log2fc_cutoff, pval_cutoff)
+    # A distance has no magnitude cutoff, so the one the caller passed is left
+    # off the table rather than recorded as though it had been applied.
+    attrs$log2fc_cutoff <- NULL
+    attrs$reference <- dist$reference
+    attrs$estimate_label <- dist$estimate_label
+    out <- do.call(structure, c(list(out), attrs))
+    return(sa_new_significance(comparison_result$analysis, out))
   }
 
   out <- sa_significance_table(comparison_result$features,
@@ -277,15 +322,68 @@ sa_significance_attrs <- function(comparison_result, test, adj_used,
 
 #' The effect-size column a verdict table carries
 #'
-#' Term readings store the ANOVA component under `log2_effect`; every other
-#' reading keeps `log2fc`. [draw_volcano_plot()] and [print.sa_significance()]
-#' both ask here so the column they read cannot drift from the one the table
-#' was built with.
+#' Term readings store the ANOVA component under `log2_effect`, and a one-sample
+#' reading stores its distance from the reference under `delta_mu` or `delta_p`;
+#' every other reading keeps `log2fc`. [draw_volcano_plot()] and
+#' [print.sa_significance()] both ask here so the column they read cannot drift
+#' from the one the table was built with.
 #'
 #' @keywords internal
 #' @noRd
 sa_verdict_effect_col <- function(tbl) {
-  if ("log2_effect" %in% names(tbl)) "log2_effect" else "log2fc"
+  hit <- intersect(c("log2_effect", sa_delta_cols()), names(tbl))
+  if (length(hit) == 0L) "log2fc" else hit[1]
+}
+
+
+#' The distance columns of a one-sample verdict, named after their reference
+#'
+#' @keywords internal
+#' @noRd
+sa_delta_cols <- function() {
+  c(delta_mu = "delta_mu", delta_p = "delta_p")
+}
+
+
+#' Whether a verdict's effect column is a distance judged on the p-value alone
+#'
+#' @keywords internal
+#' @noRd
+sa_verdict_is_delta <- function(effect_col) {
+  effect_col %in% sa_delta_cols()
+}
+
+
+#' The distance a one-sample test estimated, and what it is measured from
+#'
+#' Each test estimates a different centre against a different reference, so the
+#' distance is read per test rather than from the shared `effect` table, and on
+#' the scale the test ran on. `test_info$id` decides it rather than the slot
+#' name, since the id is what says which procedure filled the slot.
+#'
+#' @return A list of `col` (the verdict column name), `delta`, `reference` and
+#'   `estimate_label`, the name of the centre `delta` was taken from.
+#'
+#' @keywords internal
+#' @noRd
+sa_one_sample_delta <- function(comparison_result, test) {
+  tbl <- comparison_result$tests[[test]]
+  design <- comparison_result$design
+  id <- comparison_result$test_info[[test]]$id
+  switch(
+    id,
+    one_sample_t_test = list(col = "delta_mu", delta = tbl$diff,
+                             reference = design$mu, estimate_label = "mean"),
+    one_sample_wilcoxon = list(col = "delta_mu",
+                               delta = tbl$hl_shift - design$mu,
+                               reference = design$mu,
+                               estimate_label = "pseudo-median"),
+    one_sample_proportion = list(col = "delta_p", delta = tbl$diff,
+                                 reference = design$p,
+                                 estimate_label = "proportion"),
+    stop("internal error: no one-sample distance is defined for test id `",
+         id, "`.", call. = FALSE)
+  )
 }
 
 
@@ -293,7 +391,8 @@ sa_verdict_effect_col <- function(tbl) {
 #'
 #' Shared so that the two axes and the rule combining them cannot drift apart
 #' between the omnibus and the contrast paths. `effect_col` is `"log2fc"` for
-#' those paths and `"log2_effect"` for a term reading.
+#' those paths, `"log2_effect"` for a term reading and `"delta_mu"` or
+#' `"delta_p"` for a one-sample reading, which is judged on the p-value alone.
 #'
 #' @keywords internal
 #' @noRd
@@ -310,8 +409,11 @@ sa_significance_table <- function(features, effect, pvalue, adj_pvalue,
   # Keep the effect column between features and pvalue, matching the historical
   # column order of the fold-change reading.
   out <- out[c("features", effect_col, "pvalue", "adj_pvalue")]
-  out$is_signif <- abs(out[[effect_col]]) >= log2fc_cutoff &
+  out$is_signif <- if (sa_verdict_is_delta(effect_col)) {
     out$adj_pvalue <= pval_cutoff
+  } else {
+    abs(out[[effect_col]]) >= log2fc_cutoff & out$adj_pvalue <= pval_cutoff
+  }
   rownames(out) <- NULL
   out
 }
@@ -444,9 +546,15 @@ print.sa_significance <- function(x, ...) {
   adj_used <- attr(head_tbl, "adj_type")
   if (is.null(adj_used)) adj_used <- "none"
   effect_col <- sa_verdict_effect_col(head_tbl)
-  cat("  cutoffs  : abs(", effect_col, ") >= ", attr(head_tbl, "log2fc_cutoff"),
-      ", adj_pvalue <= ", attr(head_tbl, "pval_cutoff"),
-      "  (", adj_used, ")\n", sep = "")
+  if (sa_verdict_is_delta(effect_col)) {
+    cat("  cutoffs  : adj_pvalue <= ", attr(head_tbl, "pval_cutoff"),
+        "  (", adj_used, ")\n", sep = "")
+  } else {
+    cat("  cutoffs  : abs(", effect_col, ") >= ",
+        attr(head_tbl, "log2fc_cutoff"),
+        ", adj_pvalue <= ", attr(head_tbl, "pval_cutoff"),
+        "  (", adj_used, ")\n", sep = "")
+  }
 
   count <- function(tbl) {
     n_signif <- sum(tbl$is_signif %in% TRUE)

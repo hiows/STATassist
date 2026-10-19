@@ -52,7 +52,8 @@ significant, drawn as guides. \code{NULL}, the default, takes the values
 agree with its \code{is_signif} column. Supply a number to override them.
 Selecting a subset of rows keeps the recorded values, but selecting
 columns drops them, in which case both must be given. Under a term reading
-the magnitude cutoff is applied to \code{abs(log2_effect)}.}
+the magnitude cutoff is applied to \code{abs(log2_effect)}. A one-sample verdict
+has no magnitude cutoff, so \code{log2fc_cutoff} is ignored for it.}
 
 \item{anno_feats}{Logical. If \code{TRUE}, label the strongest significant
 features. A run where no feature clears both cutoffs still draws the plot,
@@ -92,7 +93,8 @@ Plots the effect size against \code{-log10(pvalue)} for the table
 cutoffs and labels the strongest of them. Under an omnibus or contrast
 reading the effect is signed \code{log2fc} and points are coloured by direction.
 A term reading of a factorial comparison is drawn as one panel per term, with
-\verb{|log2_effect|} on the x axis and a single significance colour.
+\verb{|log2_effect|} on the x axis and a single significance colour. A one-sample
+verdict is drawn on an axis centred on its reference; see "One sample".
 }
 \details{
 The plot margins are restored on exit, but the coordinate system is
@@ -149,6 +151,19 @@ fold change. Significant points are black; labels stay red so they are not
 read as up-regulation.
 }
 
+\section{One sample}{
+
+A \code{\link[=compare_one_sample]{compare_one_sample()}} verdict carries a distance from a reference,
+\code{delta_mu} or \code{delta_p}, rather than a fold change, and is judged on the
+p-value alone. Each point is drawn at the estimate itself, the reference plus
+that distance, so the x axis reads on the scale of the data with the
+reference in the middle: the derived range is symmetric about it, a single
+vertical guide marks it, and the axis is labelled with the estimate and the
+reference, for example \verb{mean (Delta from mu = 3)}. The horizontal guide is
+the p-value cutoff, as everywhere else. Significant points are red above the
+reference and blue below it.
+}
+
 \examples{
 iris2 <- iris[iris$Species != "setosa", ]
 res <- compare_two_groups(
@@ -185,6 +200,10 @@ draw_volcano_plot(estimate_significance(fact, log2fc_cutoff = 0.1),
 ## One panel per term of a crossed design: wool, tension, wool:tension
 draw_volcano_plot(estimate_significance(fact, by = "term", log2fc_cutoff = 0.1),
                   main = "warpbreaks, by term")
+
+## A one-sample verdict is drawn around its reference, here mu = 3
+one <- suppressWarnings(compare_one_sample(iris, names(iris)[1:4], mu = 3))
+draw_volcano_plot(estimate_significance(one))
 
 }
 \seealso{

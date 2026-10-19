@@ -142,12 +142,11 @@ test_that("mu = 0 is an ordinary reference on the log2 scale", {
                        diagnose = FALSE)
   )
 
-  # 2^0 is 1, so the ratio is defined and the raw-scale warning must not fire.
-  expect_false(any(is.na(on_log2$effect$fold_change)))
+  # 2^0 is 1, and the default geometric centre is 2^mean of the log2 values.
   expect_equal(on_log2$effect$mu, rep(1, length(sa_feats())))
-  expect_equal(on_log2$effect$log2fc,
-               vapply(sa_feats(), function(f) mean(logged[[f]]), numeric(1)),
-               ignore_attr = TRUE)
+  geom <- vapply(sa_feats(), function(f) 2^mean(logged[[f]]), numeric(1))
+  expect_equal(on_log2$effect$center, geom, ignore_attr = TRUE)
+  expect_equal(on_log2$effect$diff, geom - 1, ignore_attr = TRUE)
 })
 
 test_that("a mu that cannot be a log2 value is rejected outright", {

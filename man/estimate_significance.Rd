@@ -29,7 +29,8 @@ scenario ran, which is the parametric one in every scenario.}
 \item{log2fc_cutoff}{Minimum absolute effect size required to call a feature
 significant. Under \code{by = "omnibus"} and \code{by = "contrast"} that is
 \code{abs(log2fc)}; under \code{by = "term"} it is \code{abs(log2_effect)}. The default of
-1 is a two-fold change on a fold-change axis.}
+1 is a two-fold change on a fold-change axis. Ignored for a
+\code{\link[=compare_one_sample]{compare_one_sample()}} result, which is judged on the p-value alone.}
 
 \item{pval_cutoff}{Largest \code{adj_pvalue} allowed for a feature to be called
 significant.}
@@ -63,7 +64,8 @@ same data.frames, one per pairwise contrast and named after it, in the
 order \code{comparison_result$pairwise[[test]]} fixes. With \code{by = "term"},
 one data.frame per model term named after it, in the order
 \code{comparison_result$terms} lists them, with \code{log2_effect} in place of
-\code{log2fc}.}
+\code{log2fc}. A one-sample verdict carries \code{delta_mu} or \code{delta_p} in place
+of \code{log2fc}; see "One sample" below.}
 }
 
 The cutoffs, the test name and the adjustment actually used are attached to
@@ -141,6 +143,26 @@ whose two group centres have opposite signs gives \code{log2fc = NaN}, which mak
 Note that \code{subset()} and \code{[} drop \code{NA} rows silently, so filter with
 \code{which(x$significance$is_signif)} if the count matters.
 }
+\section{One sample}{
+
+A \code{\link[=compare_one_sample]{compare_one_sample()}} result has no second group, so there is no fold
+change to read and no magnitude cutoff to apply. \code{is_signif} is
+\code{adj_pvalue <= pval_cutoff}, \code{log2fc_cutoff} is ignored without a message,
+and the table records no \code{log2fc_cutoff} attribute. In place of \code{log2fc} the
+table carries the distance the named test estimated from its reference, on
+the scale the test ran on:
+
+\describe{
+\item{\code{delta_mu}}{\code{t_test}: the mean minus \code{mu}. \code{wilcox_test}: the
+Hodges-Lehmann pseudo-median minus \code{mu}.}
+\item{\code{delta_p}}{\code{prop_test}: the observed proportion minus \code{p}.}
+}
+
+The reference and the name of the estimated centre are attached as the
+\code{reference} and \code{estimate_label} attributes, which is what
+\code{\link[=draw_volcano_plot]{draw_volcano_plot()}} centres and labels its x axis by.
+}
+
 \examples{
 iris2 <- iris[iris$Species != "setosa", ]
 res <- compare_two_groups(
@@ -182,6 +204,15 @@ draw_volcano_plot(estimate_significance(fact, log2fc_cutoff = 0.1))
 by_term <- estimate_significance(fact, by = "term", log2fc_cutoff = 0.1)
 names(by_term$significance)
 by_term$significance[["wool:tension"]]
+
+## A single sample against a hypothesised value is judged on the p-value
+## alone, and reports its distance from mu instead of a fold change
+## (the proportion test does not apply to these continuous columns, hence the
+## suppressed warning).
+one <- suppressWarnings(
+  compare_one_sample(iris, c("Sepal.Length", "Sepal.Width"), mu = 3)
+)
+estimate_significance(one)$significance
 
 }
 \seealso{
