@@ -1,5 +1,7 @@
 # STATassist (development version)
 
+# STATassist 1.1.1
+
 * `compare_one_sample()` no longer takes a fold change against `mu`: `$effect`
   drops `fold_change` and `log2fc` and keeps `n_used`, `center`, `mu` and
   `diff` (breaking for callers that read those two columns). The `mu = 0`
